@@ -6,16 +6,18 @@ class AppColors {
   static const Color primaryDark = Color(0xFF4F46E5);
   static const Color primaryLight = Color(0xFF818CF8);
 
-  // Background
-  static const Color bgDark = Color(0xFF0B0C10); // Rich deep obsidian dark
-  static const Color bgCard = Color(0xFF161824); // Dark slate card surface
-  static const Color bgCardLight = Color(0xFF1F2235); // Lighter card/input surface
+  // Background (Dark)
+  static const Color bgDark = Color(0xFF0B0C10);
+  static const Color bgCard = Color(0xFF161824);
+  static const Color bgCardLight = Color(0xFF1F2235);
 
   // Accent
-  static const Color accent = Color(0xFF06B6D4); // Cyan Accent
-  static const Color accentGreen = Color(0xFF10B981); // Emerald Green Accent
-  static const Color accentOrange = Color(0xFFF59E0B); // Amber Accent
-  static const Color accentRed = Color(0xFFEF4444); // Crimson Accent
+  static const Color accent = Color(0xFF06B6D4);
+  static const Color accentGreen = Color(0xFF10B981);
+  static const Color accentOrange = Color(0xFFF59E0B);
+  static const Color accentAmber = Color(0xFFF59E0B);
+  static const Color accentRed = Color(0xFFEF4444);
+
 
   // Text
   static const Color textPrimary = Color(0xFFF9FAFB);
@@ -33,7 +35,7 @@ class AppColors {
   static const Color borderColor = Color(0xFF272A3E);
   static const Color dividerColor = Color(0xFF1F2235);
 
-  // Gradient List
+  // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -71,3 +73,28 @@ class AppColors {
   );
 }
 
+// Extension to dynamically supply Light & Dark mode colors throughout the app
+extension AppThemeContext on BuildContext {
+  bool get isDark => Theme.of(this).brightness == Brightness.dark;
+
+  Color get cardBg => isDark ? const Color(0xFF161824) : Colors.white;
+  Color get cardLightBg => isDark ? const Color(0xFF1F2235) : const Color(0xFFF8FAFC);
+  Color get txtPrimary => isDark ? const Color(0xFFF9FAFB) : const Color(0xFF0F172A);
+  Color get txtSecondary => isDark ? const Color(0xFF9CA3AF) : const Color(0xFF475569);
+  Color get txtMuted => isDark ? const Color(0xFF6B7280) : const Color(0xFF64748B);
+  Color get borderCol => isDark ? const Color(0xFF272A3E) : const Color(0xFFE2E8F0);
+  Color get dividerCol => isDark ? const Color(0xFF1F2235) : const Color(0xFFE2E8F0);
+  Color get bottomNavBg => isDark ? const Color(0xFF161824) : Colors.white;
+
+  LinearGradient get mainBgGradient => isDark
+      ? const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0B0C10), Color(0xFF12131F)],
+        )
+      : const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+        );
+}

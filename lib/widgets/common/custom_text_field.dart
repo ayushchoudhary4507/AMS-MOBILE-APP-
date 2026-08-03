@@ -33,14 +33,16 @@ class CustomTextField extends StatelessWidget {
       keyboardType: keyboardType,
       validator: validator,
       maxLines: maxLines,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
+      style: TextStyle(
+        color: context.txtPrimary,
         fontSize: 15,
       ),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(color: context.txtSecondary),
         hintText: hint,
-        prefixIcon: Icon(prefixIcon, color: AppColors.textMuted, size: 20),
+        hintStyle: TextStyle(color: context.txtMuted),
+        prefixIcon: Icon(prefixIcon, color: context.txtMuted, size: 20),
         suffixIcon: suffixIcon,
       ),
     );

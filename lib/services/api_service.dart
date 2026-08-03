@@ -6,8 +6,8 @@ class ApiService {
   static final Dio _dio = Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 60),
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 15),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -16,20 +16,25 @@ class ApiService {
   );
 
   static void init() {
+    _dio.interceptors.clear();
     // Request Interceptor — attach token
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await StorageService.getToken();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
+          try {
+            final token = await StorageService.getToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          } catch (_) {}
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          if (e.response?.statusCode == 401) {
-            await StorageService.clearAll();
-          }
+          try {
+            if (e.response?.statusCode == 401) {
+              await StorageService.clearAll();
+            }
+          } catch (_) {}
           return handler.next(e);
         },
       ),
@@ -37,6 +42,25 @@ class ApiService {
   }
 
   static Dio get dio => _dio;
+
+  // Helper to safely convert response data to Map<String, dynamic>
+  static Map<String, dynamic> toMap(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    } else if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    } else if (data is List) {
+      return {
+        'data': data,
+        'attendance': data,
+        'employees': data,
+        'leaves': data,
+        'records': data,
+        'result': data,
+      };
+    }
+    return {};
+  }
 
   // GET request
   static Future<Response> get(
@@ -76,3 +100,4 @@ class ApiService {
     return await _dio.patch(path, data: data);
   }
 }
+

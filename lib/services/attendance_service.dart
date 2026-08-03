@@ -7,41 +7,50 @@ class AttendanceService {
     String status = 'present',
     String? notes,
   }) async {
+    final now = DateTime.now();
+    final Map<String, dynamic> body = {
+      'status': status,
+      'checkIn': now.toIso8601String(),
+      'date': now.toIso8601String(),
+    };
+    if (notes != null && notes.isNotEmpty) {
+      body['notes'] = notes;
+    }
     final response = await ApiService.post(
       ApiConstants.attendanceMark,
-      data: {'status': status, if (notes != null) 'notes': notes},
+      data: body,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Check out
   static Future<Map<String, dynamic>> checkOut() async {
     final response = await ApiService.put(ApiConstants.attendanceCheckout);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get my today's attendance
   static Future<Map<String, dynamic>> getMyTodayAttendance() async {
     final response = await ApiService.get(ApiConstants.attendanceMyToday);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get today all attendance (Admin)
   static Future<Map<String, dynamic>> getTodayAllAttendance() async {
     final response = await ApiService.get(ApiConstants.attendanceToday);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get today status
   static Future<Map<String, dynamic>> getTodayAttendanceStatus() async {
     final response = await ApiService.get(ApiConstants.attendanceTodayStatus);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get attendance stats
   static Future<Map<String, dynamic>> getAttendanceStats() async {
     final response = await ApiService.get(ApiConstants.attendanceStats);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get calendar data
@@ -49,14 +58,15 @@ class AttendanceService {
     int? month,
     int? year,
   }) async {
+    final Map<String, dynamic> query = {};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+
     final response = await ApiService.get(
       ApiConstants.attendanceCalendar,
-      queryParams: {
-        if (month != null) 'month': month,
-        if (year != null) 'year': year,
-      },
+      queryParams: query.isNotEmpty ? query : null,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get history by employeeId
@@ -64,7 +74,7 @@ class AttendanceService {
       String employeeId) async {
     final response =
         await ApiService.get('${ApiConstants.attendanceHistory}/$employeeId');
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get by specific date (Admin)
@@ -73,7 +83,7 @@ class AttendanceService {
       ApiConstants.attendanceByDate,
       queryParams: {'date': date},
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Admin mark attendance
@@ -82,15 +92,19 @@ class AttendanceService {
     required String status,
     String? notes,
   }) async {
+    final Map<String, dynamic> body = {
+      'employeeId': employeeId,
+      'status': status,
+    };
+    if (notes != null && notes.isNotEmpty) {
+      body['notes'] = notes;
+    }
+
     final response = await ApiService.post(
       ApiConstants.attendanceAdminMark,
-      data: {
-        'employeeId': employeeId,
-        'status': status,
-        if (notes != null) 'notes': notes,
-      },
+      data: body,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // LEAVE
@@ -100,34 +114,43 @@ class AttendanceService {
     required String endDate,
     String? reason,
   }) async {
+    final Map<String, dynamic> body = {
+      'leaveType': leaveType,
+      'startDate': startDate,
+      'endDate': endDate,
+    };
+    if (reason != null && reason.isNotEmpty) {
+      body['reason'] = reason;
+    }
+
     final response = await ApiService.post(
       ApiConstants.leaveApply,
-      data: {
-        'leaveType': leaveType,
-        'startDate': startDate,
-        'endDate': endDate,
-        if (reason != null) 'reason': reason,
-      },
+      data: body,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   static Future<Map<String, dynamic>> getMyLeaves() async {
     final response = await ApiService.get(ApiConstants.leaveMyLeaves);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   static Future<Map<String, dynamic>> getAllLeaves({String? status}) async {
+    final Map<String, dynamic> query = {};
+    if (status != null && status.isNotEmpty) {
+      query['status'] = status;
+    }
+
     final response = await ApiService.get(
       ApiConstants.leaveAll,
-      queryParams: {if (status != null) 'status': status},
+      queryParams: query.isNotEmpty ? query : null,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   static Future<Map<String, dynamic>> getPendingLeavesCount() async {
     final response = await ApiService.get(ApiConstants.leavePendingCount);
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   static Future<Map<String, dynamic>> approveRejectLeave({
@@ -135,19 +158,21 @@ class AttendanceService {
     required String status, // 'Approved' or 'Rejected'
     String? comments,
   }) async {
+    final Map<String, dynamic> body = {'status': status};
+    if (comments != null && comments.isNotEmpty) {
+      body['comments'] = comments;
+    }
+
     final response = await ApiService.put(
       '${ApiConstants.leaveApprove}/$leaveId',
-      data: {
-        'status': status,
-        if (comments != null) 'comments': comments,
-      },
+      data: body,
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   static Future<Map<String, dynamic>> cancelLeave(String leaveId) async {
     final response =
         await ApiService.put('${ApiConstants.leaveCancel}/$leaveId');
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 }

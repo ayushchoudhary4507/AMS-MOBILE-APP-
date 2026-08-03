@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/attendance_provider.dart';
-import '../../widgets/dashboard/stat_card.dart';
+import '../../providers/employee_provider.dart';
+import '../../providers/theme_provider.dart';
 
 class EmployeeDashboard extends ConsumerStatefulWidget {
   const EmployeeDashboard({super.key});
@@ -17,11 +19,14 @@ class EmployeeDashboard extends ConsumerStatefulWidget {
 
 class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   int _selectedIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
+    StorageService.saveLastRoute('/employee/dashboard');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(attendanceProvider.notifier).loadTodayAttendance();
       ref.read(attendanceProvider.notifier).loadStats();
       ref.read(authProvider.notifier).refreshProfile();
@@ -33,11 +38,13 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     final auth = ref.watch(authProvider);
     final user = auth.user;
     final name = user?['name'] ?? 'Employee';
-    final today = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
+    final today = DateFormat('EEEE, d MMMM').format(DateTime.now());
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildEmployeeDrawer(context, ref, auth),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.bgGradient),
+        decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -53,79 +60,139 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
+  // --- Top Header Bar ---
   Widget _buildHeader(String name, String today, AuthState auth) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary.withOpacity(0.15),
-            Colors.transparent,
-          ],
+        color: context.cardBg.withValues(alpha: 0.85),
+        border: Border(
+          bottom: BorderSide(
+            color: context.borderCol.withValues(alpha: 0.5),
+            width: 1,
+          ),
         ),
       ),
       child: Row(
         children: [
+          // Drawer / Menu Icon
+          IconButton(
+            icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 24),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          const SizedBox(width: 4),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hello, ${name.split(' ').first} 👋',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                'Employee Portal',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: context.txtPrimary,
+                  letterSpacing: -0.4,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 today,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: context.txtMuted,
                 ),
               ),
             ],
           ),
           const Spacer(),
-          // Profile Avatar
-          GestureDetector(
-            onTap: () => context.go('/employee/profile'),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  ((auth.user?['name'] != null &&
-                          (auth.user!['name'].toString().trim().isNotEmpty))
-                      ? auth.user!['name'].toString().trim()[0]
-                      : 'U')
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+          // Theme Mode Toggle (Light / Dark)
+          IconButton(
+            icon: Icon(
+              ref.watch(themeProvider) == ThemeMode.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+              color: ref.watch(themeProvider) == ThemeMode.dark
+                  ? const Color(0xFFFBBF24)
+                  : const Color(0xFF6366F1),
+              size: 22,
             ),
+            tooltip: ref.watch(themeProvider) == ThemeMode.dark
+                ? 'Switch to Light Mode'
+                : 'Switch to Dark Mode',
+            onPressed: () {
+              ref.read(themeProvider.notifier).toggleTheme();
+            },
+          ),
+          // Notification Bell with Badge Count
+          Consumer(
+            builder: (ctx, cref, _) {
+              final notifs = cref.watch(notificationsProvider);
+              final count = notifs.when(
+                data: (list) => list.where((n) {
+                  if (n is! Map) return false;
+                  final read = n['read'] ?? n['isRead'] ?? false;
+                  return read == false;
+                }).length,
+                loading: () => 0,
+                error: (e, _) => 0,
+              );
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.notifications_none_rounded,
+                      color: context.txtPrimary,
+                      size: 24,
+                    ),
+                    onPressed: () => context.go('/employee/notifications'),
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : count.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+          // Logout Button
+          IconButton(
+            icon: const Icon(
+              Icons.logout_rounded,
+              color: Color(0xFFEF4444),
+              size: 22,
+            ),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (mounted) context.go('/login');
+            },
           ),
         ],
       ),
-    ).animate().fadeIn(duration: const Duration(milliseconds: 400));
+    ).animate().fadeIn(duration: const Duration(milliseconds: 300));
   }
 
   Widget _buildBody() {
@@ -136,110 +203,514 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     return _buildDashboardTab();
   }
 
+  // --- Main Dashboard View (Admin Design Style) ---
   Widget _buildDashboardTab() {
     final attendance = ref.watch(attendanceProvider);
     final auth = ref.watch(authProvider);
-    
-    // Parse settings and quickActions from profile data
-    final settings = auth.user?['settings'] as Map<String, dynamic>?;
-    final quickActions = settings?['quickActions'] as Map<String, dynamic>?;
 
-    final showTasks = quickActions?['myTasks'] ?? true;
-    final showLeave = quickActions?['applyLeave'] ?? true;
-    final showSalary = quickActions?['mySalary'] ?? true;
-    final showShifts = quickActions?['myShifts'] ?? true;
+    final stats = attendance.stats;
 
-    final List<Widget> actions = [];
-    if (showTasks) {
-      actions.add(_buildQuickAction(
-        icon: Icons.task_alt,
-        label: 'My Tasks',
-        color: AppColors.accent,
-        onTap: () => context.go('/employee/tasks'),
-      ));
-    }
-    if (showLeave) {
-      actions.add(_buildQuickAction(
-        icon: Icons.beach_access,
-        label: 'Apply Leave',
-        color: AppColors.accentOrange,
-        onTap: () => setState(() => _selectedIndex = 2),
-      ));
-    }
-    if (showSalary) {
-      actions.add(_buildQuickAction(
-        icon: Icons.payment,
-        label: 'My Salary',
-        color: AppColors.accentGreen,
-        onTap: () => context.go('/employee/salary'),
-      ));
-    }
-    if (showShifts) {
-      actions.add(_buildQuickAction(
-        icon: Icons.schedule,
-        label: 'My Shifts',
-        color: AppColors.primaryLight,
-        onTap: () => context.go('/employee/shifts'),
-      ));
-    }
+    final presentDays = stats?['presentDays']?.toString() ??
+        stats?['presentCount']?.toString() ??
+        stats?['present']?.toString() ??
+        '0';
+    final absentDays = stats?['absentDays']?.toString() ??
+        stats?['absentCount']?.toString() ??
+        stats?['absent']?.toString() ??
+        '0';
+    final leaveDays = stats?['leaveDays']?.toString() ??
+        stats?['leaveCount']?.toString() ??
+        stats?['leave']?.toString() ??
+        attendance.myLeaves.length.toString();
+    final totalDays = stats?['totalDays']?.toString() ??
+        stats?['total']?.toString() ??
+        (attendance.calendarData.isNotEmpty ? attendance.calendarData.length.toString() : '0');
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Today's Attendance Card
+          // 1. Welcome Banner Hero Card (Admin style)
+          _buildWelcomeBanner(authName: auth.user?['name'] ?? 'Employee'),
+
+          const SizedBox(height: 24),
+
+          // 2. Today's Attendance Check In / Check Out Card
           _buildAttendanceCard(attendance),
 
           const SizedBox(height: 24),
 
-          if (actions.isNotEmpty) ...[
-            const Text(
-              'Quick Actions',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.3,
-              children: actions,
-            ).animate().slideY(
-                  begin: 0.3,
-                  end: 0,
-                  delay: const Duration(milliseconds: 200),
-                  duration: const Duration(milliseconds: 400),
+          // 3. Overview Section Header & Stat Cards Grid (Admin style)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Overview',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: context.txtPrimary,
+                  letterSpacing: -0.3,
                 ),
-            const SizedBox(height: 24),
-          ],
+              ),
+              IconButton(
+                icon: Icon(Icons.refresh_rounded, size: 18, color: context.txtMuted),
+                onPressed: () {
+                  ref.read(attendanceProvider.notifier).loadTodayAttendance();
+                  ref.read(attendanceProvider.notifier).loadStats();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
 
-          // Stats
-          const Text(
-            'My Statistics',
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            children: [
+              _buildOverviewCard(
+                title: 'Present Days',
+                value: presentDays,
+                icon: Icons.check_circle_rounded,
+                color: const Color(0xFF10B981),
+                bgColor: const Color(0xFF10B981).withValues(alpha: 0.12),
+                onTap: () => setState(() => _selectedIndex = 1),
+              ),
+              _buildOverviewCard(
+                title: 'Absent Days',
+                value: absentDays,
+                icon: Icons.cancel_rounded,
+                color: const Color(0xFFEF4444),
+                bgColor: const Color(0xFFEF4444).withValues(alpha: 0.12),
+              ),
+              _buildOverviewCard(
+                title: 'On Leave',
+                value: leaveDays,
+                icon: Icons.calendar_month_rounded,
+                color: const Color(0xFFF59E0B),
+                bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                onTap: () => setState(() => _selectedIndex = 2),
+              ),
+              _buildOverviewCard(
+                title: 'Total Days',
+                value: totalDays,
+                icon: Icons.access_time_filled_rounded,
+                color: const Color(0xFF06B6D4),
+                bgColor: const Color(0xFF06B6D4).withValues(alpha: 0.12),
+              ),
+            ],
+          ).animate().slideY(
+                begin: 0.15,
+                end: 0,
+                duration: const Duration(milliseconds: 350),
+              ),
+
+          const SizedBox(height: 24),
+
+          // 4. Quick Actions Section (Admin style icon buttons)
+          Text(
+            'Quick Actions',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              color: context.txtPrimary,
+              letterSpacing: -0.3,
             ),
           ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildQuickActionButton(
+                icon: Icons.access_time_filled_rounded,
+                label: 'Attendance',
+                color: const Color(0xFF10B981),
+                onTap: () => setState(() => _selectedIndex = 1),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.event_available_rounded,
+                label: 'Apply Leave',
+                color: const Color(0xFFF59E0B),
+                onTap: () => setState(() => _selectedIndex = 2),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.payments_rounded,
+                label: 'My Salary',
+                color: const Color(0xFF06B6D4),
+                onTap: () => context.push('/employee/salary'),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.assignment_rounded,
+                label: 'My Tasks',
+                color: const Color(0xFF6366F1),
+                onTap: () => context.push('/employee/tasks'),
+              ),
+            ],
+          ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(height: 16),
+  // --- Hero Welcome Banner ---
+  Widget _buildWelcomeBanner({required String authName}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2563EB),
+            Color(0xFF3B82F6),
+            Color(0xFF1D4ED8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Welcome back,',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    authName.split(' ').first,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('👋', style: TextStyle(fontSize: 22)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "Here's your attendance & work overview.",
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            top: 0,
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24, width: 1),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.badge_rounded, color: Colors.white, size: 30),
+                  SizedBox(height: 4),
+                  Icon(Icons.show_chart_rounded, color: Colors.white70, size: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().scale(duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+  }
 
-          _buildStatsRow(attendance),
+  // --- Overview Stat Card Component (Admin design style) ---
+  Widget _buildOverviewCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required Color bgColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: context.borderCol,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: context.txtPrimary,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: context.txtSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Quick Action Icon Button ---
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+            ),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: context.txtSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Employee Drawer ---
+  Widget _buildEmployeeDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
+    final userName = auth.user?['name'] ?? 'Employee User';
+    final userEmail = auth.user?['email'] ?? 'employee@ams.com';
+
+    return Drawer(
+      backgroundColor: context.cardBg,
+      child: Column(
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF4338CA)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            accountName: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    userName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'EMPLOYEE',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            accountEmail: Text(
+              userEmail,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+            ),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: Text(
+                userName.isNotEmpty ? userName[0].toUpperCase() : 'E',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF6366F1)),
+                  title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 0);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.access_time_filled_rounded, color: Color(0xFF10B981)),
+                  title: const Text('Attendance Calendar', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 1);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.event_available_rounded, color: Color(0xFFF59E0B)),
+                  title: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 2);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.payments_rounded, color: Color(0xFF06B6D4)),
+                  title: const Text('My Salary & Payroll', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/employee/salary');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.assignment_rounded, color: Color(0xFF8B5CF6)),
+                  title: const Text('My Tasks', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/employee/tasks');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
+                  title: const Text('Notifications Center', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/employee/notifications');
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.person_rounded, color: Color(0xFF64748B)),
+                  title: const Text('My Profile'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 3);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings_rounded, color: Color(0xFF64748B)),
+                  title: const Text('Settings & Biometrics'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/settings');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                  title: const Text('Logout', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                  onTap: () async {
+                    final router = GoRouter.of(context);
+                    Navigator.pop(context);
+                    await ref.read(authProvider.notifier).logout();
+                    router.go('/login');
+                  },
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildAttendanceCard(AttendanceState attendance) {
-    final now = DateTime.now();
     final isCheckedIn = attendance.isCheckedIn;
     final isCheckedOut = attendance.isCheckedOut;
     final todayData = attendance.todayAttendance;
@@ -257,7 +728,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.35),
+            color: AppColors.primary.withValues(alpha: 0.35),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -282,7 +753,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -328,7 +799,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               Container(
                 width: 1,
                 height: 40,
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
               ),
               Expanded(
                 child: Column(
@@ -372,6 +843,15 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                               backgroundColor: AppColors.statusPresent,
                             ),
                           );
+                        } else if (mounted) {
+                          final err = ref.read(attendanceProvider).error;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(err ?? 'Failed to mark attendance.'),
+                              backgroundColor: AppColors.accentRed,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
                         }
                       },
                 icon: attendance.isLoading
@@ -387,11 +867,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                       color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.25),
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
                   ),
                 ),
               ),
@@ -413,6 +893,15 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                               backgroundColor: AppColors.statusPresent,
                             ),
                           );
+                        } else if (mounted) {
+                          final err = ref.read(attendanceProvider).error;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(err ?? 'Failed to check out.'),
+                              backgroundColor: AppColors.accentRed,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
                         }
                       },
                 icon: const Icon(Icons.logout, color: Colors.white),
@@ -422,11 +911,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                       color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.25),
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
                   ),
                 ),
               ),
@@ -451,52 +940,9 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         );
   }
 
-  Widget _buildStatsRow(AttendanceState attendance) {
-    final stats = attendance.stats;
-    return Row(
-      children: [
-        Expanded(
-          child: StatCard(
-            title: 'Present',
-            value: stats?['presentDays']?.toString() ?? '--',
-            icon: Icons.check_circle_outline,
-            gradient: AppColors.greenGradient,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatCard(
-            title: 'Absent',
-            value: stats?['absentDays']?.toString() ?? '--',
-            icon: Icons.cancel_outlined,
-            gradient: AppColors.redGradient,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatCard(
-            title: 'Leaves',
-            value: stats?['leaveDays']?.toString() ?? '--',
-            icon: Icons.beach_access_outlined,
-            gradient: AppColors.orangeGradient,
-          ),
-        ),
-      ],
-    ).animate().slideY(
-          begin: 0.3,
-          end: 0,
-          delay: const Duration(milliseconds: 400),
-          duration: const Duration(milliseconds: 400),
-        );
-  }
 
   Widget _buildAttendanceTab() {
-    return const Center(
-      child: Text(
-        'Attendance Calendar',
-        style: TextStyle(color: AppColors.textPrimary),
-      ),
-    );
+    return _AttendanceCalendarTab();
   }
 
   Widget _buildLeaveTab() {
@@ -519,7 +965,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.35),
+                  color: AppColors.primary.withValues(alpha: 0.35),
                   blurRadius: 20,
                   spreadRadius: 3,
                 ),
@@ -557,9 +1003,9 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Text(
               (user?['role'] ?? 'Employee').toString().toUpperCase(),
@@ -619,68 +1065,46 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.bottomNavBg,
+        border: Border(
+          top: BorderSide(
+            color: context.borderCol.withValues(alpha: 0.6),
+            width: 1,
+          ),
         ),
       ),
-    );
-  }
-
-  BottomNavigationBar _buildBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: (i) => setState(() => _selectedIndex = i),
-      items: const [
-        BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined),
-            activeIcon: Icon(Icons.calendar_today),
-            label: 'Attendance'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.beach_access_outlined),
-            activeIcon: Icon(Icons.beach_access),
-            label: 'Leaves'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile'),
-      ],
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: context.txtMuted,
+        onTap: (i) => setState(() => _selectedIndex = i),
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today_outlined),
+              activeIcon: Icon(Icons.calendar_today),
+              label: 'Attendance'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.beach_access_outlined),
+              activeIcon: Icon(Icons.beach_access),
+              label: 'Leaves'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile'),
+        ],
+      ),
     );
   }
 
@@ -691,6 +1115,303 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     } catch (_) {
       return time.toString();
     }
+  }
+}
+
+// Attendance Calendar Tab Widget
+class _AttendanceCalendarTab extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_AttendanceCalendarTab> createState() =>
+      _AttendanceCalendarTabState();
+}
+
+class _AttendanceCalendarTabState
+    extends ConsumerState<_AttendanceCalendarTab> {
+  DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => _loadCalendar());
+  }
+
+  void _loadCalendar() {
+    ref.read(attendanceProvider.notifier).loadCalendar(
+          month: _currentMonth.month,
+          year: _currentMonth.year,
+        );
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _currentMonth =
+          DateTime(_currentMonth.year, _currentMonth.month + delta);
+    });
+    _loadCalendar();
+  }
+
+  Color _statusColor(String? status) {
+    switch ((status ?? '').toLowerCase()) {
+      case 'present':
+        return AppColors.statusPresent;
+      case 'absent':
+        return AppColors.statusAbsent;
+      case 'leave':
+      case 'on leave':
+        return AppColors.statusPending;
+      case 'holiday':
+        return AppColors.primaryLight;
+      default:
+        return AppColors.textMuted.withValues(alpha: 0.3);
+    }
+  }
+
+  IconData _statusIcon(String? status) {
+    switch ((status ?? '').toLowerCase()) {
+      case 'present':
+        return Icons.check_circle_rounded;
+      case 'absent':
+        return Icons.cancel_rounded;
+      case 'leave':
+      case 'on leave':
+        return Icons.beach_access_rounded;
+      case 'holiday':
+        return Icons.celebration_rounded;
+      default:
+        return Icons.radio_button_unchecked;
+    }
+  }
+
+  String _formatAttendanceDate(dynamic dateRaw) {
+    try {
+      final dt = DateTime.parse(dateRaw.toString()).toLocal();
+      return DateFormat('EEE, d MMM').format(dt);
+    } catch (_) {
+      return dateRaw?.toString() ?? '';
+    }
+  }
+
+  String _formatTime(dynamic time) {
+    try {
+      final dt = DateTime.parse(time.toString()).toLocal();
+      return DateFormat('hh:mm a').format(dt);
+    } catch (_) {
+      return time?.toString() ?? '--:--';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attendance = ref.watch(attendanceProvider);
+    final monthLabel = DateFormat('MMMM yyyy').format(_currentMonth);
+    final records = attendance.calendarData;
+
+    // Build summary counts from records
+    int presentCount = 0, absentCount = 0, leaveCount = 0;
+    for (final r in records) {
+      final s = (r['status'] ?? '').toString().toLowerCase();
+      if (s == 'present') presentCount++;
+      if (s == 'absent') absentCount++;
+      if (s == 'leave' || s == 'on leave') leaveCount++;
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Month Navigator
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: () => _changeMonth(-1),
+                icon: const Icon(Icons.chevron_left_rounded,
+                    color: AppColors.primary, size: 28),
+              ),
+              Text(
+                monthLabel,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              IconButton(
+                onPressed: _currentMonth.month == DateTime.now().month &&
+                        _currentMonth.year == DateTime.now().year
+                    ? null
+                    : () => _changeMonth(1),
+                icon: Icon(
+                  Icons.chevron_right_rounded,
+                  color: _currentMonth.month == DateTime.now().month &&
+                          _currentMonth.year == DateTime.now().year
+                      ? AppColors.textMuted.withValues(alpha: 0.3)
+                      : AppColors.primary,
+                  size: 28,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Summary Stats Row
+          Row(
+            children: [
+              _summaryChip(
+                  'Present', presentCount, AppColors.statusPresent),
+              const SizedBox(width: 10),
+              _summaryChip('Absent', absentCount, AppColors.statusAbsent),
+              const SizedBox(width: 10),
+              _summaryChip('Leaves', leaveCount, AppColors.statusPending),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Records List
+          if (attendance.isCalendarLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 60),
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            )
+          else if (records.isEmpty)
+            Center(
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
+                  Icon(Icons.calendar_month_outlined,
+                      size: 60,
+                      color: AppColors.textMuted.withValues(alpha: 0.4)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No attendance records found',
+                    style: TextStyle(
+                        color: AppColors.textMuted, fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Records will appear here once\nattendance is marked.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: AppColors.textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...records.map((record) => _buildAttendanceRecordCard(record)),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryChip(String label, int count, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              count.toString(),
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceRecordCard(dynamic record) {
+    final status = record['status']?.toString();
+    final color = _statusColor(status);
+    final icon = _statusIcon(status);
+    final dateLabel = _formatAttendanceDate(
+        record['date'] ?? record['attendanceDate'] ?? record['createdAt']);
+    final checkIn = record['checkIn'] ?? record['checkInTime'];
+    final checkOut = record['checkOut'] ?? record['checkOutTime'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateLabel,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                if (checkIn != null || checkOut != null)
+                  Text(
+                    '${checkIn != null ? "In: ${_formatTime(checkIn)}" : ""}${checkOut != null ? "  Out: ${_formatTime(checkOut)}" : ""}',
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 12),
+                  )
+                else
+                  Text(
+                    status?.toUpperCase() ?? 'N/A',
+                    style: TextStyle(
+                        color: color, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              (status ?? 'N/A').toUpperCase(),
+              style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -751,7 +1472,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                 children: [
                   const SizedBox(height: 40),
                   Icon(Icons.beach_access,
-                      size: 60, color: AppColors.textMuted.withOpacity(0.5)),
+                      size: 60, color: AppColors.textMuted.withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
                   const Text('No leaves found',
                       style: TextStyle(color: AppColors.textMuted)),
@@ -798,7 +1519,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -867,7 +1588,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                       color: AppColors.textPrimary)),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
-                value: leaveTypeController.value,
+                initialValue: leaveTypeController.value,
                 dropdownColor: AppColors.bgCardLight,
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
@@ -972,6 +1693,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                           reason: reasonController.text,
                         );
                     if (ok && mounted) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                             content: Text('Leave applied successfully!'),

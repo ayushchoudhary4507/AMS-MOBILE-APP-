@@ -29,15 +29,15 @@ class StatCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: AppColors.bgCard,
+            color: context.cardBg,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: accentColor.withOpacity(0.22),
+              color: accentColor.withValues(alpha: 0.22),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: accentColor.withOpacity(0.08),
+                color: accentColor.withValues(alpha: context.isDark ? 0.08 : 0.04),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -46,9 +46,9 @@ class StatCard extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                accentColor.withOpacity(0.12),
-                AppColors.bgCard,
-                AppColors.bgCard,
+                accentColor.withValues(alpha: 0.12),
+                context.cardBg,
+                context.cardBg,
               ],
               stops: const [0.0, 0.45, 1.0],
             ),
@@ -63,10 +63,10 @@ class StatCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.16),
+                      color: accentColor.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: accentColor.withOpacity(0.35),
+                        color: accentColor.withValues(alpha: 0.35),
                         width: 1,
                       ),
                     ),
@@ -84,7 +84,7 @@ class StatCard extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: accentColor.withOpacity(0.8),
+                          color: accentColor.withValues(alpha: 0.8),
                           blurRadius: 6,
                           spreadRadius: 1,
                         ),
@@ -99,8 +99,8 @@ class StatCard extends StatelessWidget {
                 children: [
                   Text(
                     value,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.txtPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -109,8 +109,8 @@ class StatCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: context.txtSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.1,
@@ -127,4 +127,3 @@ class StatCard extends StatelessWidget {
     );
   }
 }
-

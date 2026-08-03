@@ -3,7 +3,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/biometric_service.dart';
+import '../../widgets/common/app_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -16,54 +19,72 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    BiometricAuthService.disableBiometricLogin();
     _navigate();
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 2500));
+    final startTime = DateTime.now();
+
+    // Wait until authNotifier finishes checking stored auth status
+    while (ref.read(authProvider).status == AuthStatus.initial) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (DateTime.now().difference(startTime).inMilliseconds > 2000) break;
+    }
+
+    // Minimum splash duration for smooth logo animation
+    final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+    if (elapsed < 600) {
+      await Future.delayed(Duration(milliseconds: 600 - elapsed));
+    }
+
     if (!mounted) return;
 
     final auth = ref.read(authProvider);
+
     if (auth.isAuthenticated) {
+      final lastRoute = await StorageService.getLastRoute();
+      if (!mounted) return;
+
+      if (lastRoute != null && lastRoute.isNotEmpty) {
+        // Restore exact last open screen if compatible with role
+        if (auth.isAdmin && (lastRoute.startsWith('/admin') || lastRoute == '/notifications')) {
+          context.go(lastRoute);
+          return;
+        } else if (!auth.isAdmin && (lastRoute.startsWith('/employee') || lastRoute == '/notifications')) {
+          context.go(lastRoute);
+          return;
+        }
+      }
+
       if (auth.isAdmin) {
         context.go('/admin/dashboard');
       } else {
         context.go('/employee/dashboard');
       }
     } else {
-      context.go('/login');
+      context.go('/welcome');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.bgGradient),
+      body: SizedBox.expand(
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(gradient: AppColors.bgGradient),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.4),
-                      blurRadius: 30,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.fingerprint,
-                  color: Colors.white,
-                  size: 52,
-                ),
+              const AppLogo(
+                size: 96,
+                fontSize: 32,
+                borderRadius: 28,
               )
                   .animate()
                   .scale(
@@ -122,7 +143,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 child: CircularProgressIndicator(
                   color: AppColors.primary,
                   strokeWidth: 2,
-                  backgroundColor: AppColors.primary.withOpacity(0.2),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
               ).animate().fadeIn(
                     delay: const Duration(milliseconds: 800),
@@ -132,6 +153,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+ }
 }

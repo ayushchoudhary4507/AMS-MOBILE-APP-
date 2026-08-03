@@ -33,6 +33,8 @@ class StorageService {
       final decoded = jsonDecode(userStr);
       if (decoded is Map<String, dynamic>) {
         return decoded;
+      } else if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
       }
     } catch (_) {}
     return null;
@@ -60,5 +62,36 @@ class StorageService {
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
+  }
+
+  // Save Theme Mode (true = dark, false = light)
+  static Future<void> saveThemeMode(bool isDark) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('theme_mode', isDark);
+  }
+
+  // Get Theme Mode
+  static Future<bool> isDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('theme_mode') ?? true;
+  }
+
+  // Save Last Open Route
+  static Future<void> saveLastRoute(String route) async {
+    if (route == '/' ||
+        route == '/login' ||
+        route == '/welcome' ||
+        route == '/register' ||
+        route == '/biometric-lock') {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_route', route);
+  }
+
+  // Get Last Open Route
+  static Future<String?> getLastRoute() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('last_route');
   }
 }

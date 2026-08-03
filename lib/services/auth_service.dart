@@ -10,7 +10,7 @@ class AuthService {
       ApiConstants.login,
       data: {'email': email, 'password': password},
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Admin Login
@@ -20,7 +20,7 @@ class AuthService {
       ApiConstants.adminLogin,
       data: {'email': email, 'password': password},
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Register
@@ -39,13 +39,13 @@ class AuthService {
         'phone': phone,
       },
     );
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Get Profile Settings
   static Future<Map<String, dynamic>> getProfile() async {
     final response = await ApiService.get('${ApiConstants.settings}/profile');
-    return response.data;
+    return ApiService.toMap(response.data);
   }
 
   // Logout
