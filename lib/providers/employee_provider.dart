@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/employee_service.dart';
 
@@ -50,27 +51,32 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await EmployeeService.create(data);
-      final newEmp = res['employee'] ?? res['user'] ?? res['data'] ?? res;
-      if (res['success'] == true || newEmp != null) {
+      final bool isSuccess = res['success'] == true ||
+          res['status'] == 'success' ||
+          res['employee'] != null ||
+          res['user'] != null ||
+          res['data'] != null;
+
+      if (isSuccess) {
         await loadEmployees();
         return true;
+      } else {
+        final msg = res['message']?.toString() ?? 'Failed to create employee on server';
+        state = state.copyWith(isLoading: false, error: msg);
+        return false;
       }
-      state = state.copyWith(isLoading: false);
-      return true;
     } catch (e) {
-      // Local state update fallback for offline or mock mode
-      final mockEmp = {
-        '_id': 'emp_${DateTime.now().millisecondsSinceEpoch}',
-        'name': data['name'] ?? 'New Employee',
-        'email': data['email'] ?? '',
-        'department': data['department'] ?? 'IT',
-        'role': data['role'] ?? 'employee',
-        'phone': data['phone'] ?? '',
-        'designation': data['designation'] ?? 'Employee',
-      };
-      final updatedList = [mockEmp, ...state.employees];
-      state = state.copyWith(isLoading: false, employees: updatedList);
-      return true;
+      String errorMessage = 'Failed to add employee on server.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map && resData['message'] != null) {
+          errorMessage = resData['message'].toString();
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
     }
   }
 

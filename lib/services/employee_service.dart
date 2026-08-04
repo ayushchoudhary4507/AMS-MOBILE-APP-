@@ -14,8 +14,16 @@ class EmployeeService {
 
   static Future<Map<String, dynamic>> create(
       Map<String, dynamic> data) async {
-    final response = await ApiService.post(ApiConstants.employees, data: data);
-    return ApiService.toMap(response.data);
+    try {
+      final response = await ApiService.post(ApiConstants.employees, data: data);
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.post(ApiConstants.register, data: data);
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   static Future<Map<String, dynamic>> update(
