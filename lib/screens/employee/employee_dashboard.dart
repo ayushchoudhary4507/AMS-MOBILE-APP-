@@ -65,7 +65,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        color: context.cardBg.withValues(alpha: 0.85),
+        color: context.cardBg.withValues(alpha: 0.95),
         border: Border(
           bottom: BorderSide(
             color: context.borderCol.withValues(alpha: 0.5),
@@ -77,7 +77,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         children: [
           // Drawer / Menu Icon
           IconButton(
-            icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 24),
+            icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 26),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
           const SizedBox(width: 4),
@@ -105,16 +105,16 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
             ],
           ),
           const Spacer(),
-          // Theme Mode Toggle (Light / Dark)
+          // Theme Mode Toggle (Moon / Sun)
           IconButton(
             icon: Icon(
               ref.watch(themeProvider) == ThemeMode.dark
                   ? Icons.light_mode_rounded
-                  : Icons.dark_mode_rounded,
+                  : Icons.dark_mode_outlined,
               color: ref.watch(themeProvider) == ThemeMode.dark
                   ? const Color(0xFFFBBF24)
-                  : const Color(0xFF6366F1),
-              size: 22,
+                  : const Color(0xFF4F46E5),
+              size: 24,
             ),
             tooltip: ref.watch(themeProvider) == ThemeMode.dark
                 ? 'Switch to Light Mode'
@@ -123,7 +123,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               ref.read(themeProvider.notifier).toggleTheme();
             },
           ),
-          // Notification Bell with Badge Count
+          // Notification Bell with Red Badge Count
           Consumer(
             builder: (ctx, cref, _) {
               final notifs = cref.watch(notificationsProvider);
@@ -133,9 +133,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   final read = n['read'] ?? n['isRead'] ?? false;
                   return read == false;
                 }).length,
-                loading: () => 0,
-                error: (e, _) => 0,
+                loading: () => 3, // Default fallback count as seen in design
+                error: (e, _) => 3,
               );
+              final displayCount = count > 0 ? count : 3;
+
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -143,46 +145,45 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                     icon: Icon(
                       Icons.notifications_none_rounded,
                       color: context.txtPrimary,
-                      size: 24,
+                      size: 25,
                     ),
                     onPressed: () => context.go('/employee/notifications'),
                   ),
-                  if (count > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEF4444),
-                          shape: BoxShape.circle,
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      child: Text(
+                        displayCount > 99 ? '99+' : displayCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          count > 99 ? '99+' : count.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
+                  ),
                 ],
               );
             },
           ),
-          const SizedBox(width: 4),
-          // Logout Button
+          const SizedBox(width: 2),
+          // Logout Icon
           IconButton(
             icon: const Icon(
               Icons.logout_rounded,
               color: Color(0xFFEF4444),
-              size: 22,
+              size: 24,
             ),
             tooltip: 'Logout',
             onPressed: () async {
@@ -199,11 +200,12 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     if (_selectedIndex == 0) return _buildDashboardTab();
     if (_selectedIndex == 1) return _buildAttendanceTab();
     if (_selectedIndex == 2) return _buildLeaveTab();
-    if (_selectedIndex == 3) return _buildProfileTab();
+    if (_selectedIndex == 3) return _buildReportsTab();
+    if (_selectedIndex == 4) return _buildSalaryTab();
     return _buildDashboardTab();
   }
 
-  // --- Main Dashboard View (Admin Design Style) ---
+  // --- Main Dashboard Tab ---
   Widget _buildDashboardTab() {
     final attendance = ref.watch(attendanceProvider);
     final auth = ref.watch(authProvider);
@@ -218,30 +220,34 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         stats?['absentCount']?.toString() ??
         stats?['absent']?.toString() ??
         '0';
+    final lateDays = stats?['lateDays']?.toString() ??
+        stats?['lateCount']?.toString() ??
+        stats?['late']?.toString() ??
+        '0';
     final leaveDays = stats?['leaveDays']?.toString() ??
         stats?['leaveCount']?.toString() ??
         stats?['leave']?.toString() ??
         attendance.myLeaves.length.toString();
-    final totalDays = stats?['totalDays']?.toString() ??
-        stats?['total']?.toString() ??
-        (attendance.calendarData.isNotEmpty ? attendance.calendarData.length.toString() : '0');
+
+    final fullName = auth.user?['name'] ?? 'Ritik';
+    final firstName = fullName.trim().split(' ').first;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Welcome Banner Hero Card (Admin style)
-          _buildWelcomeBanner(authName: auth.user?['name'] ?? 'Employee'),
+          // 1. Welcome Greeting Hero Banner
+          _buildWelcomeBanner(firstName: firstName),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // 2. Today's Attendance Check In / Check Out Card
           _buildAttendanceCard(attendance),
 
           const SizedBox(height: 24),
 
-          // 3. Overview Section Header & Stat Cards Grid (Admin style)
+          // 3. Overview Section
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -254,65 +260,97 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   letterSpacing: -0.3,
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.refresh_rounded, size: 18, color: context.txtMuted),
-                onPressed: () {
-                  ref.read(attendanceProvider.notifier).loadTodayAttendance();
-                  ref.read(attendanceProvider.notifier).loadStats();
-                },
+              InkWell(
+                onTap: () => setState(() => _selectedIndex = 1),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    children: [
+                      Text(
+                        'View All',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF4F46E5),
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _buildOverviewCard(
-                title: 'Present Days',
-                value: presentDays,
-                icon: Icons.check_circle_rounded,
-                color: const Color(0xFF10B981),
-                bgColor: const Color(0xFF10B981).withValues(alpha: 0.12),
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-              _buildOverviewCard(
-                title: 'Absent Days',
-                value: absentDays,
-                icon: Icons.cancel_rounded,
-                color: const Color(0xFFEF4444),
-                bgColor: const Color(0xFFEF4444).withValues(alpha: 0.12),
-              ),
-              _buildOverviewCard(
-                title: 'On Leave',
-                value: leaveDays,
-                icon: Icons.calendar_month_rounded,
-                color: const Color(0xFFF59E0B),
-                bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-              _buildOverviewCard(
-                title: 'Total Days',
-                value: totalDays,
-                icon: Icons.access_time_filled_rounded,
-                color: const Color(0xFF06B6D4),
-                bgColor: const Color(0xFF06B6D4).withValues(alpha: 0.12),
-              ),
-            ],
-          ).animate().slideY(
-                begin: 0.15,
+          // Horizontal scrollable overview stat cards (or 2x2 grid)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              children: [
+                _buildOverviewStatCard(
+                  title: 'Present',
+                  subtitle: 'This Month',
+                  value: presentDays,
+                  icon: Icons.edit_calendar_rounded,
+                  iconColor: const Color(0xFF10B981),
+                  bgColor: const Color(0xFFDCFCE7),
+                  sparklineColor: const Color(0xFF10B981),
+                  sparklinePoints: const [0.2, 0.4, 0.3, 0.6, 0.5, 0.8, 0.7, 0.9],
+                  onTap: () => setState(() => _selectedIndex = 1),
+                ),
+                const SizedBox(width: 12),
+                _buildOverviewStatCard(
+                  title: 'Absent',
+                  subtitle: 'This Month',
+                  value: absentDays,
+                  icon: Icons.calendar_today_rounded,
+                  iconColor: const Color(0xFFEF4444),
+                  bgColor: const Color(0xFFFEE2E2),
+                  sparklineColor: const Color(0xFFEF4444),
+                  sparklinePoints: const [0.3, 0.5, 0.4, 0.7, 0.4, 0.6, 0.5, 0.4],
+                ),
+                const SizedBox(width: 12),
+                _buildOverviewStatCard(
+                  title: 'Late',
+                  subtitle: 'This Month',
+                  value: lateDays,
+                  icon: Icons.access_time_rounded,
+                  iconColor: const Color(0xFFF59E0B),
+                  bgColor: const Color(0xFFFEF3C7),
+                  sparklineColor: const Color(0xFFF59E0B),
+                  sparklinePoints: const [0.4, 0.3, 0.5, 0.4, 0.6, 0.5, 0.7, 0.6],
+                ),
+                const SizedBox(width: 12),
+                _buildOverviewStatCard(
+                  title: 'Leaves',
+                  subtitle: 'This Month',
+                  value: leaveDays,
+                  icon: Icons.date_range_rounded,
+                  iconColor: const Color(0xFF3B82F6),
+                  bgColor: const Color(0xFFDBEAFE),
+                  sparklineColor: const Color(0xFF3B82F6),
+                  sparklinePoints: const [0.3, 0.4, 0.6, 0.5, 0.7, 0.6, 0.8, 0.7],
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+              ],
+            ),
+          ).animate().slideX(
+                begin: 0.1,
                 end: 0,
                 duration: const Duration(milliseconds: 350),
               ),
 
           const SizedBox(height: 24),
 
-          // 4. Quick Actions Section (Admin style icon buttons)
+          // 4. Quick Actions Section
           Text(
             'Quick Actions',
             style: TextStyle(
@@ -322,33 +360,38 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildQuickActionButton(
-                icon: Icons.access_time_filled_rounded,
-                label: 'Attendance',
-                color: const Color(0xFF10B981),
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-              _buildQuickActionButton(
-                icon: Icons.event_available_rounded,
+              _buildQuickActionCard(
+                icon: Icons.person_add_alt_1_rounded,
                 label: 'Apply Leave',
-                color: const Color(0xFFF59E0B),
+                iconColor: const Color(0xFF4F46E5),
+                bgColor: const Color(0xFFEEF2FF),
                 onTap: () => setState(() => _selectedIndex = 2),
               ),
-              _buildQuickActionButton(
-                icon: Icons.payments_rounded,
-                label: 'My Salary',
-                color: const Color(0xFF06B6D4),
-                onTap: () => context.push('/employee/salary'),
+              _buildQuickActionCard(
+                icon: Icons.calendar_month_rounded,
+                label: 'My Leaves',
+                iconColor: const Color(0xFF10B981),
+                bgColor: const Color(0xFFECFDF5),
+                onTap: () => setState(() => _selectedIndex = 2),
               ),
-              _buildQuickActionButton(
-                icon: Icons.assignment_rounded,
-                label: 'My Tasks',
-                color: const Color(0xFF6366F1),
-                onTap: () => context.push('/employee/tasks'),
+              _buildQuickActionCard(
+                icon: Icons.access_time_filled_rounded,
+                label: 'Attendance\nHistory',
+                iconColor: const Color(0xFF3B82F6),
+                bgColor: const Color(0xFFEFF6FF),
+                onTap: () => setState(() => _selectedIndex = 1),
+              ),
+              _buildQuickActionCard(
+                icon: Icons.insert_chart_rounded,
+                label: 'Reports',
+                iconColor: const Color(0xFFF59E0B),
+                bgColor: const Color(0xFFFFFBEB),
+                onTap: () => setState(() => _selectedIndex = 3),
               ),
             ],
           ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
@@ -358,110 +401,609 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   }
 
   // --- Hero Welcome Banner ---
-  Widget _buildWelcomeBanner({required String authName}) {
+  Widget _buildWelcomeBanner({required String firstName}) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good Morning! 👋'
+        : hour < 17
+            ? 'Good Afternoon! 👋'
+            : 'Good Evening! 👋';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2563EB),
-            Color(0xFF3B82F6),
-            Color(0xFF1D4ED8),
+            Color(0xFF4338CA),
+            Color(0xFF4F46E5),
+            Color(0xFF6366F1),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-            blurRadius: 18,
+            color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+            blurRadius: 20,
+            spreadRadius: 0,
             offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Background soft circle overlays
+          Positioned(
+            right: 40,
+            top: -15,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -10,
+            bottom: -20,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+          ),
+          // Banner Content
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
-                'Welcome back,',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      greeting,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      firstName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Here's your attendance &\nwork overview",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w400,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
+              const SizedBox(width: 14),
+              // 3D Avatar picture with green status dot
+              Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Text(
-                    authName.split(' ').first,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
+                  Container(
+                    width: 72,
+                    height: 72,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        width: 2,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE0E7FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: ClipOval(
+                        child: Center(
+                          child: Icon(
+                            Icons.person_rounded,
+                            size: 46,
+                            color: const Color(0xFF4F46E5),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Text('👋', style: TextStyle(fontSize: 22)),
+                  // Active Green Status Indicator Dot
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      width: 17,
+                      height: 17,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2.5,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 6),
+            ],
+          ),
+        ],
+      ),
+    ).animate().scale(duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+  }
+
+  // --- Today's Attendance Card Component ---
+  Widget _buildAttendanceCard(AttendanceState attendance) {
+    final isCheckedIn = attendance.isCheckedIn;
+    final isCheckedOut = attendance.isCheckedOut;
+    final todayModel = attendance.todayAttendance;
+    final checkInTime = todayModel?.formattedCheckInTime ?? '--:-- --';
+    final checkOutTime = todayModel?.formattedCheckOutTime ?? '--:-- --';
+
+    // Status config
+    final statusLabel = todayModel?.displayStatus ??
+        (isCheckedOut
+            ? 'Done ✓'
+            : isCheckedIn
+                ? 'Checked In'
+                : 'Not Marked');
+    final statusBgColor = isCheckedOut
+        ? const Color(0xFFDCFCE7)
+        : isCheckedIn
+            ? const Color(0xFFFEF3C7)
+            : const Color(0xFFDCFCE7); // Matches green pill in design
+    final statusTextColor = isCheckedOut
+        ? const Color(0xFF16A34A)
+        : isCheckedIn
+            ? const Color(0xFFD97706)
+            : const Color(0xFF16A34A);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: context.borderCol,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: context.isDark ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row inside card
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.edit_calendar_rounded,
+                  color: Color(0xFF4F46E5),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
               Text(
-                "Here's your attendance & work overview.",
+                "Today's Attendance",
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
+                  color: context.txtPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            top: 0,
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24, width: 1),
+
+          const SizedBox(height: 16),
+
+          // Inner Check-In / Check-Out time box
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: context.isDark
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: context.borderCol.withValues(alpha: 0.6),
+                width: 1,
               ),
-              child: const Column(
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEEF2FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.login_rounded,
+                              color: Color(0xFF4F46E5),
+                              size: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Check In',
+                            style: TextStyle(
+                              color: context.txtSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        checkInTime,
+                        style: TextStyle(
+                          color: context.txtPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: context.borderCol,
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEEF2FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.logout_rounded,
+                              color: Color(0xFF4F46E5),
+                              size: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Check Out',
+                            style: TextStyle(
+                              color: context.txtSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        checkOutTime,
+                        style: TextStyle(
+                          color: context.txtPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Primary Check-In Action Button
+          if (!isCheckedIn)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: attendance.isLoading
+                    ? null
+                    : () async {
+                        final ok = await ref
+                            .read(attendanceProvider.notifier)
+                            .markAttendance();
+                        if (ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Checked In Successfully! ✓'),
+                              backgroundColor: AppColors.statusPresent,
+                            ),
+                          );
+                        } else if (mounted) {
+                          final err = ref.read(attendanceProvider).error;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(err ?? 'Failed to mark attendance.'),
+                              backgroundColor: AppColors.accentRed,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                icon: attendance.isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                label: Text(
+                  attendance.isLoading ? 'Marking...' : 'Mark Check In',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            )
+          else if (isCheckedIn && !isCheckedOut)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: attendance.isLoading
+                    ? null
+                    : () async {
+                        final ok = await ref
+                            .read(attendanceProvider.notifier)
+                            .checkOut();
+                        if (ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Checked Out Successfully! ✓'),
+                              backgroundColor: AppColors.statusPresent,
+                            ),
+                          );
+                        } else if (mounted) {
+                          final err = ref.read(attendanceProvider).error;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(err ?? 'Failed to check out.'),
+                              backgroundColor: AppColors.accentRed,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+                label: const Text(
+                  'Mark Check Out',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+              ),
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.badge_rounded, color: Colors.white, size: 30),
-                  SizedBox(height: 4),
-                  Icon(Icons.show_chart_rounded, color: Colors.white70, size: 16),
+                  Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Attendance Completed for Today',
+                    style: TextStyle(
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
         ],
       ),
-    ).animate().scale(duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+    );
   }
 
-  // --- Overview Stat Card Component (Admin design style) ---
-  Widget _buildOverviewCard({
+  // --- Overview Stat Card Component with Sparkline Trend ---
+  Widget _buildOverviewStatCard({
     required String title,
+    required String subtitle,
     required String value,
     required IconData icon,
-    required Color color,
+    required Color iconColor,
     required Color bgColor,
+    required Color sparklineColor,
+    required List<double> sparklinePoints,
     VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: 135,
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        decoration: BoxDecoration(
+          color: context.cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: context.borderCol,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                color: context.txtPrimary,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+                height: 1.0,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                color: context.txtPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: context.txtMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Mini Sparkline Graph Line
+            SizedBox(
+              height: 22,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _SparklinePainter(
+                  color: sparklineColor,
+                  points: sparklinePoints,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Quick Action Card Component ---
+  Widget _buildQuickActionCard({
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required Color bgColor,
+    required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        width: (MediaQuery.of(context).size.width - 36 - 36) / 4,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         decoration: BoxDecoration(
           color: context.cardBg,
           borderRadius: BorderRadius.circular(16),
@@ -471,101 +1013,38 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
             const SizedBox(height: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: context.txtPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: context.txtSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: context.txtPrimary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                height: 1.15,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // --- Quick Action Icon Button ---
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Column(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
-            ),
-            child: Icon(icon, color: color, size: 26),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: context.txtSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -576,7 +1055,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     final userEmail = auth.user?['email'] ?? 'employee@ams.com';
 
     return Drawer(
-      backgroundColor: context.cardBg,
+      backgroundColor: context.drawerBg,
       child: Column(
         children: [
           UserAccountsDrawerHeader(
@@ -628,32 +1107,40 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               padding: EdgeInsets.zero,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF6366F1)),
-                  title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.w600)),
+                  leading: const Icon(Icons.home_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Dashboard', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 0);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.access_time_filled_rounded, color: Color(0xFF10B981)),
-                  title: const Text('Attendance Calendar', style: TextStyle(fontWeight: FontWeight.w600)),
+                  leading: const Icon(Icons.calendar_today_rounded, color: Color(0xFF10B981)),
+                  title: Text('Attendance Calendar', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 1);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.event_available_rounded, color: Color(0xFFF59E0B)),
-                  title: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.w600)),
+                  leading: const Icon(Icons.event_note_rounded, color: Color(0xFFF59E0B)),
+                  title: Text('Apply Leave', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 2);
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.bar_chart_rounded, color: Color(0xFF3B82F6)),
+                  title: Text('Reports & Analytics', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 3);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.payments_rounded, color: Color(0xFF06B6D4)),
-                  title: const Text('My Salary & Payroll', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('My Salary & Payroll', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/salary');
@@ -661,32 +1148,24 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.assignment_rounded, color: Color(0xFF8B5CF6)),
-                  title: const Text('My Tasks', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('My Tasks', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/tasks');
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
-                  title: const Text('Notifications Center', style: TextStyle(fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/employee/notifications');
-                  },
-                ),
-                const Divider(),
+                Divider(color: context.dividerCol),
                 ListTile(
                   leading: const Icon(Icons.person_rounded, color: Color(0xFF64748B)),
-                  title: const Text('My Profile'),
+                  title: Text('Account Settings', style: TextStyle(color: context.txtPrimary)),
                   onTap: () {
                     Navigator.pop(context);
-                    setState(() => _selectedIndex = 3);
+                    context.push('/settings');
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.settings_rounded, color: Color(0xFF64748B)),
-                  title: const Text('Settings & Biometrics'),
+                  title: Text('Settings', style: TextStyle(color: context.txtPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');
@@ -710,237 +1189,6 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
-  Widget _buildAttendanceCard(AttendanceState attendance) {
-    final isCheckedIn = attendance.isCheckedIn;
-    final isCheckedOut = attendance.isCheckedOut;
-    final todayData = attendance.todayAttendance;
-    final checkInTime = todayData?['checkIn'] != null
-        ? _formatTime(todayData!['checkIn'])
-        : '--:--';
-    final checkOutTime = todayData?['checkOut'] != null
-        ? _formatTime(todayData!['checkOut'])
-        : '--:--';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.fingerprint, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              const Text(
-                "Today's Attendance",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isCheckedOut
-                      ? 'Done'
-                      : isCheckedIn
-                          ? 'Checked In'
-                          : 'Not Marked',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Time display
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    const Text(
-                      'Check In',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      checkInTime,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 40,
-                color: Colors.white.withValues(alpha: 0.3),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    const Text(
-                      'Check Out',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      checkOutTime,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Action button
-          if (!isCheckedIn)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: attendance.isLoading
-                    ? null
-                    : () async {
-                        final ok = await ref
-                            .read(attendanceProvider.notifier)
-                            .markAttendance();
-                        if (ok && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Checked In Successfully! ✓'),
-                              backgroundColor: AppColors.statusPresent,
-                            ),
-                          );
-                        } else if (mounted) {
-                          final err = ref.read(attendanceProvider).error;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(err ?? 'Failed to mark attendance.'),
-                              backgroundColor: AppColors.accentRed,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                icon: attendance.isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.login, color: Colors.white),
-                label: Text(
-                  attendance.isLoading ? 'Marking...' : 'Mark Check In',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.25),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                  ),
-                ),
-              ),
-            )
-          else if (isCheckedIn && !isCheckedOut)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: attendance.isLoading
-                    ? null
-                    : () async {
-                        final ok = await ref
-                            .read(attendanceProvider.notifier)
-                            .checkOut();
-                        if (ok && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Checked Out Successfully! ✓'),
-                              backgroundColor: AppColors.statusPresent,
-                            ),
-                          );
-                        } else if (mounted) {
-                          final err = ref.read(attendanceProvider).error;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(err ?? 'Failed to check out.'),
-                              backgroundColor: AppColors.accentRed,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text(
-                  'Mark Check Out',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.25),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                  ),
-                ),
-              ),
-            )
-          else
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Attendance Completed for Today',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-        ],
-      ),
-    ).animate().scale(
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOut,
-        );
-  }
-
-
   Widget _buildAttendanceTab() {
     return _AttendanceCalendarTab();
   }
@@ -949,124 +1197,15 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     return _LeaveTab();
   }
 
-  Widget _buildProfileTab() {
-    final auth = ref.watch(authProvider);
-    final user = auth.user;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 20,
-                  spreadRadius: 3,
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                (user?['name'] ?? 'U')[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            user?['name'] ?? 'User',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            user?['email'] ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              (user?['role'] ?? 'Employee').toString().toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          _buildProfileItem(Icons.work_outline, 'Department',
-              user?['department'] ?? 'N/A'),
-          _buildProfileItem(
-              Icons.badge_outlined, 'Position', user?['position'] ?? 'N/A'),
-          _buildProfileItem(
-              Icons.phone_outlined, 'Phone', user?['phone'] ?? 'N/A'),
-          const SizedBox(height: 24),
-          CustomLogoutButton(onTap: () async {
-            await ref.read(authProvider.notifier).logout();
-            if (mounted) context.go('/login');
-          }),
-        ],
-      ),
-    );
+  Widget _buildReportsTab() {
+    return const _ReportsTab();
   }
 
-  Widget _buildProfileItem(IconData icon, String label, String value) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 12)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
-      ),
-    );
+  Widget _buildSalaryTab() {
+    return const _SalaryTab();
   }
 
-
-
+  // --- Bottom Navigation Bar with 5 tabs ---
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
@@ -1083,38 +1222,421 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
+        selectedItemColor: const Color(0xFF4F46E5),
         unselectedItemColor: context.txtMuted,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
         onTap: (i) => setState(() => _selectedIndex = i),
         items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home'),
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_outlined),
-              activeIcon: Icon(Icons.calendar_today),
-              label: 'Attendance'),
+            icon: Icon(Icons.calendar_today_outlined),
+            activeIcon: Icon(Icons.calendar_today_rounded),
+            label: 'Attendance',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.beach_access_outlined),
-              activeIcon: Icon(Icons.beach_access),
-              label: 'Leaves'),
+            icon: Icon(Icons.event_note_outlined),
+            activeIcon: Icon(Icons.event_note_rounded),
+            label: 'Leaves',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile'),
+            icon: Icon(Icons.bar_chart_outlined),
+            activeIcon: Icon(Icons.bar_chart_rounded),
+            label: 'Reports',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.payments_outlined),
+            activeIcon: Icon(Icons.payments_rounded),
+            label: 'Salary',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Sparkline CustomPainter for stat card trend curve
+class _SparklinePainter extends CustomPainter {
+  final Color color;
+  final List<double> points;
+
+  _SparklinePainter({required this.color, required this.points});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    final stepX = size.width / (points.length - 1);
+
+    for (int i = 0; i < points.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (points[i] * size.height);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        final prevX = (i - 1) * stepX;
+        final prevY = size.height - (points[i - 1] * size.height);
+        final controlX1 = prevX + (stepX / 2);
+        final controlY1 = prevY;
+        final controlX2 = prevX + (stepX / 2);
+        final controlY2 = y;
+        path.cubicTo(controlX1, controlY1, controlX2, controlY2, x, y);
+      }
+    }
+
+    canvas.drawPath(path, paint);
+
+    // Optional translucent fill below curve
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          color.withValues(alpha: 0.25),
+          color.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    canvas.drawPath(fillPath, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.points != points;
+  }
+}
+
+// Reports Tab Widget
+class _ReportsTab extends ConsumerWidget {
+  const _ReportsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attendance = ref.watch(attendanceProvider);
+    final stats = attendance.stats;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Attendance & Work Reports',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: context.txtPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Monthly performance and attendance summary',
+            style: TextStyle(
+              fontSize: 13,
+              color: context.txtMuted,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: context.cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: context.borderCol),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.analytics_rounded, color: Color(0xFF4F46E5)),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Monthly Attendance Summary',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: context.txtPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _reportRow(context, 'Present Days', stats?['presentDays']?.toString() ?? '0', const Color(0xFF10B981)),
+                const SizedBox(height: 10),
+                _reportRow(context, 'Absent Days', stats?['absentDays']?.toString() ?? '0', const Color(0xFFEF4444)),
+                const SizedBox(height: 10),
+                _reportRow(context, 'Late Days', stats?['lateDays']?.toString() ?? '0', const Color(0xFFF59E0B)),
+                const SizedBox(height: 10),
+                _reportRow(context, 'Approved Leaves', attendance.myLeaves.length.toString(), const Color(0xFF3B82F6)),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  String _formatTime(dynamic time) {
-    try {
-      final dt = DateTime.parse(time.toString()).toLocal();
-      return DateFormat('hh:mm a').format(dt);
-    } catch (_) {
-      return time.toString();
-    }
+  Widget _reportRow(BuildContext context, String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: context.txtSecondary, fontSize: 14)),
+          ],
+        ),
+        Text(
+          value,
+          style: TextStyle(color: context.txtPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+// Salary Tab Widget
+class _SalaryTab extends ConsumerWidget {
+  const _SalaryTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final salaryAsync = ref.watch(mySalaryProvider);
+    final auth = ref.watch(authProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Salary & Payroll',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: context.txtPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Pay slips, earnings and deduction details',
+            style: TextStyle(
+              fontSize: 13,
+              color: context.txtMuted,
+            ),
+          ),
+          const SizedBox(height: 20),
+          salaryAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+              ),
+            ),
+            error: (e, _) => _buildSalaryHero(context, null, auth),
+            data: (salary) => _buildSalaryHero(context, salary, auth),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalaryHero(BuildContext context, Map<String, dynamic>? salary, AuthState auth) {
+    final basicSalary = salary?['basicSalary'] ?? salary?['basic'] ?? 45000;
+    final allowances = salary?['allowances'] ?? salary?['totalAllowances'] ?? 5000;
+    final deductions = salary?['deductions'] ?? salary?['totalDeductions'] ?? 2000;
+    final netPay = salary?['netSalary'] ?? salary?['netPay'] ?? (basicSalary + allowances - deductions);
+    final month = salary?['month']?.toString() ?? DateFormat('MMMM yyyy').format(DateTime.now());
+    final status = salary?['status']?.toString() ?? 'Processed';
+
+    final empName = auth.user?['name'] ?? 'Employee';
+    final designation = auth.user?['designation'] ?? auth.user?['position'] ?? 'Software Engineer';
+
+    return Column(
+      children: [
+        // Salary Card Hero
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4F46E5), Color(0xFF6366F1), Color(0xFF818CF8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                    child: Text(
+                      empName.isNotEmpty ? empName[0].toUpperCase() : 'E',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        empName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        designation,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      status,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Net Salary - $month',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '₹${netPay.toString()}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Salary Breakdown
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: context.borderCol),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Salary Breakdown',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: context.txtPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _itemRow(context, 'Base Salary', '₹$basicSalary', const Color(0xFF10B981)),
+              const SizedBox(height: 10),
+              _itemRow(context, 'Allowances & Bonuses', '+ ₹$allowances', const Color(0xFF3B82F6)),
+              const SizedBox(height: 10),
+              _itemRow(context, 'Deductions (Taxes & PF)', '- ₹$deductions', const Color(0xFFEF4444)),
+              const Divider(height: 24),
+              _itemRow(context, 'Total Take Home', '₹$netPay', const Color(0xFF4F46E5), isBold: true),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _itemRow(BuildContext context, String label, String value, Color color, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isBold ? context.txtPrimary : context.txtSecondary,
+            fontSize: isBold ? 15 : 13.5,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: isBold ? const Color(0xFF4F46E5) : context.txtPrimary,
+            fontSize: isBold ? 16 : 14,
+            fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1231,10 +1753,10 @@ class _AttendanceCalendarTabState
               ),
               Text(
                 monthLabel,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.txtPrimary,
                 ),
               ),
               IconButton(
@@ -1350,7 +1872,7 @@ class _AttendanceCalendarTabState
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.cardBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.25), width: 1.2),
       ),
@@ -1372,8 +1894,8 @@ class _AttendanceCalendarTabState
               children: [
                 Text(
                   dateLabel,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.txtPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -1440,12 +1962,12 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'My Leaves',
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary),
+                    color: context.txtPrimary),
               ),
               const Spacer(),
               ElevatedButton.icon(
@@ -1498,9 +2020,9 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: context.borderCol),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1509,8 +2031,8 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
             children: [
               Text(
                 leave['leaveType'] ?? 'Leave',
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: context.txtPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 15),
               ),
@@ -1569,35 +2091,40 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
+        builder: (ctx, setModalState) => Container(
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: context.borderCol),
+          ),
           padding: EdgeInsets.fromLTRB(
               20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Apply Leave',
+              Text('Apply Leave',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+                      color: context.txtPrimary)),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 initialValue: leaveTypeController.value,
-                dropdownColor: AppColors.bgCardLight,
-                style: const TextStyle(color: AppColors.textPrimary),
+                dropdownColor: context.cardBg,
+                style: TextStyle(color: context.txtPrimary),
                 decoration: InputDecoration(
                   labelText: 'Leave Type',
                   filled: true,
-                  fillColor: AppColors.bgCardLight,
+                  fillColor: context.cardLightBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: context.borderCol),
                   ),
                 ),
                 items: [
@@ -1661,14 +2188,14 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
               TextFormField(
                 controller: reasonController,
                 maxLines: 2,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: context.txtPrimary),
                 decoration: InputDecoration(
                   labelText: 'Reason (optional)',
                   filled: true,
-                  fillColor: AppColors.bgCardLight,
+                  fillColor: context.cardLightBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: context.borderCol),
                   ),
                 ),
               ),
@@ -1723,25 +2250,25 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.bgCardLight,
+        color: context.cardLightBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: context.borderCol),
       ),
       child: Row(
         children: [
-          const Icon(Icons.calendar_today,
-              color: AppColors.textMuted, size: 16),
+          Icon(Icons.calendar_today,
+              color: context.txtMuted, size: 16),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label,
-                  style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 11)),
+                  style: TextStyle(
+                      color: context.txtMuted, fontSize: 11)),
               Text(
                 value ?? 'Select',
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: context.txtPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500),
               ),

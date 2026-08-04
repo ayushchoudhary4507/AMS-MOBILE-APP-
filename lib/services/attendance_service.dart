@@ -7,26 +7,61 @@ class AttendanceService {
     String status = 'present',
     String? notes,
   }) async {
-    final now = DateTime.now();
-    final Map<String, dynamic> body = {
-      'status': status,
-      'checkIn': now.toIso8601String(),
-      'date': now.toIso8601String(),
-    };
+    // Backend mark endpoint expects empty payload {} or minimal notes
+    final Map<String, dynamic> body = {};
     if (notes != null && notes.isNotEmpty) {
       body['notes'] = notes;
     }
-    final response = await ApiService.post(
-      ApiConstants.attendanceMark,
-      data: body,
-    );
-    return ApiService.toMap(response.data);
+
+    try {
+      final response = await ApiService.post(
+        ApiConstants.attendanceMark,
+        data: body,
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      // Fallback 1: Try /attendance/check-in
+      try {
+        final response = await ApiService.post(
+          '/attendance/check-in',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 2: Try /attendance/checkin
+      try {
+        final response = await ApiService.post(
+          '/attendance/checkin',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      rethrow;
+    }
   }
 
   // Check out
   static Future<Map<String, dynamic>> checkOut() async {
-    final response = await ApiService.put(ApiConstants.attendanceCheckout);
-    return ApiService.toMap(response.data);
+    final Map<String, dynamic> body = {};
+
+    try {
+      final response = await ApiService.put(
+        ApiConstants.attendanceCheckout,
+        data: body,
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.post(
+          ApiConstants.attendanceCheckout,
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   // Get my today's attendance

@@ -472,7 +472,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
             if (attendance.isCheckedIn) {
               final myUser = ref.read(authProvider).user;
-              final myName = myUser?['name'] ?? 'Ritik';
+              final myName = myUser?['name'] ?? 'Employee';
               final myEmail = myUser?['email'] ?? '';
 
               final alreadyInList = displayList.any((e) =>
@@ -483,8 +483,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 displayList.insert(0, {
                   'name': myName.toString(),
                   'email': myEmail.toString(),
-                  'checkIn': attendance.todayAttendance?['checkIn'] ??
-                      attendance.todayAttendance?['check_in'] ??
+                  'checkIn': attendance.todayAttendance?.formattedCheckInTime ??
                       DateTime.now().toIso8601String(),
                   'status': 'Present',
                 });
@@ -510,8 +509,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 for (var emp in allEmployees) {
                   if (emp is Map) {
                     displayList.add({
-                      'name': emp['name'] ?? 'Ritik',
-                      'email': emp['email'] ?? 'employee@ams.com',
+                      'name': emp['name'] ?? 'Employee',
+                      'email': emp['email'] ?? emp['department'] ?? '',
                       'checkIn': DateTime.now().toIso8601String(),
                       'status': 'Present',
                     });
@@ -1209,7 +1208,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final userEmail = auth.user?['email'] ?? 'admin@ams.com';
 
     return Drawer(
-      backgroundColor: context.cardBg,
+      backgroundColor: context.drawerBg,
       child: Column(
         children: [
           UserAccountsDrawerHeader(
@@ -1258,7 +1257,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF6366F1)),
-                  title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Dashboard', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 0);
@@ -1266,8 +1265,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF10B981)),
-                  title: const Text('Add New Employee', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Onboard staff & assign permissions', style: TextStyle(fontSize: 11)),
+                  title: Text('Add New Employee', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Onboard staff & assign permissions', style: TextStyle(color: context.txtMuted, fontSize: 11)),
                   onTap: () {
                     Navigator.pop(context);
                     _showAddEmployeeModal(context);
@@ -1275,8 +1274,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.people_alt_rounded, color: Color(0xFF3B82F6)),
-                  title: const Text('Employee Directory', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Manage employees, edit roles', style: TextStyle(fontSize: 11)),
+                  title: Text('Employee Directory', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Manage employees, edit roles', style: TextStyle(color: context.txtMuted, fontSize: 11)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 1);
@@ -1284,8 +1283,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.access_time_filled_rounded, color: Color(0xFF8B5CF6)),
-                  title: const Text('Admin Mark Attendance', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Manual attendance entry', style: TextStyle(fontSize: 11)),
+                  title: Text('Admin Mark Attendance', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Manual attendance entry', style: TextStyle(color: context.txtMuted, fontSize: 11)),
                   onTap: () {
                     Navigator.pop(context);
                     _showAdminMarkAttendanceModal(context);
@@ -1293,8 +1292,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.event_available_rounded, color: Color(0xFFF59E0B)),
-                  title: const Text('Leave Approvals', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Approve or reject leave requests', style: TextStyle(fontSize: 11)),
+                  title: Text('Leave Approvals', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Text('Approve or reject leave requests', style: TextStyle(color: context.txtMuted, fontSize: 11)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 2);
@@ -1302,7 +1301,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.insert_chart_rounded, color: Color(0xFF06B6D4)),
-                  title: const Text('Reports & Analytics', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Reports & Analytics', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 3);
@@ -1310,7 +1309,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.payments_rounded, color: Color(0xFF10B981)),
-                  title: const Text('Salary & Payroll', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Salary & Payroll', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/salary');
@@ -1318,7 +1317,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.assignment_rounded, color: Color(0xFF6366F1)),
-                  title: const Text('Projects & Tasks', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Projects & Tasks', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/projects');
@@ -1326,7 +1325,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.holiday_village_rounded, color: Color(0xFFEC4899)),
-                  title: const Text('Holidays Calendar', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Holidays Calendar', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/holidays');
@@ -1334,16 +1333,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
-                  title: const Text('Notifications Center', style: TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text('Notifications Center', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/notifications');
                   },
                 ),
-                const Divider(),
+                Divider(color: context.dividerCol),
                 ListTile(
                   leading: const Icon(Icons.badge_rounded, color: Color(0xFF64748B)),
-                  title: const Text('Switch to Employee View'),
+                  title: Text('Switch to Employee View', style: TextStyle(color: context.txtPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/employee/dashboard');
@@ -1351,7 +1350,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.settings_rounded, color: Color(0xFF64748B)),
-                  title: const Text('Settings & Biometrics'),
+                  title: Text('Settings & Biometrics', style: TextStyle(color: context.txtPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');

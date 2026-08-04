@@ -86,6 +86,11 @@ extension AppThemeContext on BuildContext {
   Color get dividerCol => isDark ? const Color(0xFF1F2235) : const Color(0xFFE2E8F0);
   Color get bottomNavBg => isDark ? const Color(0xFF161824) : Colors.white;
 
+  Color get drawerBg => isDark ? const Color(0xFF121420) : Colors.white;
+  Color get dialogBg => isDark ? const Color(0xFF161824) : Colors.white;
+  Color get chipBg => isDark ? const Color(0xFF1F2235) : const Color(0xFFE2E8F0);
+  Color get inputFillBg => isDark ? const Color(0xFF191C2B) : Colors.white;
+
   LinearGradient get mainBgGradient => isDark
       ? const LinearGradient(
           begin: Alignment.topCenter,

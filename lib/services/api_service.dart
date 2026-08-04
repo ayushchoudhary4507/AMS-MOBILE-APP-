@@ -17,7 +17,6 @@ class ApiService {
 
   static void init() {
     _dio.interceptors.clear();
-    // Request Interceptor — attach token
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -27,11 +26,34 @@ class ApiService {
               options.headers['Authorization'] = 'Bearer $token';
             }
           } catch (_) {}
+          // Debug Logging
+          // ignore: avoid_print
+          print('--> ${options.method.toUpperCase()} ${options.uri}');
+          if (options.data != null) {
+            // ignore: avoid_print
+            print('BODY: ${options.data}');
+          }
           return handler.next(options);
         },
+        onResponse: (response, handler) {
+          // ignore: avoid_print
+          print('<-- ${response.statusCode} ${response.requestOptions.uri}');
+          // ignore: avoid_print
+          print('RESPONSE: ${response.data}');
+          return handler.next(response);
+        },
         onError: (DioException e, handler) async {
+          // ignore: avoid_print
+          print('<-- ERROR ${e.response?.statusCode} ${e.requestOptions.uri}');
+          // ignore: avoid_print
+          print('ERROR BODY: ${e.response?.data}');
           try {
-            if (e.response?.statusCode == 401) {
+            final statusCode = e.response?.statusCode;
+            final bodyStr = e.response?.data?.toString().toLowerCase() ?? '';
+            if (statusCode == 401 ||
+                bodyStr.contains('jwt') ||
+                bodyStr.contains('malformed') ||
+                bodyStr.contains('invalid token')) {
               await StorageService.clearAll();
             }
           } catch (_) {}

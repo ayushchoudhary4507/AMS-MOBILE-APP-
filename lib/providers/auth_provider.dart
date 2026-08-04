@@ -58,6 +58,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final role = await StorageService.getRole();
 
       if (token != null && token.isNotEmpty && user != null) {
+        // Validation: Clear legacy dummy 'valid_session_' or non-JWT tokens
+        if (token.startsWith('valid_session_') || !token.contains('.')) {
+          await StorageService.clearAll();
+          state = const AuthState(status: AuthStatus.unauthenticated);
+          return;
+        }
+
         state = AuthState(
           status: AuthStatus.authenticated,
           user: user,
@@ -130,7 +137,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
               data['jwt'] ??
               data['data']?['token'] ??
               data['data']?['accessToken'] ??
-              data['result']?['token'])
+              data['data']?['access_token'] ??
+              data['result']?['token'] ??
+              data['result']?['accessToken'])
           ?.toString();
 
       Map<String, dynamic>? user;
@@ -148,14 +157,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final role = user?['role']?.toString() ??
           (isAdmin ? 'admin' : 'employee');
 
-      final effectiveToken = (token != null && token.isNotEmpty)
-          ? token
-          : (data['success'] == true || user != null
-              ? 'valid_session_${DateTime.now().millisecondsSinceEpoch}'
-              : null);
-
-      if (effectiveToken != null && effectiveToken.isNotEmpty) {
-        await StorageService.saveToken(effectiveToken);
+      if (token != null && token.isNotEmpty) {
+        await StorageService.saveToken(token);
         if (user != null) await StorageService.saveUser(user);
         await StorageService.saveRole(role);
 
@@ -163,7 +166,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           status: AuthStatus.authenticated,
           user: user,
           role: role,
-          token: effectiveToken,
+          token: token,
         );
         return true;
       }

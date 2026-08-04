@@ -11,10 +11,15 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/landing_screen.dart';
 import 'screens/employee/employee_dashboard.dart';
+import 'screens/employee/salary_screen.dart';
+import 'screens/employee/tasks_screen.dart';
 import 'screens/admin/admin_dashboard.dart';
+import 'screens/admin/analytics_screen.dart';
+import 'screens/admin/salary_screen.dart';
+import 'screens/admin/projects_screen.dart';
 import 'screens/settings/settings_screen.dart';
-
 import 'screens/shared/notifications_screen.dart';
+import 'screens/shared/holidays_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,11 +88,11 @@ final _router = GoRouter(
     // Additional screens
     GoRoute(
       path: '/employee/tasks',
-      builder: (context, state) => const _PlaceholderScreen(title: 'My Tasks'),
+      builder: (context, state) => const EmployeeTasksScreen(),
     ),
     GoRoute(
       path: '/employee/salary',
-      builder: (context, state) => const _PlaceholderScreen(title: 'My Salary'),
+      builder: (context, state) => const EmployeeSalaryScreen(),
     ),
     GoRoute(
       path: '/employee/shifts',
@@ -100,19 +105,19 @@ final _router = GoRouter(
 
     GoRoute(
       path: '/admin/analytics',
-      builder: (context, state) => const _PlaceholderScreen(title: 'Analytics'),
+      builder: (context, state) => const AdminAnalyticsScreen(),
     ),
     GoRoute(
       path: '/admin/projects',
-      builder: (context, state) => const _PlaceholderScreen(title: 'Projects'),
+      builder: (context, state) => const AdminProjectsScreen(),
     ),
     GoRoute(
       path: '/admin/salary',
-      builder: (context, state) => const _PlaceholderScreen(title: 'Salary Management'),
+      builder: (context, state) => const AdminSalaryScreen(),
     ),
     GoRoute(
       path: '/admin/holidays',
-      builder: (context, state) => const _PlaceholderScreen(title: 'Holidays'),
+      builder: (context, state) => const HolidaysScreen(),
     ),
     GoRoute(
       path: '/admin/notifications',

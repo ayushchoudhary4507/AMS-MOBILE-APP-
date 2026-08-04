@@ -1,10 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/attendance_model.dart';
 import '../services/attendance_service.dart';
 
 class AttendanceState {
   final bool isLoading;
   final bool isCalendarLoading;
-  final Map<String, dynamic>? todayAttendance;
+  final AttendanceModel? todayAttendance;
   final List<dynamic> history;
   final List<dynamic> calendarData;
   final List<dynamic> todayAllAttendance;
@@ -33,7 +35,7 @@ class AttendanceState {
   AttendanceState copyWith({
     bool? isLoading,
     bool? isCalendarLoading,
-    Map<String, dynamic>? todayAttendance,
+    AttendanceModel? todayAttendance,
     List<dynamic>? history,
     List<dynamic>? calendarData,
     List<dynamic>? todayAllAttendance,
@@ -54,7 +56,7 @@ class AttendanceState {
       stats: stats ?? this.stats,
       myLeaves: myLeaves ?? this.myLeaves,
       allLeaves: allLeaves ?? this.allLeaves,
-      error: error ?? this.error,
+      error: error,
       isCheckedIn: isCheckedIn ?? this.isCheckedIn,
       isCheckedOut: isCheckedOut ?? this.isCheckedOut,
     );
@@ -68,134 +70,201 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     state = const AttendanceState();
   }
 
+  /// Fetches today's attendance record from backend/database
   Future<void> loadTodayAttendance() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await AttendanceService.getMyTodayAttendance();
-      
-      final rawAttendance = data['attendance'] ?? data['data'] ?? data['result'];
-      Map<String, dynamic>? attendance;
+
+      final rawAttendance =
+          data['attendance'] ?? data['data'] ?? data['result'] ?? data['record'];
+
+      Map<String, dynamic>? attendanceMap;
       if (rawAttendance is Map<String, dynamic>) {
-        attendance = rawAttendance;
+        attendanceMap = rawAttendance;
       } else if (rawAttendance is Map) {
-        attendance = Map<String, dynamic>.from(rawAttendance);
-      } else if (data['checkIn'] != null || data['status'] == 'present') {
-        attendance = data;
+        attendanceMap = Map<String, dynamic>.from(rawAttendance);
+      } else if (rawAttendance is List && rawAttendance.isNotEmpty) {
+        final first = rawAttendance.first;
+        if (first is Map<String, dynamic>) {
+          attendanceMap = first;
+        } else if (first is Map) {
+          attendanceMap = Map<String, dynamic>.from(first);
+        }
+      } else if (data['checkIn'] != null ||
+          data['check_in'] != null ||
+          data['status'] != null) {
+        attendanceMap = data;
       }
 
-      bool checkedIn = false;
-      bool checkedOut = false;
-      if (attendance != null) {
-        checkedIn = attendance['checkIn'] != null ||
-            attendance['check_in'] != null ||
-            attendance['checkInTime'] != null;
-
-        checkedOut = attendance['checkOut'] != null ||
-            attendance['check_out'] != null ||
-            attendance['checkOutTime'] != null;
+      AttendanceModel? model;
+      if (attendanceMap != null && attendanceMap.isNotEmpty) {
+        model = AttendanceModel.fromJson(attendanceMap);
       }
+
+      final checkedIn = model?.isCheckedIn ?? false;
+      final checkedOut = model?.isCheckedOut ?? false;
 
       state = state.copyWith(
         isLoading: false,
-        todayAttendance: attendance,
+        todayAttendance: model,
         isCheckedIn: checkedIn,
         isCheckedOut: checkedOut,
+        error: null,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      String errorMessage = 'Failed to load today\'s attendance.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map && resData['message'] != null) {
+          errorMessage = resData['message'].toString();
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
     }
   }
 
+  /// Check In API call
   Future<bool> markAttendance() async {
     state = state.copyWith(isLoading: true, error: null);
-    final now = DateTime.now();
 
     try {
       final data = await AttendanceService.markAttendance();
-      
+
       final bool isSuccess = data['success'] == true ||
           data['status'] == 'success' ||
           data['attendance'] != null ||
           data['data'] != null;
 
       if (isSuccess) {
-        await loadTodayAttendance();
-        if (!state.isCheckedIn) {
-          final updated = Map<String, dynamic>.from(state.todayAttendance ?? {});
-          updated['checkIn'] = updated['checkIn'] ?? now.toIso8601String();
-          updated['status'] = 'present';
+        final raw = data['attendance'] ?? data['data'] ?? data['result'];
+        Map<String, dynamic>? map;
+        if (raw is Map<String, dynamic>) {
+          map = raw;
+        } else if (raw is Map) {
+          map = Map<String, dynamic>.from(raw);
+        }
+
+        if (map != null && map.isNotEmpty) {
+          final model = AttendanceModel.fromJson(map);
           state = state.copyWith(
             isLoading: false,
-            isCheckedIn: true,
-            todayAttendance: updated,
+            todayAttendance: model,
+            isCheckedIn: model.isCheckedIn,
+            isCheckedOut: model.isCheckedOut,
             error: null,
           );
+        } else {
+          await loadTodayAttendance();
         }
+
+        await loadStats();
+        return true;
+      } else {
+        final msg = data['message']?.toString() ?? 'Failed to mark check-in.';
+        // Attempt recovery from backend if already marked
+        await loadTodayAttendance();
+        if (state.isCheckedIn) {
+          state = state.copyWith(isLoading: false, error: null);
+          return true;
+        }
+        state = state.copyWith(isLoading: false, error: msg);
+        return false;
+      }
+    } catch (e) {
+      String errorMessage = 'Failed to mark check-in. Please try again.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map && resData['message'] != null) {
+          errorMessage = resData['message'].toString();
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+
+      // Check if record already exists on backend DB
+      await loadTodayAttendance();
+      if (state.isCheckedIn) {
+        state = state.copyWith(isLoading: false, error: null);
         return true;
       }
-    } catch (_) {}
 
-    // Fallback: Ensure UI successfully transitions to checked-in state
-    final updatedToday = Map<String, dynamic>.from(state.todayAttendance ?? {});
-    updatedToday['checkIn'] = updatedToday['checkIn'] ?? now.toIso8601String();
-    updatedToday['status'] = 'present';
-
-    state = state.copyWith(
-      isLoading: false,
-      isCheckedIn: true,
-      todayAttendance: updatedToday,
-      error: null,
-    );
-    return true;
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
+    }
   }
 
+  /// Check Out API call
   Future<bool> checkOut() async {
     state = state.copyWith(isLoading: true, error: null);
-    final now = DateTime.now();
 
     try {
       final data = await AttendanceService.checkOut();
-      
+
       final bool isSuccess = data['success'] == true ||
           data['status'] == 'success' ||
           data['attendance'] != null ||
           data['data'] != null;
 
       if (isSuccess) {
-        await loadTodayAttendance();
-        if (!state.isCheckedOut) {
-          final updated = Map<String, dynamic>.from(state.todayAttendance ?? {});
-          updated['checkOut'] = updated['checkOut'] ?? now.toIso8601String();
+        final raw = data['attendance'] ?? data['data'] ?? data['result'];
+        Map<String, dynamic>? map;
+        if (raw is Map<String, dynamic>) {
+          map = raw;
+        } else if (raw is Map) {
+          map = Map<String, dynamic>.from(raw);
+        }
+
+        if (map != null && map.isNotEmpty) {
+          final model = AttendanceModel.fromJson(map);
           state = state.copyWith(
             isLoading: false,
-            isCheckedIn: true,
-            isCheckedOut: true,
-            todayAttendance: updated,
+            todayAttendance: model,
+            isCheckedIn: model.isCheckedIn,
+            isCheckedOut: model.isCheckedOut,
             error: null,
           );
+        } else {
+          await loadTodayAttendance();
         }
+
+        await loadStats();
+        return true;
+      } else {
+        final msg = data['message']?.toString() ?? 'Failed to mark check-out.';
+        await loadTodayAttendance();
+        if (state.isCheckedOut) {
+          state = state.copyWith(isLoading: false, error: null);
+          return true;
+        }
+        state = state.copyWith(isLoading: false, error: msg);
+        return false;
+      }
+    } catch (e) {
+      String errorMessage = 'Failed to mark check-out. Please try again.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map && resData['message'] != null) {
+          errorMessage = resData['message'].toString();
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+
+      await loadTodayAttendance();
+      if (state.isCheckedOut) {
+        state = state.copyWith(isLoading: false, error: null);
         return true;
       }
-    } catch (_) {}
 
-    // Fallback: Ensure UI successfully transitions to checked-out state
-    final updatedToday = Map<String, dynamic>.from(state.todayAttendance ?? {});
-    updatedToday['checkOut'] = updatedToday['checkOut'] ?? now.toIso8601String();
-
-    state = state.copyWith(
-      isLoading: false,
-      isCheckedIn: true,
-      isCheckedOut: true,
-      todayAttendance: updatedToday,
-      error: null,
-    );
-    return true;
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
+    }
   }
 
   Future<void> loadStats() async {
     try {
       final data = await AttendanceService.getAttendanceStats();
-      // Support multiple response shapes from backend
       final statsData = data['data'] is Map<String, dynamic>
           ? Map<String, dynamic>.from(data['data'])
           : data['stats'] is Map<String, dynamic>
@@ -213,7 +282,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         month: month ?? now.month,
         year: year ?? now.year,
       );
-      // Support: { calendar: [...] } or { data: [...] } or { attendance: [...] } or direct []
       final raw = data['calendar'] ??
           data['data'] ??
           data['attendance'] ??
@@ -236,18 +304,17 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           data['result'] ??
           (data is List ? data : []);
       final list = raw is List ? List<dynamic>.from(raw) : <dynamic>[];
-      
-      // Fallback: If local user is checked in, ensure they are in todayAllAttendance
+
       if (state.isCheckedIn && state.todayAttendance != null) {
         final localAtt = state.todayAttendance!;
         final exists = list.any((item) {
           if (item is! Map) return false;
-          return item['userId'] == localAtt['userId'] ||
-              item['employeeId'] == localAtt['employeeId'] ||
-              item['_id'] == localAtt['_id'];
+          return item['userId'] == localAtt.userId ||
+              item['employeeId'] == localAtt.employeeId ||
+              item['_id'] == localAtt.id;
         });
         if (!exists) {
-          list.add(localAtt);
+          list.add(localAtt.toJson());
         }
       }
       state = state.copyWith(todayAllAttendance: list);
@@ -339,7 +406,9 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       );
       state = state.copyWith(isLoading: false);
       await loadStats();
-      return res['success'] == true || res['status'] == 'success' || res['attendance'] != null;
+      return res['success'] == true ||
+          res['status'] == 'success' ||
+          res['attendance'] != null;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       await loadStats();
