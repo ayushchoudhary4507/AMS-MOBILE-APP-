@@ -1057,25 +1057,38 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     final calendar = attendance.calendarData;
     final history = attendance.history;
 
-    final absentList = <Map<String, String>>[];
+    String currentFilter = 'absent'; // 'absent', 'present', 'all'
 
-    // Extract explicit absent records from calendar & history
+    final absentList = <Map<String, String>>[];
+    final presentList = <Map<String, String>>[];
+    final allList = <Map<String, String>>[];
+
     final allRecords = [...calendar, ...history];
     for (var item in allRecords) {
       if (item is! Map) continue;
       final status = (item['status'] ?? '').toString().toLowerCase();
-      if (status == 'absent') {
-        final dateStr = item['date']?.toString() ?? item['createdAt']?.toString() ?? '';
-        String formattedDate = dateStr;
-        try {
-          final dt = DateTime.parse(dateStr).toLocal();
-          formattedDate = DateFormat('EEEE, MMM d, yyyy').format(dt);
-        } catch (_) {}
+      final dateStr = item['date']?.toString() ?? item['createdAt']?.toString() ?? '';
+      String formattedDate = dateStr;
+      try {
+        final dt = DateTime.parse(dateStr).toLocal();
+        formattedDate = DateFormat('EEEE, MMM d, yyyy').format(dt);
+      } catch (_) {}
 
-        absentList.add({
-          'date': formattedDate.isNotEmpty ? formattedDate : 'Absent Day',
-          'reason': item['notes']?.toString() ?? item['reason']?.toString() ?? 'Unexcused Absence',
-        });
+      final isAbs = status.contains('absent');
+      final isLve = status.contains('leave');
+      final statusLabel = isAbs ? 'Absent' : (isLve ? 'On Leave' : 'Present');
+
+      final rec = {
+        'date': formattedDate.isNotEmpty ? formattedDate : 'Record Date',
+        'status': statusLabel,
+        'reason': item['notes']?.toString() ?? item['reason']?.toString() ?? (isAbs ? 'Unexcused Absence' : 'Present / Checked In'),
+      };
+
+      allList.add(rec);
+      if (isAbs) {
+        absentList.add(rec);
+      } else {
+        presentList.add(rec);
       }
     }
 
@@ -1084,147 +1097,234 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.55,
-          decoration: BoxDecoration(
-            color: context.cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: context.borderCol),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.txtMuted.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final activeList = currentFilter == 'present'
+                ? presentList
+                : (currentFilter == 'all' ? allList : absentList);
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              decoration: BoxDecoration(
+                color: context.cardBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: context.borderCol),
               ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
+                        color: context.txtMuted.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      child: const Icon(Icons.calendar_today_rounded, color: Color(0xFFEF4444), size: 22),
                     ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
                       children: [
-                        Text(
-                          'My Absent Days (This Month)',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: context.txtPrimary,
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          child: const Icon(Icons.calendar_today_rounded, color: Color(0xFFEF4444), size: 22),
                         ),
-                        Text(
-                          'Total ${absentList.length} absent record(s)',
-                          style: TextStyle(fontSize: 12, color: context.txtMuted),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: Icon(Icons.close_rounded, color: context.txtMuted),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 24),
-              Expanded(
-                child: absentList.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.check_circle_outline_rounded,
-                                size: 48, color: Color(0xFF10B981)),
-                            const SizedBox(height: 12),
                             Text(
-                              'Great! No absent days recorded this month.',
+                              'My Attendance Records',
                               style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: context.txtSecondary,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: context.txtPrimary,
                               ),
+                            ),
+                            Text(
+                              'Total ${activeList.length} record(s) listed',
+                              style: TextStyle(fontSize: 12, color: context.txtMuted),
                             ),
                           ],
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        itemCount: absentList.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final item = absentList[index];
-                          return Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: context.cardLightBg,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: context.borderCol),
-                            ),
-                            child: Row(
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Filter Chips Bar
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        _buildMyAbsentChip(
+                          label: 'Absent (${absentList.length})',
+                          isSelected: currentFilter == 'absent',
+                          color: const Color(0xFFEF4444),
+                          onTap: () => setModalState(() => currentFilter = 'absent'),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildMyAbsentChip(
+                          label: 'Present / Not Absent (${presentList.length})',
+                          isSelected: currentFilter == 'present',
+                          color: const Color(0xFF10B981),
+                          onTap: () => setModalState(() => currentFilter = 'present'),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildMyAbsentChip(
+                          label: 'All Days (${allList.length})',
+                          isSelected: currentFilter == 'all',
+                          color: const Color(0xFF6366F1),
+                          onTap: () => setModalState(() => currentFilter = 'all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 20),
+
+                  Expanded(
+                    child: activeList.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.event_busy_rounded, color: Color(0xFFEF4444), size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item['date']!,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: context.txtPrimary,
-                                        ),
-                                      ),
-                                      Text(
-                                        item['reason']!,
-                                        style: TextStyle(fontSize: 12, color: context.txtMuted),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'Absent',
-                                    style: TextStyle(
-                                      color: Color(0xFFEF4444),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                const Icon(Icons.check_circle_outline_rounded,
+                                    size: 48, color: Color(0xFF10B981)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No records for this category.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.txtSecondary,
                                   ),
                                 ),
                               ],
                             ),
-                          );
-                        },
-                      ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            itemCount: activeList.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final item = activeList[index];
+                              final st = item['status'] ?? 'Present';
+                              final (statusBg, statusFg) = switch (st.toLowerCase()) {
+                                'absent' => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
+                                'on leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
+                                _ => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),
+                              };
+
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: context.cardLightBg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: context.borderCol),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      st == 'Absent'
+                                          ? Icons.event_busy_rounded
+                                          : Icons.check_circle_rounded,
+                                      color: statusFg,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item['date']!,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: context.txtPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            item['reason']!,
+                                            style: TextStyle(fontSize: 12, color: context.txtMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: statusBg,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        st,
+                                        style: TextStyle(
+                                          color: statusFg,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildMyAbsentChip({
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? color : color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? color : color.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1617,6 +1717,22 @@ Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radi
         RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?'),
         apiBase,
       );
+    }
+
+    if (!cleanAvatar.startsWith('http://') &&
+        !cleanAvatar.startsWith('https://') &&
+        !cleanAvatar.startsWith('data:') &&
+        !cleanAvatar.startsWith('file://') &&
+        (cleanAvatar.contains('cloudinary.com') ||
+         cleanAvatar.contains('vercel.app') ||
+         cleanAvatar.contains('onrender.com') ||
+         cleanAvatar.contains('amazonaws.com') ||
+         cleanAvatar.contains('googleapis.com') ||
+         cleanAvatar.contains('supabase.co') ||
+         cleanAvatar.contains('.com/') ||
+         cleanAvatar.contains('.org/') ||
+         cleanAvatar.contains('.net/'))) {
+      cleanAvatar = 'https://$cleanAvatar';
     }
     // 1. Direct HTTP/HTTPS Network URL
     if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {

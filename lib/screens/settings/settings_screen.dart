@@ -331,6 +331,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
       }
 
+      if (!cleanAvatar.startsWith('http://') &&
+          !cleanAvatar.startsWith('https://') &&
+          !cleanAvatar.startsWith('data:') &&
+          !cleanAvatar.startsWith('file://') &&
+          (cleanAvatar.contains('cloudinary.com') ||
+           cleanAvatar.contains('vercel.app') ||
+           cleanAvatar.contains('onrender.com') ||
+           cleanAvatar.contains('amazonaws.com') ||
+           cleanAvatar.contains('googleapis.com') ||
+           cleanAvatar.contains('supabase.co') ||
+           cleanAvatar.contains('.com/') ||
+           cleanAvatar.contains('.org/') ||
+           cleanAvatar.contains('.net/'))) {
+        cleanAvatar = 'https://$cleanAvatar';
+      }
+
       // 1. Direct HTTP/HTTPS Network URL
       if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
         return ClipOval(

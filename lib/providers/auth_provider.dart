@@ -59,15 +59,26 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
     final fields = [
       'avatar',
       'profilePicture',
-      'image',
+      'profilePic',
+      'profileImage',
+      'profile_image',
       'profile_picture',
       'profile_photo',
+      'image',
+      'imageUrl',
+      'image_url',
+      'avatarUrl',
+      'avatar_url',
       'photo',
       'photoUrl',
-      'avatarUrl',
-      'imageUrl',
+      'photo_url',
+      'displayPicture',
+      'dp',
       'url',
       'path',
+      'filePath',
+      'file',
+      'src',
       'picture',
       'img',
       'profile',
@@ -297,11 +308,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final currentUser = state.user ?? await StorageService.getUser() ?? {};
       final userEmail = (currentUser['email'] ?? rawUser?['email'])?.toString().toLowerCase().trim();
       final userId = (currentUser['id'] ?? currentUser['_id'] ?? rawUser?['id'] ?? rawUser?['_id'])?.toString();
+      final userName = (currentUser['name'] ?? rawUser?['name'])?.toString().toLowerCase().trim();
+      final userPhone = (currentUser['phone'] ?? rawUser?['phone'])?.toString().trim();
 
       var serverAvatar = extractAvatarUrl(rawUser);
 
-      // If profile API response lacks avatar, search employee list API
-      if ((serverAvatar == null || serverAvatar.isEmpty) && (userEmail != null || userId != null)) {
+      // If profile API response lacks avatar, search employee list API by email, ID, name, or phone
+      if (serverAvatar == null || serverAvatar.isEmpty) {
         try {
           final resMap = await EmployeeService.getAll();
           final rawList = resMap['employees'] ?? resMap['data'] ?? resMap['records'] ?? resMap['result'] ?? resMap['items'];
@@ -310,7 +323,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
               if (emp is Map) {
                 final empEmail = emp['email']?.toString().toLowerCase().trim();
                 final empId = (emp['id'] ?? emp['_id'])?.toString();
-                if ((userEmail != null && empEmail == userEmail) || (userId != null && empId == userId)) {
+                final empName = emp['name']?.toString().toLowerCase().trim();
+                final empPhone = emp['phone']?.toString().trim();
+
+                final isMatch = (userEmail != null && empEmail == userEmail) ||
+                    (userId != null && empId == userId) ||
+                    (userName != null && empName != null && empName == userName) ||
+                    (userPhone != null && userPhone.isNotEmpty && empPhone == userPhone);
+
+                if (isMatch) {
                   final empAvatar = extractAvatarUrl(emp);
                   if (empAvatar != null && empAvatar.isNotEmpty) {
                     serverAvatar = empAvatar;

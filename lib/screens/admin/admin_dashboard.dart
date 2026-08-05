@@ -428,168 +428,94 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Consumer(
-        builder: (context, ref, _) {
-          final attendance = ref.watch(attendanceProvider);
-          final employees = ref.watch(employeeProvider);
+      builder: (ctx) {
+        String activeCategory = statusType; // 'absent', 'present', 'leave', or 'all'
 
-          final todayList = attendance.todayAllAttendance;
-          final allEmployees = employees.employees;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final attendance = ref.watch(attendanceProvider);
+            final employeeState = ref.watch(employeeProvider);
+            final todayList = attendance.todayAllAttendance;
+            final allEmployees = employeeState.employees;
 
-          List<Map<String, dynamic>> displayList = [];
+            final presentList = <Map<String, dynamic>>[];
+            final leaveList = <Map<String, dynamic>>[];
+            final absentList = <Map<String, dynamic>>[];
+            final allList = <Map<String, dynamic>>[];
 
-          if (statusType == 'present') {
-            for (var item in todayList) {
-              if (item is! Map) continue;
-              final st = (item['status'] ?? '').toString().toLowerCase();
-              final hasCheckIn = item['checkIn'] != null ||
-                  item['check_in'] != null ||
-                  item['checkInTime'] != null ||
-                  item['check_in_time'] != null;
-
-              if (st == 'present' ||
-                  st == 'checked_in' ||
-                  st == 'late' ||
-                  st == 'half_day' ||
-                  st == 'on_time' ||
-                  hasCheckIn) {
-                String empName = 'Employee';
-                String empEmail = '';
-                if (item['employee'] is Map) {
-                  empName = item['employee']['name'] ?? 'Employee';
-                  empEmail = item['employee']['email'] ?? '';
-                } else if (item['user'] is Map) {
-                  empName = item['user']['name'] ?? 'Employee';
-                  empEmail = item['user']['email'] ?? '';
-                } else if (item['name'] != null) {
-                  empName = item['name']?.toString() ?? 'Employee';
-                  empEmail = item['email']?.toString() ?? '';
-                }
-                displayList.add({
-                  'name': empName,
-                  'email': empEmail,
-                  'checkIn': item['checkIn'] ?? item['check_in'] ?? item['checkInTime'] ?? item['check_in_time'],
-                  'status': 'Present',
-                });
-              }
-            }
-
-            if (attendance.isCheckedIn) {
-              final myUser = ref.read(authProvider).user;
-              final myName = myUser?['name'] ?? 'Employee';
-              final myEmail = myUser?['email'] ?? '';
-
-              final alreadyInList = displayList.any((e) =>
-                  (e['name'] ?? '').toString().toLowerCase() ==
-                  myName.toString().toLowerCase());
-
-              if (!alreadyInList) {
-                displayList.insert(0, {
-                  'name': myName.toString(),
-                  'email': myEmail.toString(),
-                  'checkIn': attendance.todayAttendance?.formattedCheckInTime ??
-                      DateTime.now().toIso8601String(),
-                  'status': 'Present',
-                });
-              }
-            }
-
-            // Fallback: If displayList is empty, check allEmployees or default active employee
-            if (displayList.isEmpty) {
-              for (var emp in allEmployees) {
-                if (emp is! Map) continue;
-                final st = (emp['status'] ?? emp['attendanceStatus'] ?? '').toString().toLowerCase();
-                final hasCheckIn = emp['checkIn'] != null || emp['check_in'] != null;
-                if (st == 'present' || st == 'checked_in' || hasCheckIn) {
-                  displayList.add({
-                    'name': emp['name'] ?? 'Employee',
-                    'email': emp['email'] ?? emp['role'] ?? '',
-                    'checkIn': emp['checkIn'] ?? emp['check_in'] ?? DateTime.now().toIso8601String(),
-                    'status': 'Present',
-                  });
-                }
-              }
-              if (displayList.isEmpty && allEmployees.isNotEmpty) {
-                for (var emp in allEmployees) {
-                  if (emp is Map) {
-                    displayList.add({
-                      'name': emp['name'] ?? 'Employee',
-                      'email': emp['email'] ?? emp['department'] ?? '',
-                      'checkIn': DateTime.now().toIso8601String(),
-                      'status': 'Present',
-                    });
-                    break;
-                  }
-                }
-              }
-            }
-          } else if (statusType == 'leave') {
-            for (var leave in attendance.allLeaves) {
-              if (leave is! Map) continue;
-              String empName =
-                  leave['employeeName'] ?? leave['user']?['name'] ?? 'Employee';
-              String type = leave['leaveType'] ?? 'Leave';
-              displayList.add({
-                'name': empName,
-                'email': type,
-                'status': leave['status'] ?? 'Approved',
-              });
-            }
-          } else if (statusType == 'absent') {
             final presentKeys = <String>{};
             final leaveKeys = <String>{};
 
+            // 1. Collect Present records from today's attendance
             for (var att in todayList) {
               if (att is! Map) continue;
               final st = (att['status'] ?? '').toString().toLowerCase();
               final empObj = att['employee'] ?? att['user'];
-              String? id, email, name;
+              String? id, email, name, avatar;
               if (empObj is Map) {
                 id = (empObj['_id'] ?? empObj['id'])?.toString();
                 email = empObj['email']?.toString();
                 name = empObj['name']?.toString();
-              } else if (empObj is String) {
-                id = empObj;
+                avatar = extractAvatarUrl(empObj);
               }
               id ??= (att['userId'] ?? att['employeeId'] ?? att['user_id'])?.toString();
               email ??= att['email']?.toString();
               name ??= (att['name'] ?? att['employeeName'])?.toString();
+              avatar ??= extractAvatarUrl(att);
 
               final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+
               if (st.contains('leave')) {
                 leaveKeys.addAll(keys);
               } else if (!st.contains('absent')) {
                 presentKeys.addAll(keys);
+                presentList.add({
+                  'name': name ?? 'Employee',
+                  'email': email ?? '',
+                  'avatar': avatar,
+                  'status': 'Present',
+                  'checkIn': att['checkIn'] ?? att['check_in'] ?? DateTime.now().toIso8601String(),
+                });
               }
             }
 
+            // 2. Collect Leave records
             for (var leave in attendance.allLeaves) {
               if (leave is! Map) continue;
               final st = (leave['status'] ?? '').toString().toLowerCase();
               if (st == 'approved') {
                 final empObj = leave['user'] ?? leave['employee'];
-                String? id, email, name;
+                String? id, email, name, avatar;
                 if (empObj is Map) {
                   id = (empObj['_id'] ?? empObj['id'])?.toString();
                   email = empObj['email']?.toString();
                   name = empObj['name']?.toString();
-                } else if (empObj is String) {
-                  id = empObj;
+                  avatar = extractAvatarUrl(empObj);
                 }
                 id ??= (leave['userId'] ?? leave['employeeId'])?.toString();
                 email ??= leave['email']?.toString();
                 name ??= (leave['employeeName'] ?? leave['name'])?.toString();
+                avatar ??= extractAvatarUrl(leave);
 
                 final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
                 leaveKeys.addAll(keys);
+
+                leaveList.add({
+                  'name': name ?? 'Employee',
+                  'email': leave['leaveType'] ?? 'Approved Leave',
+                  'avatar': avatar,
+                  'status': 'On Leave',
+                });
               }
             }
 
+            // 3. Cross-reference all employees to calculate Absent and All status
             for (var emp in allEmployees) {
               if (emp is! Map) continue;
               final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
               final email = emp['email']?.toString().trim().toLowerCase();
               final name = emp['name']?.toString().trim().toLowerCase();
+              final avatar = extractAvatarUrl(emp);
 
               final isPresent = (id != null && presentKeys.contains(id)) ||
                   (email != null && presentKeys.contains(email)) ||
@@ -599,208 +525,286 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   (email != null && leaveKeys.contains(email)) ||
                   (name != null && leaveKeys.contains(name));
 
-              if (!isPresent && !isOnLeave) {
-                final avatarStr = (emp['avatar'] ?? emp['profilePicture'] ?? emp['image'])?.toString();
-                displayList.add({
-                  'name': emp['name'] ?? 'Employee',
-                  'email': emp['email'] ?? emp['department'] ?? emp['role'] ?? '',
-                  'avatar': avatarStr,
+              final empName = emp['name'] ?? 'Employee';
+              final empSub = emp['email'] ?? emp['department'] ?? emp['role'] ?? '';
+
+              if (isPresent) {
+                allList.add({
+                  'name': empName,
+                  'email': empSub,
+                  'avatar': avatar,
+                  'status': 'Present',
+                });
+              } else if (isOnLeave) {
+                allList.add({
+                  'name': empName,
+                  'email': empSub,
+                  'avatar': avatar,
+                  'status': 'On Leave',
+                });
+              } else {
+                absentList.add({
+                  'name': empName,
+                  'email': empSub,
+                  'avatar': avatar,
+                  'status': 'Absent',
+                });
+                allList.add({
+                  'name': empName,
+                  'email': empSub,
+                  'avatar': avatar,
                   'status': 'Absent',
                 });
               }
             }
-          }
 
-          final (statusColor, statusIcon) = switch (statusType) {
-            'present' => (const Color(0xFF10B981), Icons.check_circle_rounded),
-            'leave' => (const Color(0xFFF59E0B), Icons.calendar_month_rounded),
-            _ => (const Color(0xFFEF4444), Icons.cancel_rounded),
-          };
+            // Fallback for presentList if empty but present employees exist
+            if (presentList.isEmpty) {
+              presentList.addAll(allList.where((e) => e['status'] == 'Present'));
+            }
 
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.65,
-            decoration: BoxDecoration(
-              color: context.cardBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border.all(color: context.borderCol, width: 1),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: context.txtMuted.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(2),
+            // Determine active list for activeCategory
+            List<Map<String, dynamic>> activeList;
+            if (activeCategory == 'present') {
+              activeList = presentList;
+            } else if (activeCategory == 'leave') {
+              activeList = leaveList;
+            } else if (activeCategory == 'all') {
+              activeList = allList;
+            } else {
+              activeList = absentList;
+            }
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.70,
+              decoration: BoxDecoration(
+                color: context.cardBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: context.borderCol, width: 1),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: context.txtMuted.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.people_alt_rounded, color: Color(0xFF6366F1), size: 22),
                         ),
-                        child: Icon(statusIcon, color: statusColor, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: context.txtPrimary,
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Attendance Overview',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: context.txtPrimary,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${displayList.length} employee(s) listed',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.txtMuted,
+                            Text(
+                              '${activeList.length} employee(s) listed',
+                              style: TextStyle(fontSize: 12, color: context.txtMuted),
                             ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(Icons.close_rounded, color: context.txtMuted),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
+                          ],
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 24),
-                Expanded(
-                  child: displayList.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.person_off_rounded,
-                                  size: 48,
-                                  color: context.txtMuted.withValues(alpha: 0.5)),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No records found for today',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: context.txtSecondary,
+                  const SizedBox(height: 10),
+
+                  // Filter Chips Bar
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        _buildAdminModalChip(
+                          label: 'Absent (${absentList.length})',
+                          isSelected: activeCategory == 'absent',
+                          color: const Color(0xFFEF4444),
+                          onTap: () => setModalState(() => activeCategory = 'absent'),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildAdminModalChip(
+                          label: 'Present / Not Absent (${presentList.length})',
+                          isSelected: activeCategory == 'present',
+                          color: const Color(0xFF10B981),
+                          onTap: () => setModalState(() => activeCategory = 'present'),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildAdminModalChip(
+                          label: 'On Leave (${leaveList.length})',
+                          isSelected: activeCategory == 'leave',
+                          color: const Color(0xFFF59E0B),
+                          onTap: () => setModalState(() => activeCategory = 'leave'),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildAdminModalChip(
+                          label: 'All (${allList.length})',
+                          isSelected: activeCategory == 'all',
+                          color: const Color(0xFF6366F1),
+                          onTap: () => setModalState(() => activeCategory = 'all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 20),
+
+                  // Active List Display
+                  Expanded(
+                    child: activeList.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.check_circle_outline_rounded,
+                                    size: 48, color: Color(0xFF10B981)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No records for this category today',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.txtSecondary,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 8),
-                          itemCount: displayList.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final item = displayList[index];
-                            final empName = item['name'] ?? 'Employee';
-                            final empSub = item['email'] ?? '';
-                            final checkInRaw = item['checkIn'];
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            itemCount: activeList.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final item = activeList[index];
+                              final empName = item['name'] ?? 'Employee';
+                              final empSub = item['email'] ?? '';
+                              final statusStr = item['status'] ?? 'Absent';
 
-                            String timeStr = item['status'] ?? '';
-                            if (checkInRaw != null) {
-                              try {
-                                final dt =
-                                    DateTime.parse(checkInRaw.toString()).toLocal();
-                                timeStr = DateFormat('h:mm a').format(dt);
-                              } catch (_) {
-                                timeStr = checkInRaw.toString();
-                              }
-                            }
+                              final (statusBg, statusFg) = switch (statusStr.toLowerCase()) {
+                                'present' => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),
+                                'on leave' || 'leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
+                                _ => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
+                              };
 
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: context.cardLightBg,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                    color: context.borderCol, width: 1),
-                              ),
-                              child: Row(
-                                children: [
-                                  _buildAvatarWidget(item['avatar']?.toString(), empName, 20),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          empName,
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: context.txtPrimary,
-                                          ),
-                                        ),
-                                        if (empSub.isNotEmpty)
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: context.cardLightBg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: context.borderCol, width: 1),
+                                ),
+                                child: Row(
+                                  children: [
+                                    _buildAvatarWidget(item['avatar'], empName, 20),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            empSub,
+                                            empName,
                                             style: TextStyle(
-                                              fontSize: 12,
-                                              color: context.txtMuted,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              color: context.txtPrimary,
                                             ),
                                           ),
-                                      ],
+                                          if (empSub.isNotEmpty)
+                                            Text(
+                                              empSub,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: context.txtMuted,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              statusColor.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          item['status'] ?? 'Present',
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: statusBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        statusStr,
+                                        style: TextStyle(
+                                          color: statusFg,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      if (checkInRaw != null) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          timeStr,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: context.txtMuted,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAdminModalChip({
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? color : color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? color : color.withValues(alpha: 0.3),
+              width: 1,
             ),
-          );
-        },
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1064,6 +1068,22 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?'),
           apiBase,
         );
+      }
+
+      if (!cleanAvatar.startsWith('http://') &&
+          !cleanAvatar.startsWith('https://') &&
+          !cleanAvatar.startsWith('data:') &&
+          !cleanAvatar.startsWith('file://') &&
+          (cleanAvatar.contains('cloudinary.com') ||
+           cleanAvatar.contains('vercel.app') ||
+           cleanAvatar.contains('onrender.com') ||
+           cleanAvatar.contains('amazonaws.com') ||
+           cleanAvatar.contains('googleapis.com') ||
+           cleanAvatar.contains('supabase.co') ||
+           cleanAvatar.contains('.com/') ||
+           cleanAvatar.contains('.org/') ||
+           cleanAvatar.contains('.net/'))) {
+        cleanAvatar = 'https://$cleanAvatar';
       }
       // 1. Direct HTTP/HTTPS Network URL
       if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
