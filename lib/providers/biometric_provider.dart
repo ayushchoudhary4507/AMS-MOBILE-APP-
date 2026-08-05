@@ -82,8 +82,9 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
         if (!enrolled) {
           state = state.copyWith(
             isAuthenticating: false,
-            errorMessage: 'Fingerprint is not set up on this device.\n'
-                'Please add a fingerprint in your device settings.',
+            errorMessage:
+                'Fingerprint authentication is not available on this device. '
+                'Please configure fingerprint in your device settings or use another supported biometric method.',
           );
           return null;
         }
@@ -97,8 +98,9 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
         if (!enrolled) {
           state = state.copyWith(
             isAuthenticating: false,
-            errorMessage: 'Face Unlock is not set up on this device.\n'
-                'Please add a face lock in your device settings.',
+            errorMessage:
+                'Face Unlock is not available on this device. '
+                'Please configure Face Unlock in your device settings or use another supported biometric method.',
           );
           return null;
         }
@@ -114,7 +116,7 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
           state = state.copyWith(
             isAuthenticating: false,
             errorMessage:
-                'No fingerprint or face biometric is enrolled on this device.\n'
+                'No fingerprint or face biometric is enrolled on this device. '
                 'Please add a fingerprint or face lock in your device settings.',
           );
           return null;
@@ -124,6 +126,7 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
       // --- Step 3: Show native biometric prompt and check the ACTUAL result ---
       final BiometricAuthResult authResult = await _authService.authenticateWithResult(
         localizedReason: reason,
+        biometricOnly: fingerprintOnly == true,
       );
 
       dev.log(

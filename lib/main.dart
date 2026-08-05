@@ -95,6 +95,10 @@ final _router = GoRouter(
       builder: (context, state) => const EmployeeSalaryScreen(),
     ),
     GoRoute(
+      path: '/employee/projects',
+      builder: (context, state) => const AdminProjectsScreen(),
+    ),
+    GoRoute(
       path: '/employee/shifts',
       builder: (context, state) => const _PlaceholderScreen(title: 'My Shifts'),
     ),

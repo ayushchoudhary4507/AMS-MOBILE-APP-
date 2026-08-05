@@ -117,10 +117,11 @@ class BiometricAuthService {
       );
 
       final hasFingerprint = available.contains(BiometricType.fingerprint) ||
-          available.contains(BiometricType.strong) ||
-          available.contains(BiometricType.weak);
+          (available.contains(BiometricType.strong) && !available.contains(BiometricType.face));
 
-      final hasFace = available.contains(BiometricType.face);
+      final hasFace = available.contains(BiometricType.face) ||
+          available.contains(BiometricType.weak) ||
+          (available.contains(BiometricType.strong) && !available.contains(BiometricType.fingerprint));
 
       final isEnabledStr = await _secureStorage.read(key: _keyBiometricEnabled);
       final isFingerprintStr = await _secureStorage.read(key: _keyFingerprintEnabled);
@@ -201,6 +202,7 @@ class BiometricAuthService {
   /// NEVER returns success on error/exception/cancellation.
   Future<BiometricAuthResult> authenticateWithResult({
     String localizedReason = 'Scan your biometrics to log in.',
+    bool biometricOnly = false,
   }) async {
     try {
       // Step 1: Verify device supports biometrics
@@ -245,11 +247,9 @@ class BiometricAuthService {
       // Step 4: Show the native biometric prompt and capture the ACTUAL result
       final bool result = await _auth.authenticate(
         localizedReason: localizedReason,
-        options: const AuthenticationOptions(
+        options: AuthenticationOptions(
           stickyAuth: true,
-          // biometricOnly: true prevents PIN/pattern fallback from bypassing
-          // the biometric requirement. The user MUST use their enrolled biometric.
-          biometricOnly: true,
+          biometricOnly: biometricOnly,
           useErrorDialogs: true,
         ),
       );
@@ -319,9 +319,15 @@ class BiometricAuthService {
   Future<bool> isFingerprintEnrolled() async {
     try {
       final available = await _auth.getAvailableBiometrics();
-      return available.contains(BiometricType.fingerprint) ||
-          available.contains(BiometricType.strong) ||
-          available.contains(BiometricType.weak);
+      dev.log(
+        '[BiometricAuthService] isFingerprintEnrolled -> available: '
+        '${available.map((t) => t.name).join(', ')}',
+        name: 'BiometricAuthService',
+      );
+      if (available.contains(BiometricType.fingerprint)) return true;
+      if (available.contains(BiometricType.strong) && !available.contains(BiometricType.face)) return true;
+      if (available.contains(BiometricType.weak) && !available.contains(BiometricType.face) && !available.contains(BiometricType.strong)) return true;
+      return false;
     } catch (_) {
       return false;
     }
@@ -331,7 +337,15 @@ class BiometricAuthService {
   Future<bool> isFaceEnrolled() async {
     try {
       final available = await _auth.getAvailableBiometrics();
-      return available.contains(BiometricType.face);
+      dev.log(
+        '[BiometricAuthService] isFaceEnrolled -> available: '
+        '${available.map((t) => t.name).join(', ')}',
+        name: 'BiometricAuthService',
+      );
+      if (available.contains(BiometricType.face)) return true;
+      if (available.contains(BiometricType.weak) && !available.contains(BiometricType.fingerprint)) return true;
+      if (available.contains(BiometricType.strong) && !available.contains(BiometricType.fingerprint)) return true;
+      return false;
     } catch (_) {
       return false;
     }

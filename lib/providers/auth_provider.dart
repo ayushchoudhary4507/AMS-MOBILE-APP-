@@ -1,6 +1,8 @@
+import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
+import '../services/employee_service.dart';
 import '../core/utils/storage_service.dart';
 import 'attendance_provider.dart';
 import 'employee_provider.dart';
@@ -45,8 +47,57 @@ class AuthState {
   }
 }
 
+/// Helper to extract valid avatar string (URL, relative path, or base64) from user object or string
+String? extractAvatarUrl(dynamic avatarOrUser) {
+  if (avatarOrUser == null) return null;
+  if (avatarOrUser is String) {
+    final clean = avatarOrUser.trim();
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') return clean;
+    return null;
+  }
+  if (avatarOrUser is Map) {
+    final fields = [
+      'avatar',
+      'profilePicture',
+      'image',
+      'profile_picture',
+      'profile_photo',
+      'photo',
+      'photoUrl',
+      'avatarUrl',
+      'imageUrl',
+      'url',
+      'path',
+      'picture',
+      'img',
+      'profile',
+    ];
+    for (final f in fields) {
+      final val = avatarOrUser[f];
+      if (val is String) {
+        final clean = val.trim();
+        if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+          return clean;
+        }
+      } else if (val is Map) {
+        final nested = extractAvatarUrl(val);
+        if (nested != null && nested.isNotEmpty) return nested;
+      }
+    }
+    final nestedKeys = ['user', 'employee', 'data', 'profile', 'result'];
+    for (final nk in nestedKeys) {
+      if (avatarOrUser[nk] is Map) {
+        final nested = extractAvatarUrl(avatarOrUser[nk]);
+        if (nested != null && nested.isNotEmpty) return nested;
+      }
+    }
+  }
+  return null;
+}
+
 class AuthNotifier extends StateNotifier<AuthState> {
   final Ref? _ref;
+
   AuthNotifier([this._ref]) : super(const AuthState()) {
     checkAuthStatus();
   }
@@ -71,6 +122,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role ?? user['role']?.toString() ?? 'employee',
           token: token,
         );
+        // Automatically sync latest profile details from server on app load
+        refreshProfile();
       } else {
         state = const AuthState(status: AuthStatus.unauthenticated);
       }
@@ -158,6 +211,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
           (isAdmin ? 'admin' : 'employee');
 
       if (token != null && token.isNotEmpty) {
+        if (user != null) {
+          final email = (user['email'] ?? user['id'] ?? user['_id'])?.toString();
+          final serverAvatar = (user['avatar'] ??
+                  user['profilePicture'] ??
+                  user['image'] ??
+                  user['avatarUrl'] ??
+                  user['photo'] ??
+                  user['profile_picture'])
+              ?.toString();
+
+          final cachedAvatar = email != null ? await StorageService.getUserAvatar(email) : null;
+
+          final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
+              ? serverAvatar
+              : (cachedAvatar != null && cachedAvatar.isNotEmpty ? cachedAvatar : null);
+
+          if (avatarToUse != null && avatarToUse.isNotEmpty) {
+            user['avatar'] = avatarToUse;
+            user['profilePicture'] = avatarToUse;
+            user['image'] = avatarToUse;
+          }
+        }
+
         await StorageService.saveToken(token);
         if (user != null) await StorageService.saveUser(user);
         await StorageService.saveRole(role);
@@ -168,6 +244,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role,
           token: token,
         );
+        await refreshProfile();
         return true;
       }
       return false;
@@ -200,17 +277,126 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshProfile() async {
     try {
       final res = await AuthService.getProfile();
-      if ((res['success'] == true || res['status'] == 'success') &&
-          (res['data'] != null || res['user'] != null)) {
-        final rawUser = res['data'] ?? res['user'];
-        if (rawUser is Map<String, dynamic>) {
-          final userData = Map<String, dynamic>.from(rawUser);
-          await StorageService.saveUser(userData);
-          state = state.copyWith(user: userData);
-        }
+      Map<String, dynamic>? rawUser;
+      if (res['data'] is Map<String, dynamic>) {
+        rawUser = Map<String, dynamic>.from(res['data']);
+      } else if (res['user'] is Map<String, dynamic>) {
+        rawUser = Map<String, dynamic>.from(res['user']);
+      } else if (res['employee'] is Map<String, dynamic>) {
+        rawUser = Map<String, dynamic>.from(res['employee']);
+      } else if (res['result'] is Map<String, dynamic>) {
+        rawUser = Map<String, dynamic>.from(res['result']);
+      } else if (res.containsKey('name') ||
+          res.containsKey('email') ||
+          res.containsKey('avatar') ||
+          res.containsKey('profilePicture') ||
+          res.containsKey('profile_picture')) {
+        rawUser = Map<String, dynamic>.from(res);
       }
+
+      final currentUser = state.user ?? await StorageService.getUser() ?? {};
+      final userEmail = (currentUser['email'] ?? rawUser?['email'])?.toString().toLowerCase().trim();
+      final userId = (currentUser['id'] ?? currentUser['_id'] ?? rawUser?['id'] ?? rawUser?['_id'])?.toString();
+
+      var serverAvatar = extractAvatarUrl(rawUser);
+
+      // If profile API response lacks avatar, search employee list API
+      if ((serverAvatar == null || serverAvatar.isEmpty) && (userEmail != null || userId != null)) {
+        try {
+          final resMap = await EmployeeService.getAll();
+          final rawList = resMap['employees'] ?? resMap['data'] ?? resMap['records'] ?? resMap['result'] ?? resMap['items'];
+          if (rawList is List) {
+            for (final emp in rawList) {
+              if (emp is Map) {
+                final empEmail = emp['email']?.toString().toLowerCase().trim();
+                final empId = (emp['id'] ?? emp['_id'])?.toString();
+                if ((userEmail != null && empEmail == userEmail) || (userId != null && empId == userId)) {
+                  final empAvatar = extractAvatarUrl(emp);
+                  if (empAvatar != null && empAvatar.isNotEmpty) {
+                    serverAvatar = empAvatar;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      final existingAvatar = extractAvatarUrl(currentUser);
+      final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
+          ? serverAvatar
+          : (existingAvatar != null && existingAvatar.isNotEmpty ? existingAvatar : null);
+
+      final userData = Map<String, dynamic>.from(currentUser);
+      if (rawUser != null) {
+        userData.addAll(rawUser);
+      }
+
+      if (avatarToUse != null && avatarToUse.isNotEmpty) {
+        userData['avatar'] = avatarToUse;
+        userData['profilePicture'] = avatarToUse;
+        userData['image'] = avatarToUse;
+        userData['profile_picture'] = avatarToUse;
+        userData['avatarUrl'] = avatarToUse;
+        userData['photo'] = avatarToUse;
+      }
+
+      await StorageService.saveUser(userData);
+      state = state.copyWith(user: userData);
     } catch (e) {
-      // Ignore refresh error
+      dev.log('[AuthProvider] refreshProfile error: $e', name: 'AuthProvider');
+    }
+  }
+
+  /// Updates user profile details (Name, Phone, Profile Picture) in DB and local state.
+  Future<bool> updateUserProfile({
+    required String name,
+    String? phone,
+    String? profilePicture,
+  }) async {
+    try {
+      final res = await AuthService.updateProfile(
+        name: name,
+        phone: phone,
+        profilePicture: profilePicture,
+      );
+
+      // Create updated local user map
+      final currentMap = Map<String, dynamic>.from(state.user ?? {});
+
+      // If backend returned raw user object, merge it first
+      if (res['data'] is Map<String, dynamic>) {
+        currentMap.addAll(Map<String, dynamic>.from(res['data']));
+      } else if (res['user'] is Map<String, dynamic>) {
+        currentMap.addAll(Map<String, dynamic>.from(res['user']));
+      }
+
+      currentMap['name'] = name;
+      if (phone != null) currentMap['phone'] = phone;
+      if (profilePicture != null && profilePicture.isNotEmpty) {
+        currentMap['avatar'] = profilePicture;
+        currentMap['profilePicture'] = profilePicture;
+        currentMap['image'] = profilePicture;
+      }
+
+      await StorageService.saveUser(currentMap);
+      state = state.copyWith(user: currentMap);
+      await refreshProfile();
+      return true;
+    } catch (e) {
+      // Fallback: local update if offline / API error
+      final currentMap = Map<String, dynamic>.from(state.user ?? {});
+      currentMap['name'] = name;
+      if (phone != null) currentMap['phone'] = phone;
+      if (profilePicture != null && profilePicture.isNotEmpty) {
+        currentMap['avatar'] = profilePicture;
+        currentMap['profilePicture'] = profilePicture;
+        currentMap['image'] = profilePicture;
+      }
+      await StorageService.saveUser(currentMap);
+      state = state.copyWith(user: currentMap);
+      return true;
     }
   }
 

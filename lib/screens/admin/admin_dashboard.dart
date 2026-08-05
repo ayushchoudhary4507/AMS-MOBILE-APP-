@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
@@ -532,21 +536,75 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               });
             }
           } else if (statusType == 'absent') {
-            final presentNames = todayList.map((e) {
-              if (e is! Map) return '';
-              if (e['employee'] is Map) {
-                return (e['employee']['name'] ?? '').toString().toLowerCase();
+            final presentKeys = <String>{};
+            final leaveKeys = <String>{};
+
+            for (var att in todayList) {
+              if (att is! Map) continue;
+              final st = (att['status'] ?? '').toString().toLowerCase();
+              final empObj = att['employee'] ?? att['user'];
+              String? id, email, name;
+              if (empObj is Map) {
+                id = (empObj['_id'] ?? empObj['id'])?.toString();
+                email = empObj['email']?.toString();
+                name = empObj['name']?.toString();
+              } else if (empObj is String) {
+                id = empObj;
               }
-              return (e['name'] ?? '').toString().toLowerCase();
-            }).toSet();
+              id ??= (att['userId'] ?? att['employeeId'] ?? att['user_id'])?.toString();
+              email ??= att['email']?.toString();
+              name ??= (att['name'] ?? att['employeeName'])?.toString();
+
+              final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+              if (st.contains('leave')) {
+                leaveKeys.addAll(keys);
+              } else if (!st.contains('absent')) {
+                presentKeys.addAll(keys);
+              }
+            }
+
+            for (var leave in attendance.allLeaves) {
+              if (leave is! Map) continue;
+              final st = (leave['status'] ?? '').toString().toLowerCase();
+              if (st == 'approved') {
+                final empObj = leave['user'] ?? leave['employee'];
+                String? id, email, name;
+                if (empObj is Map) {
+                  id = (empObj['_id'] ?? empObj['id'])?.toString();
+                  email = empObj['email']?.toString();
+                  name = empObj['name']?.toString();
+                } else if (empObj is String) {
+                  id = empObj;
+                }
+                id ??= (leave['userId'] ?? leave['employeeId'])?.toString();
+                email ??= leave['email']?.toString();
+                name ??= (leave['employeeName'] ?? leave['name'])?.toString();
+
+                final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+                leaveKeys.addAll(keys);
+              }
+            }
 
             for (var emp in allEmployees) {
               if (emp is! Map) continue;
-              final eName = (emp['name'] ?? '').toString().toLowerCase();
-              if (eName.isNotEmpty && !presentNames.contains(eName)) {
+              final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
+              final email = emp['email']?.toString().trim().toLowerCase();
+              final name = emp['name']?.toString().trim().toLowerCase();
+
+              final isPresent = (id != null && presentKeys.contains(id)) ||
+                  (email != null && presentKeys.contains(email)) ||
+                  (name != null && presentKeys.contains(name));
+
+              final isOnLeave = (id != null && leaveKeys.contains(id)) ||
+                  (email != null && leaveKeys.contains(email)) ||
+                  (name != null && leaveKeys.contains(name));
+
+              if (!isPresent && !isOnLeave) {
+                final avatarStr = (emp['avatar'] ?? emp['profilePicture'] ?? emp['image'])?.toString();
                 displayList.add({
                   'name': emp['name'] ?? 'Employee',
-                  'email': emp['email'] ?? emp['department'] ?? '',
+                  'email': emp['email'] ?? emp['department'] ?? emp['role'] ?? '',
+                  'avatar': avatarStr,
                   'status': 'Absent',
                 });
               }
@@ -675,19 +733,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                               ),
                               child: Row(
                                 children: [
-                                  CircleAvatar(
-                                    backgroundColor:
-                                        statusColor.withValues(alpha: 0.2),
-                                    child: Text(
-                                      empName.isNotEmpty
-                                          ? empName[0].toUpperCase()
-                                          : 'E',
-                                      style: TextStyle(
-                                        color: statusColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
+                                  _buildAvatarWidget(item['avatar']?.toString(), empName, 20),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
@@ -1004,6 +1050,149 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
+  Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radius) {
+    String? cleanAvatar = extractAvatarUrl(avatarOrUser);
+    if (cleanAvatar != null &&
+        cleanAvatar.isNotEmpty &&
+        cleanAvatar != 'null' &&
+        cleanAvatar != 'undefined') {
+      if (cleanAvatar.contains('localhost') ||
+          cleanAvatar.contains('127.0.0.1') ||
+          cleanAvatar.contains('10.0.2.2')) {
+        final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+        cleanAvatar = cleanAvatar.replaceAll(
+          RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?'),
+          apiBase,
+        );
+      }
+      // 1. Direct HTTP/HTTPS Network URL
+      if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
+        return ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: cleanAvatar,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFFE0E7FF),
+              child: SizedBox(
+                width: radius * 0.8,
+                height: radius * 0.8,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            errorWidget: (context, url, error) => CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFF4F46E5),
+              child: Text(
+                fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: radius * 0.8,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      // 2. Base64 Data URI or Raw Base64 String
+      if (cleanAvatar.startsWith('data:image/') ||
+          (!cleanAvatar.startsWith('/') &&
+           !cleanAvatar.startsWith('uploads') &&
+           cleanAvatar.length > 50)) {
+        try {
+          String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
+          base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
+          while (base64Str.length % 4 != 0) {
+            base64Str += '=';
+          }
+          final bytes = base64Decode(base64Str);
+          if (bytes.isNotEmpty) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFFE0E7FF),
+              backgroundImage: MemoryImage(bytes),
+            );
+          }
+        } catch (_) {}
+      }
+
+      // 3. Relative Server Path (e.g. /uploads/..., uploads/..., /public/...)
+      if (cleanAvatar.startsWith('/') ||
+          cleanAvatar.startsWith('uploads') ||
+          cleanAvatar.startsWith('public') ||
+          cleanAvatar.startsWith('storage') ||
+          cleanAvatar.contains('.png') ||
+          cleanAvatar.contains('.jpg') ||
+          cleanAvatar.contains('.jpeg') ||
+          cleanAvatar.contains('.webp')) {
+        final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+        final fullUrl = '$apiBase${cleanAvatar.startsWith('/') ? '' : '/'}$cleanAvatar';
+        return ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: fullUrl,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFFE0E7FF),
+              child: SizedBox(
+                width: radius * 0.8,
+                height: radius * 0.8,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            errorWidget: (context, url, error) => CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFF4F46E5),
+              child: Text(
+                fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: radius * 0.8,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      // 4. Local File Path
+      if (cleanAvatar.startsWith('file://') || cleanAvatar.startsWith('/') || cleanAvatar.contains(':\\')) {
+        try {
+          final filePath = cleanAvatar.replaceFirst('file://', '');
+          final file = File(filePath);
+          if (file.existsSync()) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFFE0E7FF),
+              backgroundImage: FileImage(file),
+            );
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 5. Fallback Initial Letter
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF4F46E5),
+      child: Text(
+        fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: radius * 0.8,
+        ),
+      ),
+    );
+  }
+
   // --- Pending Leave Card Matching Screenshot ---
   Widget _buildPendingLeaveCard(dynamic leave) {
     if (leave is! Map) return const SizedBox.shrink();
@@ -1011,6 +1200,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final employeeName = (emp is Map ? emp['name'] : null) ??
         leave['employeeName'] ??
         (emp is String ? emp : 'Unknown');
+    final empAvatar = emp is Map ? (emp['avatar']?.toString() ?? emp['profilePicture']?.toString() ?? emp['image']?.toString()) : null;
     final leaveType = leave['leaveType'] ?? 'Leave';
     final leaveId = leave['_id']?.toString() ?? '';
 
@@ -1044,27 +1234,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         children: [
           Row(
             children: [
-              // Avatar with letter initial U / name initial
-              Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    (employeeName.isNotEmpty ? employeeName[0] : 'U').toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
+              _buildAvatarWidget(empAvatar, employeeName, 21),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -1206,6 +1376,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   Widget _buildAdminDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
     final userName = auth.user?['name'] ?? 'Admin User';
     final userEmail = auth.user?['email'] ?? 'admin@ams.com';
+    final avatar = auth.user?['avatar']?.toString() ??
+        auth.user?['profilePicture']?.toString() ??
+        auth.user?['image']?.toString();
 
     return Drawer(
       backgroundColor: context.drawerBg,
@@ -1243,13 +1416,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               userEmail,
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white24,
-              child: Text(
-                userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
-              ),
-            ),
+            currentAccountPicture: _buildAvatarWidget(avatar, userName, 28),
           ),
           Expanded(
             child: ListView(

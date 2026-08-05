@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -34,7 +35,12 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/admin/dashboard');
+              final auth = ref.read(authProvider);
+              if (auth.isAdmin) {
+                context.go('/admin/dashboard');
+              } else {
+                context.go('/employee/dashboard');
+              }
             }
           },
         ),

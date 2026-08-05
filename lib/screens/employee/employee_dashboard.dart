@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
@@ -209,6 +213,13 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   Widget _buildDashboardTab() {
     final attendance = ref.watch(attendanceProvider);
     final auth = ref.watch(authProvider);
+    final projectsAsync = ref.watch(projectsProvider);
+
+    final projectsCount = projectsAsync.when(
+      data: (list) => list.length.toString(),
+      loading: () => '...',
+      error: (err, stack) => '0',
+    );
 
     final stats = attendance.stats;
 
@@ -219,10 +230,6 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     final absentDays = stats?['absentDays']?.toString() ??
         stats?['absentCount']?.toString() ??
         stats?['absent']?.toString() ??
-        '0';
-    final lateDays = stats?['lateDays']?.toString() ??
-        stats?['lateCount']?.toString() ??
-        stats?['late']?.toString() ??
         '0';
     final leaveDays = stats?['leaveDays']?.toString() ??
         stats?['leaveCount']?.toString() ??
@@ -316,17 +323,19 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   bgColor: const Color(0xFFFEE2E2),
                   sparklineColor: const Color(0xFFEF4444),
                   sparklinePoints: const [0.3, 0.5, 0.4, 0.7, 0.4, 0.6, 0.5, 0.4],
+                  onTap: () => _showMyAbsentModal(context, ref),
                 ),
                 const SizedBox(width: 12),
                 _buildOverviewStatCard(
-                  title: 'Late',
-                  subtitle: 'This Month',
-                  value: lateDays,
-                  icon: Icons.access_time_rounded,
-                  iconColor: const Color(0xFFF59E0B),
-                  bgColor: const Color(0xFFFEF3C7),
-                  sparklineColor: const Color(0xFFF59E0B),
-                  sparklinePoints: const [0.4, 0.3, 0.5, 0.4, 0.6, 0.5, 0.7, 0.6],
+                  title: 'Projects',
+                  subtitle: 'Total Active',
+                  value: projectsCount,
+                  icon: Icons.folder_special_rounded,
+                  iconColor: const Color(0xFF8B5CF6),
+                  bgColor: const Color(0xFFEDE9FE),
+                  sparklineColor: const Color(0xFF8B5CF6),
+                  sparklinePoints: const [0.3, 0.6, 0.5, 0.8, 0.7, 0.9, 0.8, 1.0],
+                  onTap: () => context.push('/employee/projects'),
                 ),
                 const SizedBox(width: 12),
                 _buildOverviewStatCard(
@@ -400,6 +409,8 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
+
+
   // --- Hero Welcome Banner ---
   Widget _buildWelcomeBanner({required String firstName}) {
     final hour = DateTime.now().hour;
@@ -408,6 +419,12 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         : hour < 17
             ? 'Good Afternoon! 👋'
             : 'Good Evening! 👋';
+
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final avatar = user?['avatar']?.toString() ??
+        user?['profilePicture']?.toString() ??
+        user?['image']?.toString();
 
     return Container(
       width: double.infinity,
@@ -518,21 +535,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                         width: 2,
                       ),
                     ),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE0E7FF),
-                        shape: BoxShape.circle,
-                      ),
-                      child: ClipOval(
-                        child: Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            size: 46,
-                            color: const Color(0xFF4F46E5),
-                          ),
-                        ),
-                      ),
-                    ),
+                    child: _buildAvatarWidget(avatar, firstName, 32),
                   ),
                   // Active Green Status Indicator Dot
                   Positioned(
@@ -1049,10 +1052,189 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
+  void _showMyAbsentModal(BuildContext context, WidgetRef ref) {
+    final attendance = ref.read(attendanceProvider);
+    final calendar = attendance.calendarData;
+    final history = attendance.history;
+
+    final absentList = <Map<String, String>>[];
+
+    // Extract explicit absent records from calendar & history
+    final allRecords = [...calendar, ...history];
+    for (var item in allRecords) {
+      if (item is! Map) continue;
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      if (status == 'absent') {
+        final dateStr = item['date']?.toString() ?? item['createdAt']?.toString() ?? '';
+        String formattedDate = dateStr;
+        try {
+          final dt = DateTime.parse(dateStr).toLocal();
+          formattedDate = DateFormat('EEEE, MMM d, yyyy').format(dt);
+        } catch (_) {}
+
+        absentList.add({
+          'date': formattedDate.isNotEmpty ? formattedDate : 'Absent Day',
+          'reason': item['notes']?.toString() ?? item['reason']?.toString() ?? 'Unexcused Absence',
+        });
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.55,
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: context.borderCol),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.txtMuted.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.calendar_today_rounded, color: Color(0xFFEF4444), size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'My Absent Days (This Month)',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: context.txtPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Total ${absentList.length} absent record(s)',
+                          style: TextStyle(fontSize: 12, color: context.txtMuted),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 24),
+              Expanded(
+                child: absentList.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_circle_outline_rounded,
+                                size: 48, color: Color(0xFF10B981)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Great! No absent days recorded this month.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: context.txtSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        itemCount: absentList.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final item = absentList[index];
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: context.cardLightBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: context.borderCol),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.event_busy_rounded, color: Color(0xFFEF4444), size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item['date']!,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: context.txtPrimary,
+                                        ),
+                                      ),
+                                      Text(
+                                        item['reason']!,
+                                        style: TextStyle(fontSize: 12, color: context.txtMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    'Absent',
+                                    style: TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // --- Employee Drawer ---
   Widget _buildEmployeeDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
     final userName = auth.user?['name'] ?? 'Employee User';
     final userEmail = auth.user?['email'] ?? 'employee@ams.com';
+    final avatar = auth.user?['avatar']?.toString() ??
+        auth.user?['profilePicture']?.toString() ??
+        auth.user?['image']?.toString();
 
     return Drawer(
       backgroundColor: context.drawerBg,
@@ -1094,13 +1276,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               style: const TextStyle(color: Colors.white70, fontSize: 13),
               overflow: TextOverflow.ellipsis,
             ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white24,
-              child: Text(
-                userName.isNotEmpty ? userName[0].toUpperCase() : 'E',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
-              ),
-            ),
+            currentAccountPicture: _buildAvatarWidget(avatar, userName, 28),
           ),
           Expanded(
             child: ListView(
@@ -1152,6 +1328,14 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/tasks');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_special_rounded, color: Color(0xFFEC4899)),
+                  title: Text('Projects', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/employee/projects');
                   },
                 ),
                 Divider(color: context.dividerCol),
@@ -1419,9 +1603,167 @@ class _ReportsTab extends ConsumerWidget {
   }
 }
 
+Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radius) {
+  String? cleanAvatar = extractAvatarUrl(avatarOrUser);
+  if (cleanAvatar != null &&
+      cleanAvatar.isNotEmpty &&
+      cleanAvatar != 'null' &&
+      cleanAvatar != 'undefined') {
+    if (cleanAvatar.contains('localhost') ||
+        cleanAvatar.contains('127.0.0.1') ||
+        cleanAvatar.contains('10.0.2.2')) {
+      final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+      cleanAvatar = cleanAvatar.replaceAll(
+        RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?'),
+        apiBase,
+      );
+    }
+    // 1. Direct HTTP/HTTPS Network URL
+    if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
+      return ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: cleanAvatar,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            child: SizedBox(
+              width: radius * 0.8,
+              height: radius * 0.8,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          errorWidget: (context, url, error) => CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFF4F46E5),
+            child: Text(
+              fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: radius * 0.8,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 2. Base64 Data URI or Raw Base64 String
+    if (cleanAvatar.startsWith('data:image/') ||
+        (!cleanAvatar.startsWith('/') &&
+         !cleanAvatar.startsWith('uploads') &&
+         cleanAvatar.length > 50)) {
+      try {
+        String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
+        base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
+        while (base64Str.length % 4 != 0) {
+          base64Str += '=';
+        }
+        final bytes = base64Decode(base64Str);
+        if (bytes.isNotEmpty) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            backgroundImage: MemoryImage(bytes),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 3. Relative Server Path (e.g. /uploads/..., uploads/..., /public/...)
+    if (cleanAvatar.startsWith('/') ||
+        cleanAvatar.startsWith('uploads') ||
+        cleanAvatar.startsWith('public') ||
+        cleanAvatar.startsWith('storage') ||
+        cleanAvatar.contains('.png') ||
+        cleanAvatar.contains('.jpg') ||
+        cleanAvatar.contains('.jpeg') ||
+        cleanAvatar.contains('.webp')) {
+      final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+      final fullUrl = '$apiBase${cleanAvatar.startsWith('/') ? '' : '/'}$cleanAvatar';
+      return ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: fullUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            child: SizedBox(
+              width: radius * 0.8,
+              height: radius * 0.8,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          errorWidget: (context, url, error) => CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFF4F46E5),
+            child: Text(
+              fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: radius * 0.8,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 4. Local File Path
+    if (cleanAvatar.startsWith('file://') || cleanAvatar.startsWith('/') || cleanAvatar.contains(':\\')) {
+      try {
+        final filePath = cleanAvatar.replaceFirst('file://', '');
+        final file = File(filePath);
+        if (file.existsSync()) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            backgroundImage: FileImage(file),
+          );
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 5. Fallback Initial Letter
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: const Color(0xFF4F46E5),
+    child: Text(
+      fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
+      style: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+        fontSize: radius * 0.8,
+      ),
+    ),
+  );
+}
+
 // Salary Tab Widget
 class _SalaryTab extends ConsumerWidget {
   const _SalaryTab();
+
+  num _numVal(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v;
+    if (v is String) {
+      final cleaned = v.replaceAll(RegExp(r'[^0-9.]'), '');
+      return num.tryParse(cleaned) ?? 0;
+    }
+    return 0;
+  }
+
+  String _fmtCurrency(num amount) {
+    final fmt = NumberFormat('#,##,###', 'en_IN');
+    return '₹${fmt.format(amount)}';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1457,24 +1799,103 @@ class _SalaryTab extends ConsumerWidget {
                 child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
               ),
             ),
-            error: (e, _) => _buildSalaryHero(context, null, auth),
-            data: (salary) => _buildSalaryHero(context, salary, auth),
+            error: (e, _) => _buildSalaryHero(context, null, auth, ref),
+            data: (salary) => _buildSalaryHero(context, salary, auth, ref),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSalaryHero(BuildContext context, Map<String, dynamic>? salary, AuthState auth) {
-    final basicSalary = salary?['basicSalary'] ?? salary?['basic'] ?? 45000;
-    final allowances = salary?['allowances'] ?? salary?['totalAllowances'] ?? 5000;
-    final deductions = salary?['deductions'] ?? salary?['totalDeductions'] ?? 2000;
-    final netPay = salary?['netSalary'] ?? salary?['netPay'] ?? (basicSalary + allowances - deductions);
-    final month = salary?['month']?.toString() ?? DateFormat('MMMM yyyy').format(DateTime.now());
-    final status = salary?['status']?.toString() ?? 'Processed';
+  Widget _buildSalaryHero(BuildContext context, Map<String, dynamic>? salary, AuthState auth, WidgetRef ref) {
+    final user = auth.user;
+    final userSalaryMap = user?['salary'] is Map ? Map<String, dynamic>.from(user!['salary']) : null;
+    final activeData = salary ?? userSalaryMap;
 
-    final empName = auth.user?['name'] ?? 'Employee';
-    final designation = auth.user?['designation'] ?? auth.user?['position'] ?? 'Software Engineer';
+    final basicSalary = _numVal(
+      activeData?['basicSalary'] ??
+      activeData?['basic'] ??
+      activeData?['base'] ??
+      activeData?['amount'] ??
+      user?['basicSalary'] ??
+      user?['salary']
+    );
+    final allowances = _numVal(
+      activeData?['allowances'] ??
+      activeData?['totalAllowances'] ??
+      activeData?['bonus'] ??
+      user?['allowances']
+    );
+    final deductions = _numVal(
+      activeData?['deductions'] ??
+      activeData?['totalDeductions'] ??
+      activeData?['tax'] ??
+      user?['deductions']
+    );
+    final netPay = _numVal(
+      activeData?['netSalary'] ??
+      activeData?['netPay'] ??
+      activeData?['net'] ??
+      (basicSalary > 0 ? (basicSalary + allowances - deductions) : 0)
+    );
+
+    if (basicSalary == 0 && netPay == 0) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.payments_outlined, size: 48, color: Color(0xFF6366F1)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No Salary Record Available',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: context.txtPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your salary details have not been published by HR or Admin yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: context.txtMuted),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                onPressed: () => ref.refresh(mySalaryProvider),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Check for Updates'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final month = activeData?['month']?.toString() ??
+        activeData?['salaryMonth']?.toString() ??
+        DateFormat('MMMM yyyy').format(DateTime.now());
+    final status = activeData?['status']?.toString() ?? 'Processed';
+
+    final empName = user?['name'] ?? 'Employee';
+    final designation = user?['designation'] ?? user?['position'] ?? 'Software Engineer';
+    final avatar = user?['avatar']?.toString() ??
+        user?['profilePicture']?.toString() ??
+        user?['image']?.toString();
 
     return Column(
       children: [
@@ -1502,18 +1923,7 @@ class _SalaryTab extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: Colors.white.withValues(alpha: 0.22),
-                    child: Text(
-                      empName.isNotEmpty ? empName[0].toUpperCase() : 'E',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  _buildAvatarWidget(avatar, empName, 22),
                   const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1567,7 +1977,7 @@ class _SalaryTab extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '₹${netPay.toString()}',
+                _fmtCurrency(netPay),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 34,
@@ -1592,22 +2002,32 @@ class _SalaryTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Salary Breakdown',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: context.txtPrimary,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Salary Breakdown',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: context.txtPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    onPressed: () => ref.refresh(mySalaryProvider),
+                    tooltip: 'Refresh Salary',
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _itemRow(context, 'Base Salary', '₹$basicSalary', const Color(0xFF10B981)),
+              const SizedBox(height: 12),
+              _itemRow(context, 'Base Salary', _fmtCurrency(basicSalary), const Color(0xFF10B981)),
               const SizedBox(height: 10),
-              _itemRow(context, 'Allowances & Bonuses', '+ ₹$allowances', const Color(0xFF3B82F6)),
+              _itemRow(context, 'Allowances & Bonuses', '+ ${_fmtCurrency(allowances)}', const Color(0xFF3B82F6)),
               const SizedBox(height: 10),
-              _itemRow(context, 'Deductions (Taxes & PF)', '- ₹$deductions', const Color(0xFFEF4444)),
+              _itemRow(context, 'Deductions (Taxes & PF)', '- ${_fmtCurrency(deductions)}', const Color(0xFFEF4444)),
               const Divider(height: 24),
-              _itemRow(context, 'Total Take Home', '₹$netPay', const Color(0xFF4F46E5), isBold: true),
+              _itemRow(context, 'Total Take Home', _fmtCurrency(netPay), const Color(0xFF4F46E5), isBold: true),
             ],
           ),
         ),

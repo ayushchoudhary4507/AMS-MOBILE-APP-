@@ -408,7 +408,12 @@ class EmployeeSalaryScreen extends ConsumerWidget {
 
   double _parseAmount(dynamic val) {
     if (val == null) return 0.0;
-    return double.tryParse(val.toString()) ?? 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final cleaned = val.replaceAll(RegExp(r'[^0-9.]'), '');
+      return double.tryParse(cleaned) ?? 0.0;
+    }
+    return 0.0;
   }
 
   String _formatAmount(double amount) {

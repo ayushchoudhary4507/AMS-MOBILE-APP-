@@ -216,7 +216,7 @@ final allSalaryProvider = FutureProvider<List<dynamic>>((ref) async {
 final projectsProvider = FutureProvider<List<dynamic>>((ref) async {
   try {
     final data = await ProjectService.getAll();
-    final list = data['projects'] ?? data['data'] ?? [];
+    final list = data['projects'] ?? data['data'] ?? data['records'] ?? data['result'] ?? data['items'] ?? [];
     return list is List ? list : [];
   } catch (_) {
     return [];

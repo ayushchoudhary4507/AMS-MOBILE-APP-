@@ -42,9 +42,48 @@ class AuthService {
     return ApiService.toMap(response.data);
   }
 
-  // Get Profile Settings
+  // Get Profile Settings across all server candidate routes
   static Future<Map<String, dynamic>> getProfile() async {
-    final response = await ApiService.get('${ApiConstants.settings}/profile');
+    final endpoints = [
+      '${ApiConstants.settings}/profile',
+      '/profile',
+      '/employees/me',
+      '/employees/profile',
+      '/user/profile',
+      '/auth/me',
+      '/settings',
+    ];
+
+    for (final ep in endpoints) {
+      try {
+        final response = await ApiService.get(ep);
+        final map = ApiService.toMap(response.data);
+        if (map.isNotEmpty) {
+          return map;
+        }
+      } catch (_) {}
+    }
+    return {};
+  }
+
+  // Update User Profile (Name, Phone, Profile Picture / Avatar)
+  static Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    String? phone,
+    String? profilePicture,
+  }) async {
+    final response = await ApiService.put(
+      '${ApiConstants.settings}/profile',
+      data: {
+        'name': name,
+        'phone': ?phone,
+        if (profilePicture != null) ...{
+          'avatar': profilePicture,
+          'profilePicture': profilePicture,
+          'image': profilePicture,
+        },
+      },
+    );
     return ApiService.toMap(response.data);
   }
 
