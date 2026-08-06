@@ -24,6 +24,7 @@ class AdminDashboard extends ConsumerStatefulWidget {
 
 class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   int _selectedIndex = 0;
+  String _leaveFilter = 'All';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -35,7 +36,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       ref.read(attendanceProvider.notifier).loadStats();
       ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
       ref.read(employeeProvider.notifier).loadEmployees();
-      ref.read(attendanceProvider.notifier).loadAllLeaves(status: 'Pending');
+      ref.read(attendanceProvider.notifier).loadAllLeaves();
     });
   }
 
@@ -231,60 +232,116 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final employees = ref.watch(employeeProvider);
 
     final stats = attendance.stats;
+    final allEmps = employees.employees;
 
-    final totalEmpCount = employees.employees.isNotEmpty
-        ? employees.employees.length
-        : int.tryParse(stats?['totalEmployees']?.toString() ??
-                stats?['total']?.toString() ??
-                stats?['totalCount']?.toString() ??
-                '') ??
-            0;
+    final todayList = attendance.todayAllAttendance.isNotEmpty
+        ? attendance.todayAllAttendance
+        : (attendance.todayAttendance != null ? [attendance.todayAttendance!.toJson()] : []);
 
-    final todayPresentCount = attendance.todayAllAttendance.where((item) {
-      if (item is! Map) return false;
-      final st = (item['status'] ?? '').toString().toLowerCase();
-      final hasCheckIn = item['checkIn'] != null ||
-          item['check_in'] != null ||
-          item['checkInTime'] != null ||
-          item['check_in_time'] != null;
-      return st == 'present' ||
-          st == 'checked_in' ||
-          st == 'late' ||
-          st == 'half_day' ||
-          st == 'on_time' ||
-          hasCheckIn;
-    }).length;
+    // todayAllAttendance now contains only present-today employees from API
+    // Each record has: { name, email, userId, employeeId, status, checkIn, checkOut, employee: {...} }
+    final presentKeys = <String>{};
+    final activePresentKeys = <String>{};
+    final leaveKeys = <String>{};
 
-    final statsPresent = int.tryParse(stats?['presentCount']?.toString() ??
-        stats?['present']?.toString() ??
-        stats?['presentToday']?.toString() ??
-        stats?['totalPresent']?.toString() ??
-        stats?['todayPresent']?.toString() ??
-        '');
+    for (var att in todayList) {
+      if (att is! Map) continue;
+      final st = (att['status'] ?? '').toString().toLowerCase();
+      final empObj = att['employee'] ?? att['user'];
+      String? id, email, name;
+      if (empObj is Map) {
+        id = (empObj['_id'] ?? empObj['id'])?.toString();
+        email = empObj['email']?.toString();
+        name = empObj['name']?.toString();
+      }
+      id ??= (att['userId'] ?? att['employeeId'])?.toString();
+      email ??= att['email']?.toString();
+      name ??= att['name']?.toString();
 
-    final presentCountVal = todayPresentCount > 0
-        ? todayPresentCount
-        : (statsPresent ?? (attendance.isCheckedIn ? 1 : 0));
+      final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
 
-    final leaveCountVal = int.tryParse(stats?['leaveCount']?.toString() ??
-            stats?['onLeave']?.toString() ??
-            stats?['leave']?.toString() ??
-            stats?['approvedLeaves']?.toString() ??
-            '') ??
-        attendance.allLeaves.length;
+      if (st.contains('leave')) {
+        leaveKeys.addAll(keys);
+      } else {
+        presentKeys.addAll(keys);
 
-    final absentCountVal = int.tryParse(stats?['absentCount']?.toString() ??
-            stats?['absent']?.toString() ??
-            stats?['absentToday']?.toString() ??
-            '') ??
-        ((totalEmpCount - presentCountVal - leaveCountVal) < 0
-            ? 0
-            : (totalEmpCount - presentCountVal - leaveCountVal));
+        // Check if employee has checked out (completed shift)
+        final cOut = att['checkOut'] ?? att['checkOutTime'] ?? att['check_out'] ?? att['outTime'];
+        final isCheckedOut = (cOut != null && cOut.toString().trim().isNotEmpty && cOut.toString() != 'null');
+        if (!isCheckedOut) {
+          activePresentKeys.addAll(keys);
+        }
+      }
+    }
+
+    for (var leave in attendance.allLeaves) {
+      if (leave is! Map) continue;
+      final st = (leave['status'] ?? '').toString().toLowerCase();
+      if (st == 'approved') {
+        final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
+        String? id, email, name;
+        if (empObj is Map) {
+          id = (empObj['_id'] ?? empObj['id'])?.toString();
+          email = empObj['email']?.toString();
+          name = empObj['name']?.toString();
+        }
+        id ??= (leave['userId'] ?? (leave['employeeId'] is String ? leave['employeeId'] : null))?.toString();
+        email ??= leave['email']?.toString();
+        name ??= (leave['employeeName'] ?? leave['name'])?.toString();
+
+        final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+        leaveKeys.addAll(keys);
+      }
+    }
+
+    int realActivePresent = 0;
+    int realLeave = 0;
+    int realAbsent = 0;
+
+    if (allEmps.isNotEmpty) {
+      for (var emp in allEmps) {
+        if (emp is! Map) continue;
+        final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
+        final email = emp['email']?.toString().trim().toLowerCase();
+        final name = emp['name']?.toString().trim().toLowerCase();
+
+        final isPresent = (id != null && presentKeys.contains(id)) ||
+            (email != null && presentKeys.contains(email)) ||
+            (name != null && presentKeys.contains(name));
+
+        final isActive = (id != null && activePresentKeys.contains(id)) ||
+            (email != null && activePresentKeys.contains(email)) ||
+            (name != null && activePresentKeys.contains(name));
+
+        final isOnLeave = (id != null && leaveKeys.contains(id)) ||
+            (email != null && leaveKeys.contains(email)) ||
+            (name != null && leaveKeys.contains(name));
+
+        if (isPresent) {
+          if (isActive) {
+            realActivePresent++;
+          }
+        } else if (isOnLeave) {
+          realLeave++;
+        } else {
+          realAbsent++;
+        }
+      }
+    } else {
+      realActivePresent = activePresentKeys.length;
+      realLeave = leaveKeys.length;
+      final statsAbsent = int.tryParse(stats?['absentCount']?.toString() ?? stats?['absent']?.toString() ?? '');
+      realAbsent = statsAbsent ?? 0;
+    }
+
+    final totalEmpCount = allEmps.isNotEmpty
+        ? allEmps.length
+        : (int.tryParse(stats?['totalEmployees']?.toString() ?? stats?['total']?.toString() ?? stats?['count']?.toString() ?? '') ?? 0);
 
     final totalEmp = totalEmpCount.toString();
-    final presentCount = presentCountVal.toString();
-    final leaveCount = leaveCountVal.toString();
-    final absentCount = absentCountVal.toString();
+    final presentCount = realActivePresent.toString();
+    final leaveCount = realLeave.toString();
+    final absentCount = realAbsent.toString();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
@@ -346,13 +403,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     title: 'Present Employees Today', statusType: 'present'),
               ),
               _buildOverviewCard(
-                title: 'On Leave',
+                title: 'On Leave Today',
                 value: leaveCount,
                 icon: Icons.calendar_month_rounded,
                 color: const Color(0xFFF59E0B),
                 bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.12),
                 onTap: () => _showAttendanceModal(context, ref,
-                    title: 'Employees On Leave', statusType: 'leave'),
+                    title: 'Employees On Leave Today', statusType: 'leave'),
               ),
               _buildOverviewCard(
                 title: 'Absent Today',
@@ -446,10 +503,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             final presentKeys = <String>{};
             final leaveKeys = <String>{};
 
-            // 1. Collect Present records from today's attendance
+            // 1. Collect Present records from today's attendance (already pre-parsed by provider)
             for (var att in todayList) {
               if (att is! Map) continue;
               final st = (att['status'] ?? '').toString().toLowerCase();
+              if (st.contains('absent')) continue;
+
               final empObj = att['employee'] ?? att['user'];
               String? id, email, name, avatar;
               if (empObj is Map) {
@@ -458,23 +517,28 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 name = empObj['name']?.toString();
                 avatar = extractAvatarUrl(empObj);
               }
-              id ??= (att['userId'] ?? att['employeeId'] ?? att['user_id'])?.toString();
+              id ??= (att['userId'] ?? att['employeeId'])?.toString();
               email ??= att['email']?.toString();
-              name ??= (att['name'] ?? att['employeeName'])?.toString();
+              name ??= att['name']?.toString();
               avatar ??= extractAvatarUrl(att);
 
               final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
 
               if (st.contains('leave')) {
                 leaveKeys.addAll(keys);
-              } else if (!st.contains('absent')) {
+              } else {
                 presentKeys.addAll(keys);
+                // checkIn is already parsed from checkInTime
+                final cIn = att['checkIn'];
+                final cOut = att['checkOut'];
                 presentList.add({
                   'name': name ?? 'Employee',
                   'email': email ?? '',
                   'avatar': avatar,
                   'status': 'Present',
-                  'checkIn': att['checkIn'] ?? att['check_in'] ?? DateTime.now().toIso8601String(),
+                  'checkIn': cIn,
+                  'checkOut': cOut,
+                  'raw': att,
                 });
               }
             }
@@ -484,27 +548,25 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               if (leave is! Map) continue;
               final st = (leave['status'] ?? '').toString().toLowerCase();
               if (st == 'approved') {
-                final empObj = leave['user'] ?? leave['employee'];
-                String? id, email, name, avatar;
+                final (name, avatar) = _extractLeaveEmployeeInfo(leave, allEmployees);
+                final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
+                String? id, email;
                 if (empObj is Map) {
                   id = (empObj['_id'] ?? empObj['id'])?.toString();
                   email = empObj['email']?.toString();
-                  name = empObj['name']?.toString();
-                  avatar = extractAvatarUrl(empObj);
                 }
-                id ??= (leave['userId'] ?? leave['employeeId'])?.toString();
+                id ??= (leave['userId'] ?? (leave['employeeId'] is String ? leave['employeeId'] : null))?.toString();
                 email ??= leave['email']?.toString();
-                name ??= (leave['employeeName'] ?? leave['name'])?.toString();
-                avatar ??= extractAvatarUrl(leave);
 
                 final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
                 leaveKeys.addAll(keys);
 
                 leaveList.add({
-                  'name': name ?? 'Employee',
-                  'email': leave['leaveType'] ?? 'Approved Leave',
+                  'name': name,
+                  'email': leave['email'] ?? leave['leaveType'] ?? 'Approved Leave',
                   'avatar': avatar,
                   'status': 'On Leave',
+                  'note': leave['leaveType'] ?? 'Approved Leave',
                 });
               }
             }
@@ -529,32 +591,44 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               final empSub = emp['email'] ?? emp['department'] ?? emp['role'] ?? '';
 
               if (isPresent) {
-                allList.add({
-                  'name': empName,
-                  'email': empSub,
-                  'avatar': avatar,
-                  'status': 'Present',
-                });
+                final match = presentList.firstWhere(
+                  (p) => ((email != null && p['email']?.toString().toLowerCase() == email) ||
+                          (name != null && p['name']?.toString().toLowerCase() == name)),
+                  orElse: () => {
+                    'name': empName,
+                    'email': empSub,
+                    'avatar': avatar,
+                    'status': 'Present',
+                  },
+                );
+                if (!allList.contains(match)) {
+                  allList.add(match);
+                }
               } else if (isOnLeave) {
-                allList.add({
-                  'name': empName,
-                  'email': empSub,
-                  'avatar': avatar,
-                  'status': 'On Leave',
-                });
+                final match = leaveList.firstWhere(
+                  (l) => ((email != null && l['email']?.toString().toLowerCase() == email) ||
+                          (name != null && l['name']?.toString().toLowerCase() == name)),
+                  orElse: () => {
+                    'name': empName,
+                    'email': empSub,
+                    'avatar': avatar,
+                    'status': 'On Leave',
+                    'note': 'Approved Leave',
+                  },
+                );
+                if (!allList.contains(match)) {
+                  allList.add(match);
+                }
               } else {
-                absentList.add({
+                final absentItem = {
                   'name': empName,
                   'email': empSub,
                   'avatar': avatar,
                   'status': 'Absent',
-                });
-                allList.add({
-                  'name': empName,
-                  'email': empSub,
-                  'avatar': avatar,
-                  'status': 'Absent',
-                });
+                  'note': 'Attendance Not Marked Today',
+                };
+                absentList.add(absentItem);
+                allList.add(absentItem);
               }
             }
 
@@ -711,14 +785,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                 _ => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
                               };
 
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: context.cardLightBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: context.borderCol, width: 1),
-                                ),
-                                child: Row(
+                              return InkWell(
+                                onTap: () => _showEmployeeAttendanceDetailsModal(item),
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: context.cardLightBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: context.borderCol, width: 1),
+                                  ),
+                                  child: Row(
                                   children: [
                                     _buildAvatarWidget(item['avatar'], empName, 20),
                                     const SizedBox(width: 12),
@@ -738,10 +815,64 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                             Text(
                                               empSub,
                                               style: TextStyle(
-                                                fontSize: 12,
+                                                fontSize: 11,
                                                 color: context.txtMuted,
                                               ),
                                             ),
+                                          const SizedBox(height: 4),
+                                          if (statusStr.toLowerCase() == 'present') ...[
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  'In: ${_formatTimeStr(item['checkIn'])}',
+                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                const Icon(Icons.logout_rounded, size: 12, color: Color(0xFF6366F1)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  'Out: ${_formatTimeStr(item['checkOut'])}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: (item['checkOut'] != null && item['checkOut'].toString() != 'null')
+                                                        ? const Color(0xFF6366F1)
+                                                        : context.txtMuted,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ] else if (statusStr.toLowerCase() == 'absent') ...[
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.cancel_outlined, size: 12, color: Color(0xFFEF4444)),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    item['note'] ?? 'Attendance Not Marked Today',
+                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFEF4444)),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ] else ...[
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.event_busy_rounded, size: 12, color: Color(0xFFF59E0B)),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    item['note'] ?? 'On Approved Leave',
+                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFF59E0B)),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -762,7 +893,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                     ),
                                   ],
                                 ),
-                              );
+                              ),
+                            );
                             },
                           ),
                   ),
@@ -770,6 +902,501 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+
+  (String, String?) _extractLeaveEmployeeInfo(dynamic leave, List<dynamic> allEmployees) {
+    if (leave is! Map) return ('Employee', null);
+
+    final empObj = leave['employeeId'] ?? leave['employee'] ?? leave['user'] ?? leave['userId'];
+
+    String? name;
+    String? avatar;
+    String? empId;
+    String? email;
+
+    if (empObj is Map) {
+      name = (empObj['name'] ?? empObj['employeeName'] ?? empObj['userName'])?.toString();
+      avatar = extractAvatarUrl(empObj);
+      empId = (empObj['_id'] ?? empObj['id'])?.toString();
+      email = empObj['email']?.toString();
+    } else if (empObj is String && empObj.trim().isNotEmpty) {
+      empId = empObj.trim();
+      if (!empId.startsWith('6') && empId.length < 20) {
+        name = empId;
+      }
+    }
+
+    name ??= (leave['employeeName'] ?? leave['userName'] ?? leave['name'])?.toString();
+    avatar ??= extractAvatarUrl(leave);
+    email ??= leave['email']?.toString();
+
+    if ((name == null || name.isEmpty || name == 'Unknown') && allEmployees.isNotEmpty) {
+      final searchId = (empId ?? leave['userId'] ?? leave['employeeId'])?.toString().trim().toLowerCase();
+      final searchEmail = email?.trim().toLowerCase();
+
+      for (var emp in allEmployees) {
+        if (emp is! Map) continue;
+        final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
+        final eId = emp['employeeId']?.toString().trim().toLowerCase();
+        final mail = emp['email']?.toString().trim().toLowerCase();
+
+        if ((searchId != null && (searchId == id || searchId == eId)) ||
+            (searchEmail != null && searchEmail == mail)) {
+          name = emp['name']?.toString();
+          avatar ??= extractAvatarUrl(emp);
+          break;
+        }
+      }
+    }
+
+    final finalName = (name != null && name.trim().isNotEmpty && name != 'Unknown') ? name.trim() : 'Employee';
+    return (finalName, avatar);
+  }
+
+  String _formatTimeStr(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty || raw.toString() == 'null') {
+      return '--:--';
+    }
+    try {
+      final dt = DateTime.parse(raw.toString());
+      return DateFormat('hh:mm a').format(dt.toLocal());
+    } catch (_) {
+      final str = raw.toString().trim();
+      if (str.length > 20) return str.substring(0, 10);
+      return str;
+    }
+  }
+
+  String _calculateDurationStr(dynamic checkInRaw, dynamic checkOutRaw) {
+    if (checkInRaw == null || checkInRaw.toString().isEmpty || checkInRaw.toString() == 'null') {
+      return '0 hrs 0 mins';
+    }
+    try {
+      final start = DateTime.parse(checkInRaw.toString());
+      final isOutMarked = (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null');
+
+      if (!isOutMarked) {
+        final now = DateTime.now();
+        final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
+        if (isToday) {
+          final diff = now.difference(start);
+          final hours = diff.inHours;
+          final mins = diff.inMinutes % 60;
+          if (hours > 0) {
+            return '$hours hrs $mins mins (Active Now)';
+          } else {
+            return '$mins mins (Active Now)';
+          }
+        } else {
+          return 'Shift Completed (Checkout Pending)';
+        }
+      }
+
+      final end = DateTime.parse(checkOutRaw.toString());
+      final diff = end.difference(start);
+      final hours = diff.inHours;
+      final mins = diff.inMinutes % 60;
+      if (hours > 0) {
+        return '$hours hrs $mins mins';
+      } else {
+        return '$mins mins';
+      }
+    } catch (_) {
+      return '--';
+    }
+  }
+
+  String _formatDateFullStr(dynamic rawDate) {
+    if (rawDate != null && rawDate.toString().isNotEmpty && rawDate.toString() != 'null') {
+      try {
+        final dt = DateTime.parse(rawDate.toString());
+        return DateFormat('EEEE, d MMMM yyyy').format(dt.toLocal());
+      } catch (_) {}
+    }
+    return DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
+  }
+
+  void _showEmployeeAttendanceDetailsModal(Map<String, dynamic> item) {
+    final empName = item['name'] ?? 'Employee';
+    final empSub = item['email'] ?? '';
+    final statusStr = item['status'] ?? 'Absent';
+    final checkInRaw = item['checkIn'];
+    final checkOutRaw = item['checkOut'];
+
+    final (statusBg, statusFg) = switch (statusStr.toLowerCase()) {
+      'present' => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),
+      'on leave' || 'leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
+      _ => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
+    };
+
+    final inTimeFormatted = _formatTimeStr(checkInRaw);
+    final outTimeFormatted = _formatTimeStr(checkOutRaw);
+    final durationStr = _calculateDurationStr(checkInRaw, checkOutRaw);
+    final fullDateStr = _formatDateFullStr(checkInRaw);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: context.isDark ? 0.3 : 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle Bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.txtMuted.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Header Bar with Close Icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Attendance Details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: context.txtPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Employee Profile Section
+              Row(
+                children: [
+                  _buildAvatarWidget(item['avatar'], empName, 26),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          empName,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: context.txtPrimary,
+                          ),
+                        ),
+                        if (empSub.isNotEmpty)
+                          Text(
+                            empSub,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: context.txtMuted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      statusStr,
+                      style: TextStyle(
+                        color: statusFg,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Date Header Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      fullDateStr,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              if (statusStr.toLowerCase().contains('leave')) ...[
+                // Leave Type & Dates Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.event_available_rounded, size: 18, color: Color(0xFFF59E0B)),
+                          const SizedBox(width: 8),
+                          Text(
+                            item['note'] ?? item['raw']?['leaveType'] ?? 'Approved Leave',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Status: On Leave Today',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: context.txtPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Reason Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.cardLightBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: context.borderCol),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reason for Leave',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.txtMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (item['raw']?['reason']?.toString().isNotEmpty == true)
+                            ? item['raw']['reason'].toString()
+                            : 'Leave approved by administrator',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: context.txtPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // Details Grid (Check In, Check Out)
+                Row(
+                  children: [
+                    // Check In Card
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: const [
+                                Icon(Icons.login_rounded, size: 16, color: Color(0xFF10B981)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Check In',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              inTimeFormatted,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: context.txtPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Check Out Card
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                              ? const Color(0xFF6366F1).withValues(alpha: 0.08)
+                              : const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                ? const Color(0xFF6366F1).withValues(alpha: 0.2)
+                                : const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.logout_rounded,
+                                  size: 16,
+                                  color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                      ? const Color(0xFF6366F1)
+                                      : const Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Check Out',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                        ? const Color(0xFF6366F1)
+                                        : const Color(0xFFF59E0B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                  ? outTimeFormatted
+                                  : 'Not Marked Yet',
+                              style: TextStyle(
+                                fontSize: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                    ? 17
+                                    : 13,
+                                fontWeight: FontWeight.w800,
+                                color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                    ? context.txtPrimary
+                                    : const Color(0xFFD97706),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Duration Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.cardLightBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: context.borderCol),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.timer_rounded, size: 18, color: Color(0xFFF59E0B)),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total Working Hours',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.txtMuted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            durationStr,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: context.txtPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+            ],
+          ),
         );
       },
     );
@@ -874,23 +1501,28 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           ),
           Positioned(
             right: 0,
-            bottom: 0,
-            top: 0,
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24, width: 1),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.analytics_rounded, color: Colors.white, size: 30),
-                  SizedBox(height: 4),
-                  Icon(Icons.show_chart_rounded, color: Colors.white70, size: 16),
-                ],
+            child: GestureDetector(
+              onTap: () => context.push('/settings'),
+              child: Container(
+                width: 64,
+                height: 64,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _buildAvatarWidget(ref.watch(authProvider).user, authName, 28),
               ),
             ),
           ),
@@ -1216,11 +1848,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   // --- Pending Leave Card Matching Screenshot ---
   Widget _buildPendingLeaveCard(dynamic leave) {
     if (leave is! Map) return const SizedBox.shrink();
-    final emp = leave['employee'];
-    final employeeName = (emp is Map ? emp['name'] : null) ??
-        leave['employeeName'] ??
-        (emp is String ? emp : 'Unknown');
-    final empAvatar = emp is Map ? (emp['avatar']?.toString() ?? emp['profilePicture']?.toString() ?? emp['image']?.toString()) : null;
+
+    final allEmps = ref.read(employeeProvider).employees;
+    final (employeeName, empAvatar) = _extractLeaveEmployeeInfo(leave, allEmps);
+
     final leaveType = leave['leaveType'] ?? 'Leave';
     final leaveId = leave['_id']?.toString() ?? '';
 
@@ -1283,47 +1914,85 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ],
           ),
           const SizedBox(height: 16),
-          // Reject and Approve Buttons Side-by-Side
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _approveLeave(leaveId, 'Rejected'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFEF4444),
-                    side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+          if ((leave['status'] ?? 'Pending').toString().toLowerCase() == 'pending') ...[
+            // Reject and Approve Buttons Side-by-Side
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _approveLeave(leaveId, 'Rejected'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                  ),
-                  child: const Text(
-                    'Reject',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    child: const Text(
+                      'Reject',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _approveLeave(leaveId, 'Approved'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _approveLeave(leaveId, 'Approved'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                  ),
-                  child: const Text(
-                    'Approve',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    child: const Text(
+                      'Approve',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ] else ...[
+            // Approved or Rejected Badge
+            Builder(
+              builder: (context) {
+                final stStr = (leave['status'] ?? '').toString();
+                final isAppr = stStr.toLowerCase() == 'approved';
+                final bgCol = isAppr ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
+                final fgCol = isAppr ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+                final iconData = isAppr ? Icons.check_circle_rounded : Icons.cancel_rounded;
+
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: bgCol,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: fgCol.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(iconData, size: 16, color: fgCol),
+                      const SizedBox(width: 6),
+                      Text(
+                        stStr.isNotEmpty ? stStr : (isAppr ? 'Approved' : 'Rejected'),
+                        style: TextStyle(
+                          color: fgCol,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1665,22 +2334,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         children: [
           Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  gradient: role == 'ADMIN'
-                      ? const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)])
-                      : AppColors.primaryGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    (name.toString().trim().isNotEmpty ? name.toString().trim()[0] : 'E').toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-              ),
+              _buildAvatarWidget(emp, name, 23),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -2418,46 +3072,190 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  // --- Leaves Tab ---
+  // --- Leaves Tab (Leave Status) ---
   Widget _buildLeaveApprovalTab() {
     final attendance = ref.watch(attendanceProvider);
-    final leaves = attendance.allLeaves;
+    final allLeavesList = attendance.allLeaves;
+
+    final pendingCount = allLeavesList.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'pending')).length;
+    final approvedCount = allLeavesList.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'approved')).length;
+    final rejectedCount = allLeavesList.where((l) {
+      if (l is! Map) return false;
+      final st = (l['status'] ?? '').toString().toLowerCase();
+      return st == 'rejected' || st == 'cancelled';
+    }).length;
+
+    final filteredLeaves = allLeavesList.where((l) {
+      if (l is! Map) return false;
+      final st = (l['status'] ?? '').toString().toLowerCase();
+      if (_leaveFilter == 'Approved') return st == 'approved';
+      if (_leaveFilter == 'Pending') return st == 'pending';
+      if (_leaveFilter == 'Rejected') return st == 'rejected' || st == 'cancelled';
+      return true;
+    }).toList();
+
+    final filterOptions = [
+      {'label': 'All', 'count': allLeavesList.length, 'color': const Color(0xFF6366F1)},
+      {'label': 'Approved', 'count': approvedCount, 'color': const Color(0xFF10B981)},
+      {'label': 'Pending', 'count': pendingCount, 'color': const Color(0xFFF59E0B)},
+      {'label': 'Rejected', 'count': rejectedCount, 'color': const Color(0xFFEF4444)},
+    ];
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header Bar
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
               Text(
-                'Leave Requests',
+                'Leave Status',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: context.txtPrimary),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: context.txtPrimary,
+                  letterSpacing: -0.4,
+                ),
               ),
               const Spacer(),
-              Text('${leaves.length} items',
-                  style: TextStyle(color: context.txtMuted, fontSize: 13)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${filteredLeaves.length} items',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
+
+        // Interactive Filter Chips Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            children: filterOptions.map((opt) {
+              final label = opt['label'] as String;
+              final count = opt['count'] as int;
+              final color = opt['color'] as Color;
+              final isSel = _leaveFilter == label;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () => setState(() => _leaveFilter = label),
+                  borderRadius: BorderRadius.circular(12),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSel ? color : context.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSel ? color : context.borderCol,
+                        width: isSel ? 1.5 : 1,
+                      ),
+                      boxShadow: isSel
+                          ? [
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              )
+                            ]
+                          : [],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: isSel ? Colors.white : context.txtPrimary,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? Colors.white.withValues(alpha: 0.25)
+                                : color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              color: isSel ? Colors.white : color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // List / Empty View
         Expanded(
           child: attendance.isLoading
               ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-              : leaves.isEmpty
+              : filteredLeaves.isEmpty
                   ? Center(
-                      child: Text('No leave requests',
-                          style: TextStyle(color: context.txtMuted)))
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _leaveFilter == 'Approved'
+                                ? Icons.check_circle_outline_rounded
+                                : _leaveFilter == 'Pending'
+                                    ? Icons.pending_actions_rounded
+                                    : Icons.event_busy_rounded,
+                            size: 48,
+                            color: context.txtMuted.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _leaveFilter == 'Approved'
+                                ? 'No approved leaves'
+                                : _leaveFilter == 'Pending'
+                                    ? 'No pending leave requests'
+                                    : _leaveFilter == 'Rejected'
+                                        ? 'No rejected leaves'
+                                        : 'No leave records found',
+                            style: TextStyle(
+                              color: context.txtMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                   : RefreshIndicator(
                       color: AppColors.primary,
-                      onRefresh: () =>
-                          ref.read(attendanceProvider.notifier).loadAllLeaves(),
+                      onRefresh: () => ref.read(attendanceProvider.notifier).loadAllLeaves(),
                       child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: leaves.length,
-                        itemBuilder: (ctx, i) =>
-                            _buildPendingLeaveCard(leaves[i]),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                        itemCount: filteredLeaves.length,
+                        itemBuilder: (ctx, i) => _buildPendingLeaveCard(filteredLeaves[i]),
                       ),
                     ),
         ),

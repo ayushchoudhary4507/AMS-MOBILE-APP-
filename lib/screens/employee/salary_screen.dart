@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../widgets/common/app_avatar.dart';
 
 class EmployeeSalaryScreen extends ConsumerWidget {
   const EmployeeSalaryScreen({super.key});
@@ -108,17 +109,11 @@ class EmployeeSalaryScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
+                      AppAvatar(
+                        avatarOrUser: salary['employee'] ?? auth.user ?? salary,
+                        fallbackText: empName,
                         radius: 24,
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        child: Text(
-                          empName.isNotEmpty ? empName[0].toUpperCase() : 'E',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        backgroundColor: const Color(0xFF6366F1),
                       ),
                       const SizedBox(width: 14),
                       Column(

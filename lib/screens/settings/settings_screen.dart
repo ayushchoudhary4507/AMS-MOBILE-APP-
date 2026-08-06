@@ -321,6 +321,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         cleanAvatar.isNotEmpty &&
         cleanAvatar != 'null' &&
         cleanAvatar != 'undefined') {
+      // 1. Base64 Data URI or Raw Base64 String
+      if (cleanAvatar.startsWith('data:image/') ||
+          cleanAvatar.startsWith('data:application/') ||
+          (!cleanAvatar.startsWith('http://') &&
+           !cleanAvatar.startsWith('https://') &&
+           !cleanAvatar.startsWith('file://') &&
+           !cleanAvatar.startsWith('/') &&
+           !cleanAvatar.startsWith('uploads') &&
+           cleanAvatar.length > 80)) {
+        try {
+          String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
+          base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
+          while (base64Str.length % 4 != 0) {
+            base64Str += '=';
+          }
+          final bytes = base64Decode(base64Str);
+          if (bytes.isNotEmpty) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+              backgroundImage: MemoryImage(bytes),
+            );
+          }
+        } catch (_) {}
+      }
+
+      // 2. Local File Path
+      if (cleanAvatar.startsWith('file://') || cleanAvatar.contains(':\\') || cleanAvatar.startsWith('/data/') || cleanAvatar.startsWith('/storage/')) {
+        try {
+          final filePath = cleanAvatar.replaceFirst('file://', '');
+          final file = File(filePath);
+          if (file.existsSync()) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+              backgroundImage: FileImage(file),
+            );
+          }
+        } catch (_) {}
+      }
+
+      // 3. HTTP / HTTPS Network URL
       if (cleanAvatar.contains('localhost') ||
           cleanAvatar.contains('127.0.0.1') ||
           cleanAvatar.contains('10.0.2.2')) {
@@ -333,21 +375,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (!cleanAvatar.startsWith('http://') &&
           !cleanAvatar.startsWith('https://') &&
-          !cleanAvatar.startsWith('data:') &&
-          !cleanAvatar.startsWith('file://') &&
           (cleanAvatar.contains('cloudinary.com') ||
            cleanAvatar.contains('vercel.app') ||
            cleanAvatar.contains('onrender.com') ||
            cleanAvatar.contains('amazonaws.com') ||
            cleanAvatar.contains('googleapis.com') ||
-           cleanAvatar.contains('supabase.co') ||
-           cleanAvatar.contains('.com/') ||
-           cleanAvatar.contains('.org/') ||
-           cleanAvatar.contains('.net/'))) {
+           cleanAvatar.contains('supabase.co'))) {
         cleanAvatar = 'https://$cleanAvatar';
       }
 
-      // 1. Direct HTTP/HTTPS Network URL
       if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
         return ClipOval(
           child: CachedNetworkImage(
@@ -380,33 +416,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
       }
 
-      // 2. Base64 Data URI or Raw Base64 String
-      if (cleanAvatar.startsWith('data:image/') ||
-          (!cleanAvatar.startsWith('/') &&
-           !cleanAvatar.startsWith('uploads') &&
-           cleanAvatar.length > 50)) {
-        try {
-          String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
-          base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
-          while (base64Str.length % 4 != 0) {
-            base64Str += '=';
-          }
-          final bytes = base64Decode(base64Str);
-          if (bytes.isNotEmpty) {
-            return CircleAvatar(
-              radius: radius,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-              backgroundImage: MemoryImage(bytes),
-            );
-          }
-        } catch (_) {}
-      }
-
-      // 3. Relative Server Path (e.g. /uploads/..., uploads/..., /public/...)
+      // 4. Relative Server Path (e.g. /uploads/..., uploads/...)
       if (cleanAvatar.startsWith('/') ||
           cleanAvatar.startsWith('uploads') ||
           cleanAvatar.startsWith('public') ||
-          cleanAvatar.startsWith('storage') ||
           cleanAvatar.contains('.png') ||
           cleanAvatar.contains('.jpg') ||
           cleanAvatar.contains('.jpeg') ||
@@ -442,21 +455,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         );
-      }
-
-      // 4. Local File Path
-      if (cleanAvatar.startsWith('file://') || cleanAvatar.startsWith('/') || cleanAvatar.contains(':\\')) {
-        try {
-          final filePath = cleanAvatar.replaceFirst('file://', '');
-          final file = File(filePath);
-          if (file.existsSync()) {
-            return CircleAvatar(
-              radius: radius,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-              backgroundImage: FileImage(file),
-            );
-          }
-        } catch (_) {}
       }
     }
 

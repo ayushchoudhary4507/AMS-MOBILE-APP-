@@ -72,8 +72,24 @@ class AttendanceService {
 
   // Get today all attendance (Admin)
   static Future<Map<String, dynamic>> getTodayAllAttendance() async {
-    final response = await ApiService.get(ApiConstants.attendanceToday);
-    return ApiService.toMap(response.data);
+    try {
+      final response = await ApiService.get(ApiConstants.attendanceToday);
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.get(ApiConstants.attendanceTodayStatus);
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      try {
+        final response = await ApiService.get('/attendance/all');
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      try {
+        final response = await ApiService.get('/attendance/by-date');
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   // Get today status

@@ -181,7 +181,26 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               );
             },
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 4),
+          // User Profile Photo
+          GestureDetector(
+            onTap: () => context.push('/settings'),
+            child: Tooltip(
+              message: 'Settings & Profile',
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF4F46E5).withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                ),
+                child: _buildAvatarWidget(auth.user, name, 16),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           // Logout Icon
           IconButton(
             icon: const Icon(
@@ -1709,6 +1728,48 @@ Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radi
       cleanAvatar.isNotEmpty &&
       cleanAvatar != 'null' &&
       cleanAvatar != 'undefined') {
+    // 1. Base64 Data URI or Raw Base64 String
+    if (cleanAvatar.startsWith('data:image/') ||
+        cleanAvatar.startsWith('data:application/') ||
+        (!cleanAvatar.startsWith('http://') &&
+         !cleanAvatar.startsWith('https://') &&
+         !cleanAvatar.startsWith('file://') &&
+         !cleanAvatar.startsWith('/') &&
+         !cleanAvatar.startsWith('uploads') &&
+         cleanAvatar.length > 80)) {
+      try {
+        String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
+        base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
+        while (base64Str.length % 4 != 0) {
+          base64Str += '=';
+        }
+        final bytes = base64Decode(base64Str);
+        if (bytes.isNotEmpty) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            backgroundImage: MemoryImage(bytes),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 2. Local File Path
+    if (cleanAvatar.startsWith('file://') || cleanAvatar.contains(':\\') || cleanAvatar.startsWith('/data/') || cleanAvatar.startsWith('/storage/')) {
+      try {
+        final filePath = cleanAvatar.replaceFirst('file://', '');
+        final file = File(filePath);
+        if (file.existsSync()) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFE0E7FF),
+            backgroundImage: FileImage(file),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 3. Direct HTTP/HTTPS Network URL
     if (cleanAvatar.contains('localhost') ||
         cleanAvatar.contains('127.0.0.1') ||
         cleanAvatar.contains('10.0.2.2')) {
@@ -1721,20 +1782,15 @@ Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radi
 
     if (!cleanAvatar.startsWith('http://') &&
         !cleanAvatar.startsWith('https://') &&
-        !cleanAvatar.startsWith('data:') &&
-        !cleanAvatar.startsWith('file://') &&
         (cleanAvatar.contains('cloudinary.com') ||
          cleanAvatar.contains('vercel.app') ||
          cleanAvatar.contains('onrender.com') ||
          cleanAvatar.contains('amazonaws.com') ||
          cleanAvatar.contains('googleapis.com') ||
-         cleanAvatar.contains('supabase.co') ||
-         cleanAvatar.contains('.com/') ||
-         cleanAvatar.contains('.org/') ||
-         cleanAvatar.contains('.net/'))) {
+         cleanAvatar.contains('supabase.co'))) {
       cleanAvatar = 'https://$cleanAvatar';
     }
-    // 1. Direct HTTP/HTTPS Network URL
+
     if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
       return ClipOval(
         child: CachedNetworkImage(
@@ -1767,37 +1823,20 @@ Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radi
       );
     }
 
-    // 2. Base64 Data URI or Raw Base64 String
-    if (cleanAvatar.startsWith('data:image/') ||
-        (!cleanAvatar.startsWith('/') &&
-         !cleanAvatar.startsWith('uploads') &&
-         cleanAvatar.length > 50)) {
-      try {
-        String base64Str = cleanAvatar.contains(',') ? cleanAvatar.split(',').last : cleanAvatar;
-        base64Str = base64Str.replaceAll(RegExp(r'\s+'), '');
-        while (base64Str.length % 4 != 0) {
-          base64Str += '=';
-        }
-        final bytes = base64Decode(base64Str);
-        if (bytes.isNotEmpty) {
-          return CircleAvatar(
-            radius: radius,
-            backgroundColor: const Color(0xFFE0E7FF),
-            backgroundImage: MemoryImage(bytes),
-          );
-        }
-      } catch (_) {}
-    }
-
-    // 3. Relative Server Path (e.g. /uploads/..., uploads/..., /public/...)
+    // 4. Relative Server Path (e.g. /uploads/..., uploads/...)
     if (cleanAvatar.startsWith('/') ||
         cleanAvatar.startsWith('uploads') ||
         cleanAvatar.startsWith('public') ||
         cleanAvatar.startsWith('storage') ||
+        cleanAvatar.startsWith('images') ||
+        cleanAvatar.startsWith('assets') ||
+        cleanAvatar.startsWith('photos') ||
+        cleanAvatar.startsWith('profiles') ||
         cleanAvatar.contains('.png') ||
         cleanAvatar.contains('.jpg') ||
         cleanAvatar.contains('.jpeg') ||
-        cleanAvatar.contains('.webp')) {
+        cleanAvatar.contains('.webp') ||
+        (!cleanAvatar.contains(' ') && cleanAvatar.contains('.'))) {
       final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
       final fullUrl = '$apiBase${cleanAvatar.startsWith('/') ? '' : '/'}$cleanAvatar';
       return ClipOval(
@@ -1829,21 +1868,6 @@ Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radi
           ),
         ),
       );
-    }
-
-    // 4. Local File Path
-    if (cleanAvatar.startsWith('file://') || cleanAvatar.startsWith('/') || cleanAvatar.contains(':\\')) {
-      try {
-        final filePath = cleanAvatar.replaceFirst('file://', '');
-        final file = File(filePath);
-        if (file.existsSync()) {
-          return CircleAvatar(
-            radius: radius,
-            backgroundColor: const Color(0xFFE0E7FF),
-            backgroundImage: FileImage(file),
-          );
-        }
-      } catch (_) {}
     }
   }
 
@@ -2480,6 +2504,8 @@ class _LeaveTab extends ConsumerStatefulWidget {
 }
 
 class _LeaveTabState extends ConsumerState<_LeaveTab> {
+  String _leaveFilter = 'All';
+
   @override
   void initState() {
     super.initState();
@@ -2490,6 +2516,31 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
   @override
   Widget build(BuildContext context) {
     final attendance = ref.watch(attendanceProvider);
+    final allMyLeaves = attendance.myLeaves;
+
+    final approvedCount = allMyLeaves.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'approved')).length;
+    final pendingCount = allMyLeaves.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'pending')).length;
+    final rejectedCount = allMyLeaves.where((l) {
+      if (l is! Map) return false;
+      final st = (l['status'] ?? '').toString().toLowerCase();
+      return st == 'rejected' || st == 'cancelled';
+    }).length;
+
+    final filtered = allMyLeaves.where((l) {
+      if (l is! Map) return false;
+      final st = (l['status'] ?? '').toString().toLowerCase();
+      if (_leaveFilter == 'Approved') return st == 'approved';
+      if (_leaveFilter == 'Pending') return st == 'pending';
+      if (_leaveFilter == 'Rejected') return st == 'rejected' || st == 'cancelled';
+      return true;
+    }).toList();
+
+    final filterOptions = [
+      {'label': 'All', 'count': allMyLeaves.length, 'color': const Color(0xFF6366F1)},
+      {'label': 'Approved', 'count': approvedCount, 'color': const Color(0xFF10B981)},
+      {'label': 'Pending', 'count': pendingCount, 'color': const Color(0xFFF59E0B)},
+      {'label': 'Rejected', 'count': rejectedCount, 'color': const Color(0xFFEF4444)},
+    ];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -2499,7 +2550,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
           Row(
             children: [
               Text(
-                'My Leaves',
+                'Leave Status',
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -2521,10 +2572,63 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Filter chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: filterOptions.map((opt) {
+                final label = opt['label'] as String;
+                final count = opt['count'] as int;
+                final color = opt['color'] as Color;
+                final isSel = _leaveFilter == label;
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => setState(() => _leaveFilter = label),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSel ? color : context.cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSel ? color : context.borderCol,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: isSel ? Colors.white : context.txtPrimary,
+                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '($count)',
+                            style: TextStyle(
+                              color: isSel ? Colors.white.withValues(alpha: 0.9) : color,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
           const SizedBox(height: 16),
           if (attendance.isLoading)
             const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          else if (attendance.myLeaves.isEmpty)
+          else if (filtered.isEmpty)
             Center(
               child: Column(
                 children: [
@@ -2532,13 +2636,19 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                   Icon(Icons.beach_access,
                       size: 60, color: AppColors.textMuted.withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
-                  const Text('No leaves found',
-                      style: TextStyle(color: AppColors.textMuted)),
+                  Text(
+                    _leaveFilter == 'Approved'
+                        ? 'No approved leaves found'
+                        : _leaveFilter == 'Pending'
+                            ? 'No pending leaves found'
+                            : 'No leaves found',
+                    style: const TextStyle(color: AppColors.textMuted),
+                  ),
                 ],
               ),
             )
           else
-            ...attendance.myLeaves.map((leave) => _buildLeaveCard(leave)),
+            ...filtered.map((leave) => _buildLeaveCard(leave)),
         ],
       ),
     );

@@ -102,6 +102,22 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
         if (nested != null && nested.isNotEmpty) return nested;
       }
     }
+
+    final email = avatarOrUser['email']?.toString().trim().toLowerCase();
+    if (email != null && StorageService.avatarCache.containsKey(email)) {
+      final cached = StorageService.avatarCache[email];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    final id = (avatarOrUser['_id'] ?? avatarOrUser['id'])?.toString().trim().toLowerCase();
+    if (id != null && StorageService.avatarCache.containsKey(id)) {
+      final cached = StorageService.avatarCache[id];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    final name = avatarOrUser['name']?.toString().trim().toLowerCase();
+    if (name != null && StorageService.avatarCache.containsKey(name)) {
+      final cached = StorageService.avatarCache[name];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
   }
   return null;
 }
@@ -344,7 +360,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } catch (_) {}
       }
 
-      final existingAvatar = extractAvatarUrl(currentUser);
+      final cachedAvatar = userEmail != null ? await StorageService.getUserAvatar(userEmail) : null;
+      final existingAvatar = extractAvatarUrl(currentUser) ?? cachedAvatar;
       final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
           ? serverAvatar
           : (existingAvatar != null && existingAvatar.isNotEmpty ? existingAvatar : null);
@@ -361,6 +378,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         userData['profile_picture'] = avatarToUse;
         userData['avatarUrl'] = avatarToUse;
         userData['photo'] = avatarToUse;
+
+        if (userEmail != null && userEmail.isNotEmpty) {
+          await StorageService.saveUserAvatar(userEmail, avatarToUse);
+        }
       }
 
       await StorageService.saveUser(userData);
@@ -376,6 +397,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? phone,
     String? profilePicture,
   }) async {
+    // Create updated local user map
+    final currentMap = Map<String, dynamic>.from(state.user ?? {});
+
+    currentMap['name'] = name;
+    if (phone != null) currentMap['phone'] = phone;
+    if (profilePicture != null && profilePicture.isNotEmpty) {
+      currentMap['avatar'] = profilePicture;
+      currentMap['profilePicture'] = profilePicture;
+      currentMap['image'] = profilePicture;
+      currentMap['profile_picture'] = profilePicture;
+      currentMap['avatarUrl'] = profilePicture;
+      currentMap['photo'] = profilePicture;
+
+      final userEmail = (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])?.toString();
+      if (userEmail != null && userEmail.isNotEmpty) {
+        await StorageService.saveUserAvatar(userEmail, profilePicture);
+      }
+    }
+
+    await StorageService.saveUser(currentMap);
+    state = state.copyWith(user: currentMap);
+
     try {
       final res = await AuthService.updateProfile(
         name: name,
@@ -383,22 +426,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
         profilePicture: profilePicture,
       );
 
-      // Create updated local user map
-      final currentMap = Map<String, dynamic>.from(state.user ?? {});
-
-      // If backend returned raw user object, merge it first
+      // If backend returned raw user object, merge non-null fields
       if (res['data'] is Map<String, dynamic>) {
-        currentMap.addAll(Map<String, dynamic>.from(res['data']));
+        final serverMap = Map<String, dynamic>.from(res['data']);
+        if (serverMap['avatar'] == null && currentMap['avatar'] != null) {
+          serverMap['avatar'] = currentMap['avatar'];
+          serverMap['profilePicture'] = currentMap['profilePicture'];
+        }
+        currentMap.addAll(serverMap);
       } else if (res['user'] is Map<String, dynamic>) {
-        currentMap.addAll(Map<String, dynamic>.from(res['user']));
-      }
-
-      currentMap['name'] = name;
-      if (phone != null) currentMap['phone'] = phone;
-      if (profilePicture != null && profilePicture.isNotEmpty) {
-        currentMap['avatar'] = profilePicture;
-        currentMap['profilePicture'] = profilePicture;
-        currentMap['image'] = profilePicture;
+        final serverMap = Map<String, dynamic>.from(res['user']);
+        if (serverMap['avatar'] == null && currentMap['avatar'] != null) {
+          serverMap['avatar'] = currentMap['avatar'];
+          serverMap['profilePicture'] = currentMap['profilePicture'];
+        }
+        currentMap.addAll(serverMap);
       }
 
       await StorageService.saveUser(currentMap);
@@ -406,17 +448,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await refreshProfile();
       return true;
     } catch (e) {
-      // Fallback: local update if offline / API error
-      final currentMap = Map<String, dynamic>.from(state.user ?? {});
-      currentMap['name'] = name;
-      if (phone != null) currentMap['phone'] = phone;
-      if (profilePicture != null && profilePicture.isNotEmpty) {
-        currentMap['avatar'] = profilePicture;
-        currentMap['profilePicture'] = profilePicture;
-        currentMap['image'] = profilePicture;
-      }
-      await StorageService.saveUser(currentMap);
-      state = state.copyWith(user: currentMap);
+      // Offline / backend fallback — local state is already saved!
       return true;
     }
   }

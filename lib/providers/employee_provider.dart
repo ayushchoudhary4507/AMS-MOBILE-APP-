@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/utils/storage_service.dart';
 import '../services/employee_service.dart';
+import 'auth_provider.dart';
 
 class EmployeeState {
   final bool isLoading;
@@ -37,10 +39,64 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await EmployeeService.getAll();
-      final list = data['employees'] ?? data['data'] ?? [];
+      final list = data['employees'] ?? data['data'] ?? data['records'] ?? data['items'] ?? [];
+      List<dynamic> updatedList = [];
+      if (list is List) {
+        final currentUser = await StorageService.getUser();
+        for (final emp in list) {
+          if (emp is Map) {
+            final empMap = Map<String, dynamic>.from(emp);
+            final email = empMap['email']?.toString().trim().toLowerCase();
+            final id = (empMap['_id'] ?? empMap['id'])?.toString().trim().toLowerCase();
+            final name = empMap['name']?.toString().trim().toLowerCase();
+
+            var avatar = extractAvatarUrl(empMap);
+
+            if (avatar == null || avatar.isEmpty) {
+              if (email != null && email.isNotEmpty) {
+                avatar = await StorageService.getUserAvatar(email);
+              }
+              if ((avatar == null || avatar.isEmpty) && id != null && id.isNotEmpty) {
+                avatar = await StorageService.getUserAvatar(id);
+              }
+              if ((avatar == null || avatar.isEmpty) && name != null && name.isNotEmpty) {
+                avatar = await StorageService.getUserAvatar(name);
+              }
+            }
+
+            if ((avatar == null || avatar.isEmpty) && currentUser != null) {
+              final userEmail = currentUser['email']?.toString().trim().toLowerCase();
+              final userId = (currentUser['_id'] ?? currentUser['id'])?.toString().trim().toLowerCase();
+              final userName = currentUser['name']?.toString().trim().toLowerCase();
+              final userAvatar = extractAvatarUrl(currentUser);
+
+              if (userAvatar != null && userAvatar.isNotEmpty) {
+                if ((email != null && email == userEmail) ||
+                    (id != null && id == userId) ||
+                    (name != null && userName != null && name == userName)) {
+                  avatar = userAvatar;
+                }
+              }
+            }
+
+            if (avatar != null && avatar.isNotEmpty) {
+              empMap['avatar'] = avatar;
+              empMap['photo'] = avatar;
+              empMap['profilePicture'] = avatar;
+              empMap['image'] = avatar;
+              if (email != null && email.isNotEmpty) {
+                await StorageService.saveUserAvatar(email, avatar);
+              }
+            }
+            updatedList.add(empMap);
+          } else {
+            updatedList.add(emp);
+          }
+        }
+      }
       state = state.copyWith(
         isLoading: false,
-        employees: list is List ? list : [],
+        employees: updatedList,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -83,6 +139,12 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
   Future<bool> updateEmployee(String id, Map<String, dynamic> data) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
+      final avatar = extractAvatarUrl(data);
+      final email = data['email']?.toString();
+      if (avatar != null && avatar.isNotEmpty) {
+        if (email != null && email.isNotEmpty) await StorageService.saveUserAvatar(email, avatar);
+        await StorageService.saveUserAvatar(id, avatar);
+      }
       await EmployeeService.update(id, data);
       await loadEmployees();
       return true;
@@ -90,7 +152,13 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final updatedList = state.employees.map((emp) {
         final empId = emp['_id']?.toString() ?? emp['id']?.toString();
         if (empId == id) {
-          return {...(emp is Map ? emp : {}), ...data};
+          final merged = {...(emp is Map ? emp : {}), ...data};
+          final avatar = extractAvatarUrl(merged);
+          final email = merged['email']?.toString();
+          if (avatar != null && avatar.isNotEmpty && email != null) {
+            StorageService.saveUserAvatar(email, avatar);
+          }
+          return merged;
         }
         return emp;
       }).toList();

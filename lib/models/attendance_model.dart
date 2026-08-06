@@ -91,8 +91,13 @@ class AttendanceModel {
       json['checkIn'] ??
           json['check_in'] ??
           json['checkInTime'] ??
+          json['checkin_time'] ??
           json['inTime'] ??
-          json['in_time'],
+          json['in_time'] ??
+          json['timeIn'] ??
+          json['time_in'] ??
+          json['createdAt'] ??
+          json['created_at'],
     );
 
     // CheckOut mapping
@@ -100,8 +105,13 @@ class AttendanceModel {
       json['checkOut'] ??
           json['check_out'] ??
           json['checkOutTime'] ??
+          json['checkout_time'] ??
           json['outTime'] ??
-          json['out_time'],
+          json['out_time'] ??
+          json['timeOut'] ??
+          json['time_out'] ??
+          json['updatedAt'] ??
+          json['updated_at'],
     );
 
     // Status mapping
