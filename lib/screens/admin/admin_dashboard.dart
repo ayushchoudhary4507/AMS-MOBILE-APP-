@@ -1437,98 +1437,406 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   }
 
   Widget _buildWelcomeBanner({required String authName}) {
+    final auth = ref.watch(authProvider);
+    final user = auth.user;
+
+    // Member Since date calculation
+    String memberSince = '24 May 2024';
+    final rawDate = user?['createdAt'] ?? user?['joiningDate'] ?? user?['created_at'];
+    if (rawDate != null) {
+      try {
+        final dt = DateTime.parse(rawDate.toString());
+        memberSince = DateFormat('d MMM yyyy').format(dt);
+      } catch (_) {}
+    }
+
+    final roleStr = (user?['role'] ?? auth.role ?? 'Admin').toString();
+    final roleTitle = roleStr.toLowerCase() == 'admin' ? 'Super Admin' : roleStr;
+    final statusText = (user?['status'] ?? 'Active').toString().toUpperCase() == 'INACTIVE'
+        ? 'Inactive'
+        : 'Active User';
+
+    final isDark = context.isDark;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2563EB),
-            Color(0xFF3B82F6),
-            Color(0xFF1D4ED8),
-          ],
-        ),
+        color: context.cardBg,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: context.borderCol.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Welcome back,',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            // 1. Right-side Fluid Wave Decorative Background
+            Positioned(
+              right: -15,
+              top: -15,
+              bottom: -15,
+              width: 180,
+              child: CustomPaint(
+                painter: _BannerWavePainter(isDark: isDark),
+              ),
+            ),
+
+            // Soft floating background circles
+            Positioned(
+              right: 140,
+              top: 24,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF818CF8).withValues(alpha: 0.3),
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
+            ),
+            Positioned(
+              right: 130,
+              bottom: 30,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.25),
+                ),
+              ),
+            ),
+
+            // 2. Main Content Container (Compact Padding)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    authName.split(' ').first,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
+                  // Top Row: Left Greeting Info + Right Avatar & View Profile
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left Greeting Column
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Text('👋', style: TextStyle(fontSize: 12)),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Welcome back,',
+                                  style: TextStyle(
+                                    color: context.txtSecondary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    authName.split(' ').first,
+                                    style: TextStyle(
+                                      color: context.txtPrimary,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.5,
+                                      height: 1.1,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                const Text('👋', style: TextStyle(fontSize: 19)),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+
+                            Text(
+                              "Here's what's happening today.",
+                              style: TextStyle(
+                                color: context.txtMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+
+                            // Blue accent underline line
+                            Container(
+                              width: 28,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      // Right Column: Compact Profile Avatar with Badge + View Profile Button
+                      Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () => context.push('/settings'),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              clipBehavior: Clip.none,
+                              children: [
+                                // Outer translucent glow ring
+                                Container(
+                                  width: 72,
+                                  height: 72,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                    border: Border.all(
+                                      color: const Color(0xFF818CF8).withValues(alpha: 0.35),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                // Inner white/card border ring around avatar
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      width: 2.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.12),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: _buildAvatarWidget(user, authName, 29),
+                                ),
+                                // Green Verified Checkmark Badge
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                        width: 2,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Compact View Profile Pill Button
+                          InkWell(
+                            onTap: () => context.push('/settings'),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.person_rounded, color: Colors.white, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'View Profile',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 11),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Bottom 3 Info Mini Cards Row (Member Since, Active User, Super Admin / System Role)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        // Card 1: Member Since
+                        _buildBannerMiniCard(
+                          icon: Icons.calendar_today_rounded,
+                          iconColor: const Color(0xFF6366F1),
+                          iconBgColor: const Color(0xFFEEF2FF),
+                          title: memberSince,
+                          subtitle: 'Member Since',
+                          isDark: isDark,
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Card 2: Status
+                        _buildBannerMiniCard(
+                          icon: Icons.verified_user_rounded,
+                          iconColor: const Color(0xFF10B981),
+                          iconBgColor: const Color(0xFFECFDF5),
+                          title: statusText,
+                          subtitle: 'Status',
+                          isDark: isDark,
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Card 3: System Role (Replaced Premium)
+                        _buildBannerMiniCard(
+                          icon: Icons.admin_panel_settings_rounded,
+                          iconColor: const Color(0xFF8B5CF6),
+                          iconBgColor: const Color(0xFFF3E8FF),
+                          title: roleTitle,
+                          subtitle: 'System Role',
+                          isDark: isDark,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Text('👋', style: TextStyle(fontSize: 22)),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                "Here's what's happening today.",
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: const Duration(milliseconds: 350)).scale(
+          begin: const Offset(0.97, 0.97),
+          end: const Offset(1.0, 1.0),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildBannerMiniCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String subtitle,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      constraints: const BoxConstraints(minWidth: 95),
+      decoration: BoxDecoration(
+        color: isDark ? context.cardLightBg : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? context.borderCol : const Color(0xFFF1F5F9),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.08 : 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          Positioned(
-            right: 0,
-            child: GestureDetector(
-              onTap: () => context.push('/settings'),
-              child: Container(
-                width: 64,
-                height: 64,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: _buildAvatarWidget(ref.watch(authProvider).user, authName, 28),
-              ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: context.txtPrimary,
+              letterSpacing: -0.2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: context.txtMuted,
             ),
           ),
         ],
       ),
-    ).animate().scale(duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+    );
   }
 
   // --- Overview Stat Card Component ---
@@ -3450,3 +3758,84 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 }
+
+class _BannerWavePainter extends CustomPainter {
+  final bool isDark;
+
+  _BannerWavePainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+
+    // Outer soft gradient wave
+    final paint1 = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: isDark
+            ? [
+                const Color(0xFF4F46E5).withValues(alpha: 0.25),
+                const Color(0xFF6366F1).withValues(alpha: 0.15),
+                const Color(0xFF3B82F6).withValues(alpha: 0.05),
+              ]
+            : [
+                const Color(0xFF818CF8).withValues(alpha: 0.35),
+                const Color(0xFF6366F1).withValues(alpha: 0.25),
+                const Color(0xFF3B82F6).withValues(alpha: 0.1),
+              ],
+      ).createShader(Rect.fromLTWH(0, 0, width, height));
+
+    final path1 = Path();
+    path1.moveTo(width * 0.2, 0);
+    path1.quadraticBezierTo(
+      width * 0.05,
+      height * 0.4,
+      width * 0.45,
+      height * 0.7,
+    );
+    path1.quadraticBezierTo(
+      width * 0.7,
+      height * 0.9,
+      width,
+      height,
+    );
+    path1.lineTo(width, 0);
+    path1.close();
+    canvas.drawPath(path1, paint1);
+
+    // Inner vibrant gradient wave
+    final paint2 = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                const Color(0xFF6366F1).withValues(alpha: 0.35),
+                const Color(0xFF3B82F6).withValues(alpha: 0.20),
+              ]
+            : [
+                const Color(0xFF818CF8).withValues(alpha: 0.45),
+                const Color(0xFF6366F1).withValues(alpha: 0.30),
+              ],
+      ).createShader(Rect.fromLTWH(0, 0, width, height));
+
+    final path2 = Path();
+    path2.moveTo(width * 0.5, 0);
+    path2.quadraticBezierTo(
+      width * 0.35,
+      height * 0.5,
+      width * 0.6,
+      height,
+    );
+    path2.lineTo(width, height);
+    path2.lineTo(width, 0);
+    path2.close();
+    canvas.drawPath(path2, paint2);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
