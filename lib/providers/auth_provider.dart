@@ -296,14 +296,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
           token: token,
         );
         _syncDeviceToken(user);
-        final userName = user?['name']?.toString() ?? 'User';
-        RealtimeNotificationService.dispatchNotification(
-          _ref,
-          title: 'Login Successful',
-          message: 'Welcome back, $userName! Logged in successfully.',
-          type: 'user_login',
-          category: NotificationCategory.userLogin,
-        );
+        if (role.toLowerCase() != 'admin') {
+          final empName = user?['name']?.toString() ?? 'Employee';
+          final empEmail = user?['email']?.toString() ?? '';
+          NotificationService.sendNotification(
+            title: 'Employee Logged In',
+            message: '$empName ($empEmail) logged in to AMS App.',
+            type: 'user_login',
+            recipientRole: 'admin',
+          );
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'Employee Logged In',
+            message: '$empName ($empEmail) logged in to AMS App.',
+            type: 'employee_login',
+            category: NotificationCategory.userLogin,
+          );
+        }
         await refreshProfile();
         return true;
       }
@@ -513,14 +522,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           user: user,
           role: role,
           token: token,
-        );
-        final userName = user['name']?.toString() ?? 'User';
-        RealtimeNotificationService.dispatchNotification(
-          _ref,
-          title: 'Biometric Login Successful',
-          message: 'Welcome back, $userName! Authenticated via Biometrics.',
-          type: 'user_login',
-          category: NotificationCategory.userLogin,
         );
         return true;
       }

@@ -84,31 +84,35 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
             icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 26),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          const SizedBox(width: 4),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Employee Portal',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: context.txtPrimary,
-                  letterSpacing: -0.4,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Employee Portal',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: context.txtPrimary,
+                    letterSpacing: -0.4,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                today,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: context.txtMuted,
+                const SizedBox(height: 2),
+                Text(
+                  today,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: context.txtMuted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           // Theme Mode Toggle (Moon / Sun)
           IconButton(
             icon: Icon(

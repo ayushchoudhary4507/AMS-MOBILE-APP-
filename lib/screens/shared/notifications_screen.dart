@@ -80,6 +80,31 @@ class NotifNotifier extends StateNotifier<NotifState> {
 
       if (newItems.isNotEmpty) {
         state = state.copyWith(notifications: [...newItems, ...state.notifications]);
+        for (final item in newItems) {
+          if (item is Map) {
+            final title = item['title']?.toString() ?? 'New Notification';
+            final message = item['message']?.toString() ?? item['body']?.toString() ?? '';
+            final type = (item['type']?.toString() ?? '').toLowerCase();
+
+            final category = type.contains('login')
+                ? NotificationCategory.userLogin
+                : (type.contains('checkout')
+                    ? NotificationCategory.attendanceCheckOut
+                    : (type.contains('leave')
+                        ? NotificationCategory.leaveRequest
+                        : NotificationCategory.attendanceCheckIn));
+
+            final notifItem = RealtimeNotificationItem(
+              id: (item['_id'] ?? item['id'])?.toString() ?? '',
+              title: title,
+              message: message,
+              type: type,
+              category: category,
+            );
+            RealtimeNotificationService.showTopNotificationPopup(null, notifItem);
+            RealtimeNotificationService.showNativeSystemNotification(notifItem);
+          }
+        }
       }
     } catch (_) {}
   }

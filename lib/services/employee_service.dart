@@ -114,6 +114,47 @@ class NotificationService {
 
     return {};
   }
+
+  static Future<Map<String, dynamic>> sendNotification({
+    required String title,
+    required String message,
+    required String type,
+    String? recipientRole = 'admin',
+    String? recipientId,
+  }) async {
+    final candidateEndpoints = [
+      ApiConstants.notifications,
+      '${ApiConstants.notifications}/create',
+      '${ApiConstants.notifications}/send',
+      '/notifications',
+      '/notifications/send',
+    ];
+
+    final payload = <String, dynamic>{
+      'title': title,
+      'message': message,
+      'type': type,
+      'recipientRole': recipientRole ?? 'admin',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    if (recipientId != null) {
+      payload['recipientId'] = recipientId;
+    }
+
+    for (final ep in candidateEndpoints) {
+      try {
+        final response = await ApiService.post(ep, data: payload);
+        final map = ApiService.toMap(response.data);
+        if (map.isNotEmpty ||
+            (response.statusCode != null &&
+                response.statusCode! >= 200 &&
+                response.statusCode! < 300)) {
+          return map.isNotEmpty ? map : {'success': true};
+        }
+      } catch (_) {}
+    }
+    return {};
+  }
 }
 
 class AnalyticsService {

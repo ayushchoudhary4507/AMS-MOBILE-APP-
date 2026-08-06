@@ -71,6 +71,11 @@ class AttendanceState {
 class AttendanceNotifier extends StateNotifier<AttendanceState> {
   final Ref? _ref;
   Timer? _bgSyncTimer;
+  final Set<String> _adminTrackedCheckInIds = {};
+  final Set<String> _adminTrackedCheckOutIds = {};
+  final Set<String> _adminTrackedLeaveIds = {};
+  bool _isFirstAdminSync = true;
+  bool _isFirstLeaveSync = true;
 
   AttendanceNotifier([this._ref]) : super(const AttendanceState()) {
     _startBackgroundSync();
@@ -78,12 +83,13 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
   void _startBackgroundSync() {
     _bgSyncTimer?.cancel();
-    _bgSyncTimer = Timer.periodic(const Duration(seconds: 7), (_) async {
+    _bgSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final user = await StorageService.getUser();
       if (user == null) return;
       final role = (user['role'] ?? '').toString().toLowerCase();
       if (role == 'admin') {
         _syncAdminAttendanceFromWeb();
+        _syncAdminLeavesFromWeb();
       } else {
         _syncEmployeeAttendanceFromWeb();
       }
@@ -105,48 +111,109 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
       for (final emp in empList) {
         if (emp is! Map) continue;
-        final attToday = emp['attendanceToday'];
-        if (attToday != null && attToday is Map) {
-          freshList.add({
-            '_id': attToday['_id'],
-            'status': attToday['status'] ?? 'Present',
-            'checkIn': attToday['checkInTime'] ?? attToday['checkIn'] ?? attToday['check_in'],
-            'checkOut': attToday['checkOutTime'] ?? attToday['checkOut'] ?? attToday['check_out'],
-            'name': emp['name'],
-            'email': emp['email'],
-            'userId': attToday['userId'] ?? emp['_id'],
-          });
+        final attToday = emp['attendanceToday'] ?? emp['attendance'] ?? emp['today'];
+
+        dynamic checkInVal;
+        dynamic checkOutVal;
+        String? attId;
+        String empName = (emp['name'] ?? 'Employee').toString();
+        String empId = (emp['_id'] ?? emp['id'] ?? emp['email'])?.toString() ?? '';
+
+        if (attToday is Map) {
+          attId = (attToday['_id'] ?? attToday['id'])?.toString();
+          checkInVal = attToday['checkInTime'] ?? attToday['checkIn'] ?? attToday['check_in'];
+          checkOutVal = attToday['checkOutTime'] ?? attToday['checkOut'] ?? attToday['check_out'];
+        } else {
+          checkInVal = emp['checkInTime'] ?? emp['checkIn'] ?? emp['check_in'];
+          checkOutVal = emp['checkOutTime'] ?? emp['checkOut'] ?? emp['check_out'];
         }
-      }
 
-      final previousUserIds = state.todayAllAttendance
-          .map((item) => (item is Map ? (item['userId'] ?? item['email']) : null)?.toString())
-          .whereType<String>()
-          .toSet();
+        final uniqueCheckInKey = '${empId}_checkin_${checkInVal ?? attId}';
+        final uniqueCheckOutKey = '${empId}_checkout_${checkOutVal ?? attId}';
 
-      for (final item in freshList) {
-        if (item is Map) {
-          final uId = (item['userId'] ?? item['email'])?.toString();
-          if (uId != null && uId.isNotEmpty && !previousUserIds.contains(uId)) {
-            // New check-in detected from Web Portal!
-            final name = item['name']?.toString() ?? 'Employee';
+        if (checkInVal != null && checkInVal.toString().isNotEmpty) {
+          freshList.add({
+            '_id': attId ?? empId,
+            'status': 'Present',
+            'checkIn': checkInVal,
+            'checkOut': checkOutVal,
+            'name': empName,
+            'email': emp['email'],
+            'userId': empId,
+          });
+
+          if (!_isFirstAdminSync && !_adminTrackedCheckInIds.contains(uniqueCheckInKey)) {
+            _adminTrackedCheckInIds.add(uniqueCheckInKey);
             final timeStr = DateFormat('hh:mm a').format(DateTime.now());
             if (_ref != null) {
               RealtimeNotificationService.dispatchNotification(
                 _ref,
                 title: 'Attendance Update',
-                message: '$name marked Check In at $timeStr.',
+                message: '$empName marked Check In at $timeStr.',
                 type: 'attendance_checkin',
                 category: NotificationCategory.attendanceCheckIn,
               );
             }
+          } else {
+            _adminTrackedCheckInIds.add(uniqueCheckInKey);
+          }
+        }
+
+        if (checkOutVal != null && checkOutVal.toString().isNotEmpty) {
+          if (!_isFirstAdminSync && !_adminTrackedCheckOutIds.contains(uniqueCheckOutKey)) {
+            _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
+            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+            if (_ref != null) {
+              RealtimeNotificationService.dispatchNotification(
+                _ref,
+                title: 'Attendance Update',
+                message: '$empName marked Check Out at $timeStr.',
+                type: 'attendance_checkout',
+                category: NotificationCategory.attendanceCheckOut,
+              );
+            }
+          } else {
+            _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
           }
         }
       }
 
-      if (freshList.isNotEmpty && freshList.length != state.todayAllAttendance.length) {
-        state = state.copyWith(todayAllAttendance: freshList);
+      _isFirstAdminSync = false;
+      state = state.copyWith(todayAllAttendance: freshList);
+    } catch (_) {}
+  }
+
+  Future<void> _syncAdminLeavesFromWeb() async {
+    try {
+      final data = await AttendanceService.getAllLeaves();
+      final rawList = data['leaves'] ?? data['data'] ?? data['result'] ?? data['items'] ?? [];
+      final list = rawList is List ? rawList : [];
+
+      for (final leave in list) {
+        if (leave is! Map) continue;
+        final leaveId = (leave['_id'] ?? leave['id'])?.toString();
+        if (leaveId == null || leaveId.isEmpty) continue;
+
+        final status = (leave['status'] ?? 'pending').toString().toLowerCase();
+        final empName = (leave['user']?['name'] ?? leave['employeeName'] ?? leave['name'] ?? 'Employee').toString();
+        final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
+
+        if (!_isFirstLeaveSync && !_adminTrackedLeaveIds.contains(leaveId) && status == 'pending') {
+          _adminTrackedLeaveIds.add(leaveId);
+          if (_ref != null) {
+            RealtimeNotificationService.dispatchNotification(
+              _ref,
+              title: 'New Leave Request',
+              message: '$empName applied for $leaveType.',
+              type: 'leave_request',
+              category: NotificationCategory.leaveRequest,
+            );
+          }
+        } else {
+          _adminTrackedLeaveIds.add(leaveId);
+        }
       }
+      _isFirstLeaveSync = false;
     } catch (_) {}
   }
 
