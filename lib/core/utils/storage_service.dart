@@ -161,6 +161,19 @@ class StorageService {
     await prefs.remove(_userKey);
     await prefs.remove(_roleKey);
     await prefs.remove('last_route');
+    await prefs.remove('device_token');
+  }
+
+  // Save Device / FCM Token
+  static Future<void> saveDeviceToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('device_token', token);
+  }
+
+  // Get Device / FCM Token
+  static Future<String?> getDeviceToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('device_token');
   }
 
   // Is Logged In

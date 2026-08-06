@@ -150,6 +150,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           token: token,
         );
         // Automatically sync latest profile details from server on app load
+        _syncDeviceToken(user);
         refreshProfile();
       } else {
         state = const AuthState(status: AuthStatus.unauthenticated);
@@ -157,6 +158,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       state = const AuthState(status: AuthStatus.unauthenticated);
     }
+  }
+
+  Future<void> _syncDeviceToken(Map<String, dynamic>? user) async {
+    try {
+      final userId = (user?['_id'] ?? user?['id'] ?? user?['email'])?.toString() ?? 'user';
+      var devToken = await StorageService.getDeviceToken();
+      if (devToken == null || devToken.isEmpty) {
+        devToken = 'fcm_token_${userId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}_${DateTime.now().millisecondsSinceEpoch}';
+        await StorageService.saveDeviceToken(devToken);
+      }
+      await NotificationService.registerDeviceToken(devToken);
+    } catch (_) {}
   }
 
   /// Login karta hai — pehle employee endpoint try karta hai,
@@ -271,6 +284,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role,
           token: token,
         );
+        _syncDeviceToken(user);
         await refreshProfile();
         return true;
       }

@@ -36,6 +36,7 @@ class ApiConstants {
 
   // Notifications
   static const String notifications = '/notifications';
+  static const String deviceToken = '/notifications/device-token';
 
   // Analytics
   static const String analytics = '/analytics';

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/employee_service.dart';
+import '../../services/realtime_notification_service.dart';
 
 // Stateful notifications provider that supports mark-as-read
 final notifScreenProvider =
@@ -38,8 +40,47 @@ class NotifState {
 }
 
 class NotifNotifier extends StateNotifier<NotifState> {
+  Timer? _pollTimer;
+
   NotifNotifier() : super(const NotifState()) {
     load();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      syncFromBackend();
+    });
+  }
+
+  Future<void> syncFromBackend() async {
+    try {
+      final data = await NotificationService.getAll();
+      final raw = data['notifications'] ??
+          data['data'] ??
+          data['result'] ??
+          data['items'] ??
+          [];
+      final list = raw is List ? raw : [];
+
+      final existingIds = state.notifications
+          .map((n) => (n['_id'] ?? n['id'])?.toString())
+          .whereType<String>()
+          .toSet();
+
+      final newItems = <dynamic>[];
+      for (final item in list) {
+        final id = (item['_id'] ?? item['id'])?.toString();
+        if (id != null && id.isNotEmpty && !existingIds.contains(id)) {
+          newItems.add(item);
+        }
+      }
+
+      if (newItems.isNotEmpty) {
+        state = state.copyWith(notifications: [...newItems, ...state.notifications]);
+      }
+    } catch (_) {}
   }
 
   Future<void> load() async {
@@ -57,6 +98,17 @@ class NotifNotifier extends StateNotifier<NotifState> {
       state =
           state.copyWith(isLoading: false, notifications: [], error: e.toString());
     }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void prependRealtimeNotification(Map<String, dynamic> item) {
+    final list = [item, ...state.notifications];
+    state = state.copyWith(notifications: list);
   }
 
   Future<void> markRead(String id) async {
@@ -321,6 +373,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         if (!isRead && id.isNotEmpty) {
           ref.read(notifScreenProvider.notifier).markRead(id);
         }
+        RealtimeNotificationService.handleNotificationTap(
+            context, notif is Map ? Map<String, dynamic>.from(notif) : {});
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -410,21 +464,50 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   (IconData, Color, Color) _typeStyle(String type) {
-    if (type.contains('leave')) {
+    final t = type.toLowerCase();
+    if (t.contains('checkin') || t.contains('check_in') || t.contains('check-in')) {
       return (
-        Icons.beach_access_rounded,
+        Icons.login_rounded,
+        const Color(0xFF10B981),
+        const Color(0xFF10B981).withValues(alpha: 0.15),
+      );
+    }
+    if (t.contains('checkout') || t.contains('check_out') || t.contains('check-out')) {
+      return (
+        Icons.logout_rounded,
         const Color(0xFFF59E0B),
         const Color(0xFFF59E0B).withValues(alpha: 0.15),
       );
     }
-    if (type.contains('attend') || type.contains('check')) {
+    if (t.contains('approved') || t.contains('approve')) {
+      return (
+        Icons.check_circle_rounded,
+        const Color(0xFF10B981),
+        const Color(0xFF10B981).withValues(alpha: 0.15),
+      );
+    }
+    if (t.contains('rejected') || t.contains('reject')) {
+      return (
+        Icons.cancel_rounded,
+        const Color(0xFFEF4444),
+        const Color(0xFFEF4444).withValues(alpha: 0.15),
+      );
+    }
+    if (t.contains('leave')) {
+      return (
+        Icons.event_note_rounded,
+        const Color(0xFF6366F1),
+        const Color(0xFF6366F1).withValues(alpha: 0.15),
+      );
+    }
+    if (t.contains('attend') || t.contains('check')) {
       return (
         Icons.fingerprint_rounded,
         const Color(0xFF10B981),
         const Color(0xFF10B981).withValues(alpha: 0.15),
       );
     }
-    if (type.contains('salary') || type.contains('pay')) {
+    if (t.contains('salary') || t.contains('pay')) {
       return (
         Icons.payments_rounded,
         const Color(0xFF6366F1),

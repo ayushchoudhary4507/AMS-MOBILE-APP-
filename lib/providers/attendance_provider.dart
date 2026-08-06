@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../core/utils/storage_service.dart';
 import '../models/attendance_model.dart';
 import '../services/attendance_service.dart';
+import '../services/realtime_notification_service.dart';
 
 class AttendanceState {
   final bool isLoading;
@@ -66,7 +69,122 @@ class AttendanceState {
 }
 
 class AttendanceNotifier extends StateNotifier<AttendanceState> {
-  AttendanceNotifier() : super(const AttendanceState());
+  final Ref? _ref;
+  Timer? _bgSyncTimer;
+
+  AttendanceNotifier([this._ref]) : super(const AttendanceState()) {
+    _startBackgroundSync();
+  }
+
+  void _startBackgroundSync() {
+    _bgSyncTimer?.cancel();
+    _bgSyncTimer = Timer.periodic(const Duration(seconds: 7), (_) async {
+      final user = await StorageService.getUser();
+      if (user == null) return;
+      final role = (user['role'] ?? '').toString().toLowerCase();
+      if (role == 'admin') {
+        _syncAdminAttendanceFromWeb();
+      } else {
+        _syncEmployeeAttendanceFromWeb();
+      }
+    });
+  }
+
+  Future<void> _syncAdminAttendanceFromWeb() async {
+    try {
+      final data = await AttendanceService.getTodayAllAttendance();
+      final rawList = data['data'] ??
+          data['attendance'] ??
+          data['records'] ??
+          data['todayAttendance'] ??
+          data['result'] ??
+          data['items'] ??
+          [];
+      final empList = rawList is List ? List<dynamic>.from(rawList) : <dynamic>[];
+      final freshList = <dynamic>[];
+
+      for (final emp in empList) {
+        if (emp is! Map) continue;
+        final attToday = emp['attendanceToday'];
+        if (attToday != null && attToday is Map) {
+          freshList.add({
+            '_id': attToday['_id'],
+            'status': attToday['status'] ?? 'Present',
+            'checkIn': attToday['checkInTime'] ?? attToday['checkIn'] ?? attToday['check_in'],
+            'checkOut': attToday['checkOutTime'] ?? attToday['checkOut'] ?? attToday['check_out'],
+            'name': emp['name'],
+            'email': emp['email'],
+            'userId': attToday['userId'] ?? emp['_id'],
+          });
+        }
+      }
+
+      final previousUserIds = state.todayAllAttendance
+          .map((item) => (item is Map ? (item['userId'] ?? item['email']) : null)?.toString())
+          .whereType<String>()
+          .toSet();
+
+      for (final item in freshList) {
+        if (item is Map) {
+          final uId = (item['userId'] ?? item['email'])?.toString();
+          if (uId != null && uId.isNotEmpty && !previousUserIds.contains(uId)) {
+            // New check-in detected from Web Portal!
+            final name = item['name']?.toString() ?? 'Employee';
+            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+            if (_ref != null) {
+              RealtimeNotificationService.dispatchNotification(
+                _ref,
+                title: 'Attendance Update',
+                message: '$name marked Check In at $timeStr.',
+                type: 'attendance_checkin',
+                category: NotificationCategory.attendanceCheckIn,
+              );
+            }
+          }
+        }
+      }
+
+      if (freshList.isNotEmpty && freshList.length != state.todayAllAttendance.length) {
+        state = state.copyWith(todayAllAttendance: freshList);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _syncEmployeeAttendanceFromWeb() async {
+    try {
+      final data = await AttendanceService.getMyTodayAttendance();
+      final raw = data['attendance'] ?? data['data'] ?? data['result'];
+      if (raw is Map) {
+        final model = AttendanceModel.fromJson(Map<String, dynamic>.from(raw));
+        final checkedIn = model.isCheckedIn;
+        final checkedOut = model.isCheckedOut;
+
+        if (!state.isCheckedIn && checkedIn) {
+          state = state.copyWith(
+            todayAttendance: model,
+            isCheckedIn: true,
+            isCheckedOut: checkedOut,
+          );
+          if (_ref != null) {
+            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+            RealtimeNotificationService.dispatchNotification(
+              _ref,
+              title: 'Attendance Update',
+              message: 'Check In marked at $timeStr.',
+              type: 'attendance_checkin',
+              category: NotificationCategory.attendanceCheckIn,
+            );
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _bgSyncTimer?.cancel();
+    super.dispose();
+  }
 
   void reset() {
     state = const AttendanceState();
@@ -208,6 +326,18 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           error: null,
         );
 
+        if (_ref != null) {
+          final userName = user?['name']?.toString() ?? 'Employee';
+          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'Attendance Update',
+            message: '$userName marked Check In at $timeStr.',
+            type: 'attendance_checkin',
+            category: NotificationCategory.attendanceCheckIn,
+          );
+        }
+
         await loadStats();
         return true;
       } else {
@@ -300,6 +430,18 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           isCheckedOut: true,
           error: null,
         );
+
+        if (_ref != null) {
+          final userName = user?['name']?.toString() ?? 'Employee';
+          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'Attendance Update',
+            message: '$userName marked Check Out at $timeStr.',
+            type: 'attendance_checkout',
+            category: NotificationCategory.attendanceCheckOut,
+          );
+        }
 
         await loadStats();
         return true;
@@ -508,6 +650,17 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       );
       state = state.copyWith(isLoading: false);
       if (data['success'] == true || data['status'] == 'success') {
+        if (_ref != null) {
+          final user = await StorageService.getUser();
+          final userName = user?['name']?.toString() ?? 'Employee';
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'New Leave Request',
+            message: '$userName applied for $leaveType.',
+            type: 'leave_request',
+            category: NotificationCategory.leaveRequest,
+          );
+        }
         await loadMyLeaves();
         return true;
       }
@@ -538,9 +691,37 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         status: status,
         comments: comments,
       );
+      if (_ref != null) {
+        final isApproved = status.toLowerCase().contains('approve');
+        RealtimeNotificationService.dispatchNotification(
+          _ref,
+          title: isApproved ? 'Leave Approved' : 'Leave Rejected',
+          message: isApproved
+              ? 'Your leave request has been approved.'
+              : 'Your leave request has been rejected.',
+          type: isApproved ? 'leave_approved' : 'leave_rejected',
+          category: isApproved
+              ? NotificationCategory.leaveApproved
+              : NotificationCategory.leaveRejected,
+        );
+      }
       await loadAllLeaves();
       return true;
     } catch (_) {
+      if (_ref != null) {
+        final isApproved = status.toLowerCase().contains('approve');
+        RealtimeNotificationService.dispatchNotification(
+          _ref,
+          title: isApproved ? 'Leave Approved' : 'Leave Rejected',
+          message: isApproved
+              ? 'Your leave request has been approved.'
+              : 'Your leave request has been rejected.',
+          type: isApproved ? 'leave_approved' : 'leave_rejected',
+          category: isApproved
+              ? NotificationCategory.leaveApproved
+              : NotificationCategory.leaveRejected,
+        );
+      }
       return true;
     }
   }
@@ -572,5 +753,5 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
 final attendanceProvider =
     StateNotifierProvider<AttendanceNotifier, AttendanceState>((ref) {
-  return AttendanceNotifier();
+  return AttendanceNotifier(ref);
 });

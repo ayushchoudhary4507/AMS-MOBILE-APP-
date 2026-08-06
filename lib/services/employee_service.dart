@@ -70,6 +70,18 @@ class NotificationService {
         await ApiService.put('${ApiConstants.notifications}/mark-all-read');
     return ApiService.toMap(response.data);
   }
+
+  static Future<Map<String, dynamic>> registerDeviceToken(String token) async {
+    try {
+      final response = await ApiService.post(
+        ApiConstants.deviceToken,
+        data: {'deviceToken': token, 'fcmToken': token, 'token': token},
+      );
+      return ApiService.toMap(response.data);
+    } catch (_) {
+      return {};
+    }
+  }
 }
 
 class AnalyticsService {
