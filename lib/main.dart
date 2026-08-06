@@ -21,9 +21,12 @@ import 'screens/settings/settings_screen.dart';
 import 'screens/shared/notifications_screen.dart';
 import 'screens/shared/holidays_screen.dart';
 
-void main() {
+import 'services/realtime_notification_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.init();
+  await RealtimeNotificationService.initNativeNotifications();
   runApp(
     const ProviderScope(
       child: AMSApp(),
@@ -31,7 +34,10 @@ void main() {
   );
 }
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final _router = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/',
   routes: [
     // Splash
