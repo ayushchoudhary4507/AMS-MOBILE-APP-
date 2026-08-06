@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../core/utils/storage_service.dart';
 import '../models/attendance_model.dart';
 import '../services/attendance_service.dart';
+import '../services/employee_service.dart';
 import '../services/realtime_notification_service.dart';
 
 class AttendanceState {
@@ -102,8 +103,8 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
   Future<void> _syncAdminLoginNotificationsFromWeb() async {
     try {
       final data = await NotificationService.getAll();
-      final rawList = data['notifications'] ?? data['data'] ?? data['result'] ?? data['items'] ?? [];
-      final list = rawList is List ? rawList : [];
+      final rawList = data['notifications'] ?? data['data'] ?? data['result'] ?? data['items'];
+      final list = rawList is List ? rawList : <dynamic>[];
 
       for (final item in list) {
         if (item is! Map) continue;
