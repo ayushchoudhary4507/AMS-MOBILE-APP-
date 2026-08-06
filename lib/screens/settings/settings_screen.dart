@@ -302,7 +302,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onPressed: () async {
                   await ref.read(authProvider.notifier).logout();
                   if (context.mounted) {
-                    context.go('/login');
+                    context.go('/welcome');
                   }
                 },
               ),

@@ -201,7 +201,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             tooltip: 'Logout',
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
-              if (mounted) context.go('/login');
+              if (mounted) context.go('/welcome');
             },
           ),
         ],
@@ -2526,7 +2526,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   onTap: () async {
                     Navigator.pop(context);
                     await ref.read(authProvider.notifier).logout();
-                    if (context.mounted) context.go('/login');
+                    if (context.mounted) context.go('/welcome');
                   },
                 ),
               ],
@@ -3665,7 +3665,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           const SizedBox(height: 12),
           CustomLogoutButton(onTap: () async {
             await ref.read(authProvider.notifier).logout();
-            if (mounted) context.go('/login');
+            if (mounted) context.go('/welcome');
           }),
         ],
       ),

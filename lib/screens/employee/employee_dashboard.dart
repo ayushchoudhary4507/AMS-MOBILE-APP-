@@ -211,7 +211,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
             tooltip: 'Logout',
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
-              if (mounted) context.go('/login');
+              if (mounted) context.go('/welcome');
             },
           ),
         ],
@@ -1481,7 +1481,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                     final router = GoRouter.of(context);
                     Navigator.pop(context);
                     await ref.read(authProvider.notifier).logout();
-                    router.go('/login');
+                    router.go('/welcome');
                   },
                 ),
               ],

@@ -486,7 +486,60 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
     return false;
   }
+
+  Future<bool> sendForgotPasswordOtp(String email) async {
+    try {
+      state = state.copyWith(status: AuthStatus.loading, error: null);
+      await AuthService.forgotPassword(email);
+      state = state.copyWith(status: AuthStatus.unauthenticated);
+      return true;
+    } catch (e) {
+      String msg = 'Failed to send reset code. Please check your email.';
+      if (e is DioException) {
+        final res = e.response?.data;
+        if (res is Map) {
+          msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
+        }
+        if (e.response?.statusCode == 404 || msg.toLowerCase().contains('route not found') || msg.toLowerCase().contains('not found')) {
+          msg = 'Password reset is not configured on the server. Please contact your administrator.';
+        }
+      }
+      state = state.copyWith(status: AuthStatus.error, error: msg);
+      return false;
+    }
+  }
+
+  Future<bool> resetPasswordWithOtp({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      state = state.copyWith(status: AuthStatus.loading, error: null);
+      await AuthService.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: newPassword,
+      );
+      state = state.copyWith(status: AuthStatus.unauthenticated);
+      return true;
+    } catch (e) {
+      String msg = 'Failed to reset password. Invalid OTP or expired code.';
+      if (e is DioException) {
+        final res = e.response?.data;
+        if (res is Map) {
+          msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
+        }
+        if (e.response?.statusCode == 404 || msg.toLowerCase().contains('route not found') || msg.toLowerCase().contains('not found')) {
+          msg = 'Password reset is not configured on the server. Please contact your administrator.';
+        }
+      }
+      state = state.copyWith(status: AuthStatus.error, error: msg);
+      return false;
+    }
+  }
 }
+
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref);

@@ -90,9 +90,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.arrow_back_ios,
+                              icon: Icon(Icons.arrow_back_ios_new_rounded,
                                   color: context.txtSecondary),
-                              onPressed: () => context.go('/login'),
+                              onPressed: () => context.go('/welcome'),
                             ),
                             const SizedBox(height: 12),
                             Text(
