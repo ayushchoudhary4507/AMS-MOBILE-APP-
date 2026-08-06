@@ -74,8 +74,10 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
   final Set<String> _adminTrackedCheckInIds = {};
   final Set<String> _adminTrackedCheckOutIds = {};
   final Set<String> _adminTrackedLeaveIds = {};
+  final Set<String> _adminTrackedLoginIds = {};
   bool _isFirstAdminSync = true;
   bool _isFirstLeaveSync = true;
+  bool _isFirstLoginSync = true;
 
   AttendanceNotifier([this._ref]) : super(const AttendanceState()) {
     _startBackgroundSync();
@@ -90,10 +92,49 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       if (role == 'admin') {
         _syncAdminAttendanceFromWeb();
         _syncAdminLeavesFromWeb();
+        _syncAdminLoginNotificationsFromWeb();
       } else {
         _syncEmployeeAttendanceFromWeb();
       }
     });
+  }
+
+  Future<void> _syncAdminLoginNotificationsFromWeb() async {
+    try {
+      final data = await NotificationService.getAll();
+      final rawList = data['notifications'] ?? data['data'] ?? data['result'] ?? data['items'] ?? [];
+      final list = rawList is List ? rawList : [];
+
+      for (final item in list) {
+        if (item is! Map) continue;
+        final id = (item['_id'] ?? item['id'])?.toString();
+        if (id == null || id.isEmpty) continue;
+
+        final type = (item['type'] ?? item['category'] ?? '').toString().toLowerCase();
+        final title = (item['title'] ?? '').toString();
+        final message = (item['message'] ?? item['body'] ?? '').toString();
+
+        final isLoginNotif = type.contains('login') || title.toLowerCase().contains('login') || message.toLowerCase().contains('logged in');
+
+        if (isLoginNotif) {
+          if (!_isFirstLoginSync && !_adminTrackedLoginIds.contains(id)) {
+            _adminTrackedLoginIds.add(id);
+            if (_ref != null) {
+              RealtimeNotificationService.dispatchNotification(
+                _ref,
+                title: title.isNotEmpty ? title : 'Employee Logged In',
+                message: message.isNotEmpty ? message : 'An employee has logged in.',
+                type: 'employee_login',
+                category: NotificationCategory.userLogin,
+              );
+            }
+          } else {
+            _adminTrackedLoginIds.add(id);
+          }
+        }
+      }
+      _isFirstLoginSync = false;
+    } catch (_) {}
   }
 
   Future<void> _syncAdminAttendanceFromWeb() async {
