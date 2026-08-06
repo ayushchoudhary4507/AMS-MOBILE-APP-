@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
 import '../services/employee_service.dart';
+import '../services/realtime_notification_service.dart';
 import '../core/utils/storage_service.dart';
 import 'attendance_provider.dart';
 import 'employee_provider.dart';
@@ -64,6 +65,7 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
       'profile_image',
       'profile_picture',
       'profile_photo',
+      'profilePhoto',
       'image',
       'imageUrl',
       'image_url',
@@ -74,6 +76,12 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
       'photo_url',
       'displayPicture',
       'dp',
+      'secure_url',
+      'secureUrl',
+      'location',
+      'link',
+      'downloadUrl',
+      'download_url',
       'url',
       'path',
       'filePath',
@@ -82,6 +90,9 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
       'picture',
       'img',
       'profile',
+      'user_avatar',
+      'user_image',
+      'user_picture',
     ];
     for (final f in fields) {
       final val = avatarOrUser[f];
@@ -285,6 +296,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           token: token,
         );
         _syncDeviceToken(user);
+        final userName = user?['name']?.toString() ?? 'User';
+        RealtimeNotificationService.dispatchNotification(
+          _ref,
+          title: 'Login Successful',
+          message: 'Welcome back, $userName! Logged in successfully.',
+          type: 'user_login',
+          category: NotificationCategory.userLogin,
+        );
         await refreshProfile();
         return true;
       }
@@ -494,6 +513,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           user: user,
           role: role,
           token: token,
+        );
+        final userName = user['name']?.toString() ?? 'User';
+        RealtimeNotificationService.dispatchNotification(
+          _ref,
+          title: 'Biometric Login Successful',
+          message: 'Welcome back, $userName! Authenticated via Biometrics.',
+          type: 'user_login',
+          category: NotificationCategory.userLogin,
         );
         return true;
       }

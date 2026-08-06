@@ -134,6 +134,8 @@ final _router = GoRouter(
   ],
 );
 
+final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class AMSApp extends ConsumerWidget {
   const AMSApp({super.key});
 
@@ -142,6 +144,7 @@ class AMSApp extends ConsumerWidget {
     final themeMode = ref.watch(themeProvider);
 
     return MaterialApp.router(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'AMS - Attendance Management',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,

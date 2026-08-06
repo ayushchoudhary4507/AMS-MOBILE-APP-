@@ -19,6 +19,11 @@ class AppAvatar extends StatelessWidget {
     this.backgroundColor,
   });
 
+  static const Map<String, String> _networkHeaders = {
+    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+  };
+
   @override
   Widget build(BuildContext context) {
     String? cleanAvatar = extractAvatarUrl(avatarOrUser);
@@ -28,6 +33,12 @@ class AppAvatar extends StatelessWidget {
         cleanAvatar.isNotEmpty &&
         cleanAvatar != 'null' &&
         cleanAvatar != 'undefined') {
+      // Clean escaped slashes and protocol-relative URLs
+      cleanAvatar = cleanAvatar.trim().replaceAll(r'\/', '/').replaceAll(r'\', '/');
+      if (cleanAvatar.startsWith('//')) {
+        cleanAvatar = 'https:$cleanAvatar';
+      }
+
       // 1. Base64 Data URI or Raw Base64 String
       if (cleanAvatar.startsWith('data:image/') ||
           cleanAvatar.startsWith('data:application/') ||
@@ -72,7 +83,7 @@ class AppAvatar extends StatelessWidget {
         } catch (_) {}
       }
 
-      // 3. Direct HTTP/HTTPS Network URL
+      // 3. Normalize Localhost / IP to Backend Server Domain
       if (cleanAvatar.contains('localhost') ||
           cleanAvatar.contains('127.0.0.1') ||
           cleanAvatar.contains('10.0.2.2')) {
@@ -83,21 +94,31 @@ class AppAvatar extends StatelessWidget {
         );
       }
 
+      // 4. Prepend https:// for Vercel, Cloudinary, S3, Supabase, Render, etc. if scheme missing
       if (!cleanAvatar.startsWith('http://') &&
           !cleanAvatar.startsWith('https://') &&
-          (cleanAvatar.contains('cloudinary.com') ||
-              cleanAvatar.contains('vercel.app') ||
-              cleanAvatar.contains('onrender.com') ||
-              cleanAvatar.contains('amazonaws.com') ||
-              cleanAvatar.contains('googleapis.com') ||
-              cleanAvatar.contains('supabase.co'))) {
+          (cleanAvatar.contains('vercel') ||
+              cleanAvatar.contains('cloudinary') ||
+              cleanAvatar.contains('render') ||
+              cleanAvatar.contains('amazonaws') ||
+              cleanAvatar.contains('googleapis') ||
+              cleanAvatar.contains('supabase') ||
+              cleanAvatar.contains('.com') ||
+              cleanAvatar.contains('.app') ||
+              cleanAvatar.contains('.dev') ||
+              cleanAvatar.contains('.net') ||
+              cleanAvatar.contains('.io') ||
+              cleanAvatar.contains('.org'))) {
         cleanAvatar = 'https://$cleanAvatar';
       }
 
+      // 5. Direct HTTP/HTTPS Network URL (Vercel CDN / Remote Host)
       if (cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://')) {
+        final targetUrl = cleanAvatar;
         return ClipOval(
           child: CachedNetworkImage(
-            imageUrl: cleanAvatar,
+            imageUrl: targetUrl,
+            httpHeaders: _networkHeaders,
             width: radius * 2,
             height: radius * 2,
             fit: BoxFit.cover,
@@ -110,23 +131,21 @@ class AppAvatar extends StatelessWidget {
                 child: const CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-            errorWidget: (context, url, error) => CircleAvatar(
-              radius: radius,
-              backgroundColor: bgColor,
-              child: Text(
-                fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: radius * 0.8,
-                ),
-              ),
-            ),
+            errorWidget: (context, url, error) {
+              return Image.network(
+                targetUrl,
+                headers: _networkHeaders,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (ctx, err, st) => _fallbackInitials(bgColor),
+              );
+            },
           ),
         );
       }
 
-      // 4. Relative Server Path (e.g. /uploads/..., uploads/..., storage/..., etc.)
+      // 6. Relative Server Path (e.g. /uploads/..., uploads/..., storage/..., _next/..., etc.)
       if (cleanAvatar.startsWith('/') ||
           cleanAvatar.startsWith('uploads') ||
           cleanAvatar.startsWith('public') ||
@@ -139,12 +158,15 @@ class AppAvatar extends StatelessWidget {
           cleanAvatar.contains('.jpg') ||
           cleanAvatar.contains('.jpeg') ||
           cleanAvatar.contains('.webp') ||
+          cleanAvatar.contains('.svg') ||
+          cleanAvatar.contains('.gif') ||
           (!cleanAvatar.contains(' ') && cleanAvatar.contains('.'))) {
         final apiBase = ApiConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
         final fullUrl = '$apiBase${cleanAvatar.startsWith('/') ? '' : '/'}$cleanAvatar';
         return ClipOval(
           child: CachedNetworkImage(
             imageUrl: fullUrl,
+            httpHeaders: _networkHeaders,
             width: radius * 2,
             height: radius * 2,
             fit: BoxFit.cover,
@@ -157,24 +179,26 @@ class AppAvatar extends StatelessWidget {
                 child: const CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-            errorWidget: (context, url, error) => CircleAvatar(
-              radius: radius,
-              backgroundColor: bgColor,
-              child: Text(
-                fallbackText.trim().isNotEmpty ? fallbackText.trim()[0].toUpperCase() : 'U',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: radius * 0.8,
-                ),
-              ),
-            ),
+            errorWidget: (context, url, error) {
+              return Image.network(
+                fullUrl,
+                headers: _networkHeaders,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (ctx, err, st) => _fallbackInitials(bgColor),
+              );
+            },
           ),
         );
       }
     }
 
-    // 5. Fallback Initial Letter
+    // 7. Fallback Initial Letter
+    return _fallbackInitials(bgColor);
+  }
+
+  Widget _fallbackInitials(Color bgColor) {
     return CircleAvatar(
       radius: radius,
       backgroundColor: bgColor,

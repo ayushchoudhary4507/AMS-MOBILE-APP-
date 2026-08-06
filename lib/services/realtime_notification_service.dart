@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
+import '../main.dart';
 import '../screens/shared/notifications_screen.dart';
 
 enum NotificationCategory {
+  userLogin,
   attendanceCheckIn,
   attendanceCheckOut,
   leaveRequest,
@@ -85,23 +87,27 @@ class RealtimeNotificationService {
     _instance._streamController.add(item);
 
     // 2. Append item to Riverpod Notification Screen state instantly
-    try {
-      ref.read(notifScreenProvider.notifier).prependRealtimeNotification(item.toMap());
-    } catch (_) {}
-
-    // 3. Show Foreground In-App Toast Banner if context is provided
-    if (context != null && context.mounted) {
-      showForegroundBanner(context, item);
+    if (ref != null) {
+      try {
+        ref.read(notifScreenProvider.notifier).prependRealtimeNotification(item.toMap());
+      } catch (_) {}
     }
+
+    // 3. Show Foreground In-App Toast Banner globally
+    showForegroundBanner(context, item);
   }
 
   /// Displays an in-app banner for foreground notifications
   static void showForegroundBanner(
-      BuildContext context, RealtimeNotificationItem item) {
+      BuildContext? context, RealtimeNotificationItem item) {
     IconData iconData;
     Color iconColor;
 
     switch (item.category) {
+      case NotificationCategory.userLogin:
+        iconData = Icons.person_pin_rounded;
+        iconColor = const Color(0xFF6366F1);
+        break;
       case NotificationCategory.attendanceCheckIn:
         iconData = Icons.login_rounded;
         iconColor = const Color(0xFF10B981);
@@ -127,66 +133,65 @@ class RealtimeNotificationService {
         iconColor = AppColors.primary;
     }
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        padding: const EdgeInsets.all(12),
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: iconColor.withValues(alpha: 0.4), width: 1.5),
-        ),
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(iconData, color: iconColor, size: 22),
+    final snackBar = SnackBar(
+      duration: const Duration(seconds: 4),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(12),
+      backgroundColor: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: iconColor.withValues(alpha: 0.4), width: 1.5),
+      ),
+      content: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+            child: Icon(iconData, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.message,
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 12,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.message,
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
                   ),
-                ],
-              ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ],
-        ),
-        action: SnackBarAction(
-          label: 'VIEW',
-          textColor: iconColor,
-          onPressed: () {
-            handleNotificationTap(context, item.toMap());
-          },
-        ),
+          ),
+        ],
       ),
     );
+
+    final messenger = rootScaffoldMessengerKey.currentState;
+    if (messenger != null) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(snackBar);
+    } else if (context != null && context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }
   }
 
   /// Tap Action Navigation logic based on Notification Type & Role

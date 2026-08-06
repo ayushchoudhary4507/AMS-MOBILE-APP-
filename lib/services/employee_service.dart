@@ -82,6 +82,38 @@ class NotificationService {
       return {};
     }
   }
+
+  static Future<Map<String, dynamic>> delete(String id) async {
+    if (id.trim().isEmpty) return {};
+
+    final candidateEndpoints = [
+      '${ApiConstants.notifications}/$id',
+      '${ApiConstants.notifications}/delete/$id',
+      '${ApiConstants.notifications}/$id/delete',
+      '/notifications/$id',
+      '/notifications/delete/$id',
+    ];
+
+    for (final ep in candidateEndpoints) {
+      try {
+        final response = await ApiService.delete(ep);
+        final map = ApiService.toMap(response.data);
+        if (map.isNotEmpty || (response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300)) {
+          return map.isNotEmpty ? map : {'success': true};
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final response = await ApiService.post(
+        '${ApiConstants.notifications}/delete',
+        data: {'id': id, 'notificationId': id, '_id': id},
+      );
+      return ApiService.toMap(response.data);
+    } catch (_) {}
+
+    return {};
+  }
 }
 
 class AnalyticsService {

@@ -41,6 +41,7 @@ class NotifState {
 
 class NotifNotifier extends StateNotifier<NotifState> {
   Timer? _pollTimer;
+  final Set<String> _deletedIds = {};
 
   NotifNotifier() : super(const NotifState()) {
     load();
@@ -65,14 +66,14 @@ class NotifNotifier extends StateNotifier<NotifState> {
       final list = raw is List ? raw : [];
 
       final existingIds = state.notifications
-          .map((n) => (n['_id'] ?? n['id'])?.toString())
+          .map((n) => (n['_id'] ?? n['id'] ?? n['notificationId'])?.toString())
           .whereType<String>()
           .toSet();
 
       final newItems = <dynamic>[];
       for (final item in list) {
-        final id = (item['_id'] ?? item['id'])?.toString();
-        if (id != null && id.isNotEmpty && !existingIds.contains(id)) {
+        final id = (item['_id'] ?? item['id'] ?? item['notificationId'])?.toString();
+        if (id != null && id.isNotEmpty && !existingIds.contains(id) && !_deletedIds.contains(id)) {
           newItems.add(item);
         }
       }
@@ -93,7 +94,11 @@ class NotifNotifier extends StateNotifier<NotifState> {
           data['items'] ??
           [];
       final list = raw is List ? raw : [];
-      state = state.copyWith(isLoading: false, notifications: list);
+      final filtered = list.where((n) {
+        final id = (n['_id'] ?? n['id'] ?? n['notificationId'])?.toString();
+        return id == null || !_deletedIds.contains(id);
+      }).toList();
+      state = state.copyWith(isLoading: false, notifications: filtered);
     } catch (e) {
       state =
           state.copyWith(isLoading: false, notifications: [], error: e.toString());
@@ -107,6 +112,8 @@ class NotifNotifier extends StateNotifier<NotifState> {
   }
 
   void prependRealtimeNotification(Map<String, dynamic> item) {
+    final id = (item['_id'] ?? item['id'] ?? item['notificationId'])?.toString();
+    if (id != null && _deletedIds.contains(id)) return;
     final list = [item, ...state.notifications];
     state = state.copyWith(notifications: list);
   }
@@ -116,6 +123,21 @@ class NotifNotifier extends StateNotifier<NotifState> {
     _localMarkRead(id);
     try {
       await NotificationService.markRead(id);
+    } catch (_) {}
+  }
+
+  Future<void> deleteNotification(String id) async {
+    if (id.isNotEmpty) _deletedIds.add(id);
+    final updated = state.notifications.where((n) {
+      final nId = (n['_id'] ?? n['id'] ?? n['notificationId'])?.toString();
+      return nId != id && (nId == null || !_deletedIds.contains(nId));
+    }).toList();
+    state = state.copyWith(notifications: updated);
+
+    try {
+      if (id.isNotEmpty) {
+        await NotificationService.delete(id);
+      }
     } catch (_) {}
   }
 
@@ -353,7 +375,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Widget _buildNotifCard(
       BuildContext context, WidgetRef ref, dynamic notif) {
-    final id = notif['_id']?.toString() ?? notif['id']?.toString() ?? '';
+    final id = (notif['_id'] ??
+            notif['id'] ??
+            notif['notificationId'] ??
+            notif['notifId'])
+        ?.toString() ??
+        '';
     final title = notif['title']?.toString() ??
         notif['subject']?.toString() ??
         'Notification';
@@ -431,11 +458,82 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         Container(
                           width: 8,
                           height: 8,
-                          margin: const EdgeInsets.only(left: 6, top: 4),
+                          margin: const EdgeInsets.only(left: 6, right: 6, top: 4),
                           decoration: const BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
                           ),
+                        ),
+                      if (ref.watch(authProvider).isAdmin)
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 18,
+                          ),
+                          tooltip: 'Delete Notification',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: context.cardBg,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                title: Text(
+                                  'Delete Notification',
+                                  style: TextStyle(
+                                    color: context.txtPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                content: Text(
+                                  'Are you sure you want to delete this notification?',
+                                  style: TextStyle(color: context.txtSecondary),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(
+                                      'Cancel',
+                                      style: TextStyle(color: context.txtMuted),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              final targetId = id.isNotEmpty
+                                  ? id
+                                  : (notif['_id'] ?? notif['id'] ?? notif['notificationId'])?.toString() ?? '';
+                              await ref
+                                  .read(notifScreenProvider.notifier)
+                                  .deleteNotification(targetId);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Notification deleted'),
+                                    backgroundColor: Color(0xFFEF4444),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          },
                         ),
                     ],
                   ),

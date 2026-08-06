@@ -369,6 +369,17 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           isCheckedOut: false,
           error: null,
         );
+        if (_ref != null) {
+          final userName = user?['name']?.toString() ?? 'Employee';
+          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'Attendance Update',
+            message: '$userName marked Check In at $timeStr.',
+            type: 'attendance_checkin',
+            category: NotificationCategory.attendanceCheckIn,
+          );
+        }
         return true;
       }
 
@@ -473,6 +484,17 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           isCheckedOut: true,
           error: null,
         );
+        if (_ref != null) {
+          final userName = user?['name']?.toString() ?? 'Employee';
+          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+          RealtimeNotificationService.dispatchNotification(
+            _ref,
+            title: 'Attendance Update',
+            message: '$userName marked Check Out at $timeStr.',
+            type: 'attendance_checkout',
+            category: NotificationCategory.attendanceCheckOut,
+          );
+        }
         return true;
       }
 
