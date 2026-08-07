@@ -113,6 +113,8 @@ class RealtimeNotificationService {
     } catch (_) {}
   }
 
+  static OverlayEntry? _currentOverlay;
+
   /// Show System Level Native Push Notification (Sound, Vibration, Status Bar)
   static Future<void> showNativeSystemNotification(
       RealtimeNotificationItem item) async {
@@ -128,7 +130,7 @@ class RealtimeNotificationService {
         ticker: 'AMS Notification',
         playSound: true,
         enableVibration: true,
-        fullScreenIntent: true,
+        fullScreenIntent: false,
       );
       const darwinDetails = DarwinNotificationDetails(
         presentAlert: true,
@@ -205,170 +207,146 @@ class RealtimeNotificationService {
     showNativeSystemNotification(item);
   }
 
-  /// Displays a prominent top-floating heads-up popup dialog card
+  /// Displays a prominent top-floating heads-up popup dialog card without blocking or dimming the screen
   static void showTopNotificationPopup(
       BuildContext? context, RealtimeNotificationItem item) {
     final activeContext = context ?? rootNavigatorKey.currentContext;
+    if (activeContext == null || !activeContext.mounted) return;
 
-    if (activeContext != null && activeContext.mounted) {
-      IconData iconData;
-      Color iconColor;
+    _currentOverlay?.remove();
+    _currentOverlay = null;
 
-      switch (item.category) {
-        case NotificationCategory.userLogin:
-          iconData = Icons.person_pin_rounded;
-          iconColor = const Color(0xFF6366F1);
-          break;
-        case NotificationCategory.attendanceCheckIn:
-          iconData = Icons.login_rounded;
-          iconColor = const Color(0xFF10B981);
-          break;
-        case NotificationCategory.attendanceCheckOut:
-          iconData = Icons.logout_rounded;
-          iconColor = const Color(0xFFF59E0B);
-          break;
-        case NotificationCategory.leaveRequest:
-          iconData = Icons.event_note_rounded;
-          iconColor = const Color(0xFF6366F1);
-          break;
-        case NotificationCategory.leaveApproved:
-          iconData = Icons.check_circle_rounded;
-          iconColor = const Color(0xFF10B981);
-          break;
-        case NotificationCategory.leaveRejected:
-          iconData = Icons.cancel_rounded;
-          iconColor = const Color(0xFFEF4444);
-          break;
-        default:
-          iconData = Icons.notifications_active_rounded;
-          iconColor = AppColors.primary;
-      }
+    IconData iconData;
+    Color iconColor;
 
-      showGeneralDialog(
-        context: activeContext,
-        barrierDismissible: true,
-        barrierLabel: 'Notification',
-        barrierColor: Colors.black.withValues(alpha: 0.15),
-        transitionDuration: const Duration(milliseconds: 350),
-        pageBuilder: (ctx, anim1, anim2) => const SizedBox.shrink(),
-        transitionBuilder: (dialogCtx, anim1, anim2, child) {
-          final curve = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
+    switch (item.category) {
+      case NotificationCategory.userLogin:
+        iconData = Icons.person_pin_rounded;
+        iconColor = const Color(0xFF6366F1);
+        break;
+      case NotificationCategory.attendanceCheckIn:
+        iconData = Icons.login_rounded;
+        iconColor = const Color(0xFF10B981);
+        break;
+      case NotificationCategory.attendanceCheckOut:
+        iconData = Icons.logout_rounded;
+        iconColor = const Color(0xFFF59E0B);
+        break;
+      case NotificationCategory.leaveRequest:
+        iconData = Icons.event_note_rounded;
+        iconColor = const Color(0xFF6366F1);
+        break;
+      case NotificationCategory.leaveApproved:
+        iconData = Icons.check_circle_rounded;
+        iconColor = const Color(0xFF10B981);
+        break;
+      case NotificationCategory.leaveRejected:
+        iconData = Icons.cancel_rounded;
+        iconColor = const Color(0xFFEF4444);
+        break;
+      default:
+        iconData = Icons.notifications_active_rounded;
+        iconColor = AppColors.primary;
+    }
 
-          Timer(const Duration(seconds: 4), () {
-            if (dialogCtx.mounted) {
-              Navigator.of(dialogCtx, rootNavigator: true).pop();
-            }
-          });
+    final overlayState = Overlay.maybeOf(activeContext);
+    if (overlayState == null) return;
 
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -1.0),
-              end: Offset.zero,
-            ).animate(curve),
-            child: SafeArea(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Material(
-                  color: Colors.transparent,
-                  child: GestureDetector(
-                    onTap: () {
-                      if (dialogCtx.mounted) {
-                        Navigator.of(dialogCtx, rootNavigator: true).pop();
-                      }
-                      handleNotificationTap(activeContext, item.toMap());
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: iconColor.withValues(alpha: 0.6),
-                          width: 1.8,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: iconColor.withValues(alpha: 0.3),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
-                          ),
-                          const BoxShadow(
-                            color: Colors.black54,
-                            blurRadius: 24,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: iconColor.withValues(alpha: 0.18),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(iconData, color: iconColor, size: 24),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  item.message,
-                                  style: const TextStyle(
-                                    color: Color(0xFFCBD5E1),
-                                    fontSize: 13,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              if (dialogCtx.mounted) {
-                                Navigator.of(dialogCtx, rootNavigator: true).pop();
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.white10,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                color: Color(0xFF94A3B8),
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: Colors.transparent,
+              child: GestureDetector(
+                onTap: () {
+                  entry.remove();
+                  if (_currentOverlay == entry) _currentOverlay = null;
+                  handleNotificationTap(activeContext, item.toMap());
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: iconColor.withValues(alpha: 0.6),
+                      width: 1.8,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: iconColor.withValues(alpha: 0.3),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                      const BoxShadow(
+                        color: Colors.black54,
+                        blurRadius: 24,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: iconColor.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(iconData, color: iconColor, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item.message,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
+
+    _currentOverlay = entry;
+    overlayState.insert(entry);
+
+    Timer(const Duration(seconds: 4), () {
+      if (_currentOverlay == entry) {
+        entry.remove();
+        _currentOverlay = null;
+      }
+    });
   }
 
   /// Tap Action Navigation logic based on Notification Type & Role (Step 12)
