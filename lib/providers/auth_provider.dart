@@ -172,13 +172,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> _syncDeviceToken(Map<String, dynamic>? user) async {
     try {
-      final userId = (user?['_id'] ?? user?['id'] ?? user?['email'])?.toString() ?? 'user';
       var devToken = await StorageService.getDeviceToken();
       if (devToken == null || devToken.isEmpty) {
-        devToken = 'fcm_token_${userId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}_${DateTime.now().millisecondsSinceEpoch}';
-        await StorageService.saveDeviceToken(devToken);
+        try {
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          if (fcmToken != null && fcmToken.isNotEmpty) {
+            devToken = fcmToken;
+            await StorageService.saveDeviceToken(devToken);
+          }
+        } catch (_) {}
       }
-      await NotificationService.registerDeviceToken(devToken);
+      if (devToken != null && devToken.isNotEmpty) {
+        await NotificationService.registerDeviceToken(devToken);
+      }
     } catch (_) {}
   }
 

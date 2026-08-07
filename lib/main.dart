@@ -29,6 +29,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.init();
   await RealtimeNotificationService.initNativeNotifications();
+  await RealtimeNotificationService.initFirebaseMessaging();
   runApp(
     const ProviderScope(
       child: AMSApp(),

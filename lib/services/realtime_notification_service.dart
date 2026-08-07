@@ -1,11 +1,25 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
+import '../core/utils/storage_service.dart';
 import '../main.dart';
 import '../screens/shared/notifications_screen.dart';
 import '../providers/auth_provider.dart';
+import 'employee_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+    debugPrint("Handling background FCM push message: \${message.messageId}");
+  } catch (e) {
+    debugPrint("Background FCM handler error: \$e");
+  }
+}
 
 enum NotificationCategory {
   userLogin,
@@ -111,6 +125,101 @@ class RealtimeNotificationService {
 
       _isLocalNotifInitialized = true;
     } catch (_) {}
+  }
+
+  static bool _isFirebaseMessagingInitialized = false;
+
+  /// Initialize Firebase Cloud Messaging (FCM) handlers
+  static Future<void> initFirebaseMessaging() async {
+    if (_isFirebaseMessagingInitialized) return;
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+      final messaging = FirebaseMessaging.instance;
+
+      // Request permissions (Android 13+ & iOS)
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+
+      // Present alert, badge, and sound in foreground
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // 1. Foreground Message Handler
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final notification = message.notification;
+        final title = notification?.title ?? message.data['title'] ?? 'AMS Notification';
+        final body = notification?.body ?? message.data['message'] ?? message.data['body'] ?? '';
+        final type = (message.data['type'] ?? 'general').toString();
+
+        final category = _parseCategory(type);
+        final item = RealtimeNotificationItem(
+          id: message.messageId ?? 'fcm_${DateTime.now().millisecondsSinceEpoch}',
+          title: title,
+          message: body,
+          type: type,
+          category: category,
+        );
+
+        showTopNotificationPopup(null, item);
+        showNativeSystemNotification(item);
+      });
+
+      // 2. Background Notification Opened App Handler
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        final context = rootNavigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          handleNotificationTap(context, message.data);
+        }
+      });
+
+      // 3. Initial Message Handler (App launched from killed state)
+      final initialMessage = await messaging.getInitialMessage();
+      if (initialMessage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final context = rootNavigatorKey.currentContext;
+          if (context != null && context.mounted) {
+            handleNotificationTap(context, initialMessage.data);
+          }
+        });
+      }
+
+      // 4. Token Refresh Listener
+      messaging.onTokenRefresh.listen((newToken) async {
+        await StorageService.saveDeviceToken(newToken);
+        await NotificationService.registerDeviceToken(newToken);
+      });
+
+      // 5. Retrieve Initial FCM Token
+      try {
+        final token = await messaging.getToken();
+        if (token != null && token.isNotEmpty) {
+          await StorageService.saveDeviceToken(token);
+          await NotificationService.registerDeviceToken(token);
+        }
+      } catch (_) {}
+
+      _isFirebaseMessagingInitialized = true;
+    } catch (e) {
+      debugPrint("FCM initialization warning: $e");
+    }
+  }
+
+  static NotificationCategory _parseCategory(String type) {
+    final lower = type.toLowerCase();
+    if (lower.contains('login')) return NotificationCategory.userLogin;
+    if (lower.contains('checkin') || lower.contains('check_in')) return NotificationCategory.attendanceCheckIn;
+    if (lower.contains('checkout') || lower.contains('check_out')) return NotificationCategory.attendanceCheckOut;
+    if (lower.contains('leave')) return NotificationCategory.leaveRequest;
+    return NotificationCategory.general;
   }
 
   static OverlayEntry? _currentOverlay;
