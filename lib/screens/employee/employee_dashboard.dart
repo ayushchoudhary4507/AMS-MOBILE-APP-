@@ -16,6 +16,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/chat_provider.dart';
 
 import '../shared/notifications_screen.dart';
+import '../chat/chat_list_screen.dart';
 
 class EmployeeDashboard extends ConsumerStatefulWidget {
   const EmployeeDashboard({super.key});
@@ -231,7 +232,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     if (_selectedIndex == 0) return _buildDashboardTab();
     if (_selectedIndex == 1) return _buildAttendanceTab();
     if (_selectedIndex == 2) return _buildLeaveTab();
-    if (_selectedIndex == 3) return _buildReportsTab();
+    if (_selectedIndex == 3) return const ChatListScreen();
     if (_selectedIndex == 4) return _buildSalaryTab();
     return _buildDashboardTab();
   }
@@ -1418,6 +1419,27 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  trailing: ref.watch(chatProvider).totalUnread > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${ref.watch(chatProvider).totalUnread}',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/chat');
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.calendar_today_rounded, color: Color(0xFF10B981)),
                   title: Text('Attendance Calendar', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   onTap: () {
@@ -1463,27 +1485,6 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/projects');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  trailing: ref.watch(chatProvider).totalUnread > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${ref.watch(chatProvider).totalUnread}',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/chat');
                   },
                 ),
                 Divider(color: context.dividerCol),
@@ -1576,9 +1577,9 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
             label: 'Leaves',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            activeIcon: Icon(Icons.bar_chart_rounded),
-            label: 'Reports',
+            icon: Icon(Icons.chat_outlined),
+            activeIcon: Icon(Icons.chat_rounded),
+            label: 'Messages',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.payments_outlined),

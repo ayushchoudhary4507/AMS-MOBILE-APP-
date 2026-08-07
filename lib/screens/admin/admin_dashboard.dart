@@ -15,6 +15,7 @@ import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../shared/notifications_screen.dart';
+import '../chat/chat_list_screen.dart';
 import '../employee/employee_dashboard.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
@@ -221,7 +222,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       case 2:
         return _buildLeaveApprovalTab();
       case 3:
-        return _buildReportsTab();
+        return const ChatListScreen();
       case 4:
         return _buildMoreTab();
       default:
@@ -2431,6 +2432,27 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  trailing: ref.watch(chatProvider).totalUnread > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${ref.watch(chatProvider).totalUnread}',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/chat');
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF10B981)),
                   title: Text('Add New Employee', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
                   subtitle: Text('Onboard staff & assign permissions', style: TextStyle(color: context.txtMuted, fontSize: 11)),
@@ -2504,27 +2526,6 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/notifications');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  trailing: ref.watch(chatProvider).totalUnread > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${ref.watch(chatProvider).totalUnread}',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/chat');
                   },
                 ),
                 Divider(color: context.dividerCol),
@@ -3768,9 +3769,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             label: 'Leaves',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.insert_drive_file_outlined),
-            activeIcon: Icon(Icons.insert_drive_file_rounded),
-            label: 'Reports',
+            icon: Icon(Icons.chat_outlined),
+            activeIcon: Icon(Icons.chat_rounded),
+            label: 'Messages',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.more_horiz_rounded),
