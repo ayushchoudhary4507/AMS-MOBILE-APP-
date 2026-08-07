@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../shared/notifications_screen.dart';
 import '../employee/employee_dashboard.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
@@ -42,6 +43,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(notifScreenProvider);
     final auth = ref.watch(authProvider);
     final today = DateFormat('EEEE, d MMMM').format(DateTime.now());
 

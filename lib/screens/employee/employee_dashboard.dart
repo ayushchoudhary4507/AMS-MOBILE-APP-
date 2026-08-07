@@ -14,6 +14,8 @@ import '../../providers/attendance_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
 
+import '../shared/notifications_screen.dart';
+
 class EmployeeDashboard extends ConsumerStatefulWidget {
   const EmployeeDashboard({super.key});
 
@@ -39,6 +41,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(notifScreenProvider);
     final auth = ref.watch(authProvider);
     final user = auth.user;
     final name = user?['name'] ?? 'Employee';

@@ -80,11 +80,21 @@ class NotifNotifier extends StateNotifier<NotifState> {
 
       if (newItems.isNotEmpty) {
         state = state.copyWith(notifications: [...newItems, ...state.notifications]);
+        final role = (await StorageService.getRole())?.toLowerCase() ?? 'employee';
         for (final item in newItems) {
           if (item is Map) {
             final title = item['title']?.toString() ?? 'New Notification';
             final message = item['message']?.toString() ?? item['body']?.toString() ?? '';
             final type = (item['type']?.toString() ?? '').toLowerCase();
+
+            if (role != 'admin') {
+              if (type.contains('login') ||
+                  type.contains('checkin') ||
+                  type.contains('checkout') ||
+                  type == 'leave_request') {
+                continue;
+              }
+            }
 
             final category = type.contains('login')
                 ? NotificationCategory.userLogin
