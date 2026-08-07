@@ -95,9 +95,7 @@ class AttendanceModel {
           json['inTime'] ??
           json['in_time'] ??
           json['timeIn'] ??
-          json['time_in'] ??
-          json['createdAt'] ??
-          json['created_at'],
+          json['time_in'],
     );
 
     // CheckOut mapping
@@ -109,9 +107,7 @@ class AttendanceModel {
           json['outTime'] ??
           json['out_time'] ??
           json['timeOut'] ??
-          json['time_out'] ??
-          json['updatedAt'] ??
-          json['updated_at'],
+          json['time_out'],
     );
 
     // Status mapping
@@ -181,8 +177,16 @@ class AttendanceModel {
   /// Returns true if checked in (checkIn timestamp is present)
   bool get isCheckedIn => checkIn != null || status == 'present' || status == 'late' || status == 'half-day';
 
-  /// Returns true if checked out (checkOut timestamp is present)
-  bool get isCheckedOut => checkOut != null;
+  /// Returns true if checked out (checkOut timestamp is present AND not identical to checkIn)
+  bool get isCheckedOut {
+    if (checkOut == null) return false;
+    if (checkIn != null) {
+      if (checkOut!.difference(checkIn!).abs().inSeconds < 5) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   /// Formatted check-in time e.g., "09:30 AM" or "--:-- --"
   String get formattedCheckInTime {
@@ -196,7 +200,7 @@ class AttendanceModel {
 
   /// Formatted check-out time e.g., "06:00 PM" or "--:-- --"
   String get formattedCheckOutTime {
-    if (checkOut == null) return '--:-- --';
+    if (!isCheckedOut) return '--:-- --';
     try {
       return DateFormat('hh:mm a').format(checkOut!.toLocal());
     } catch (_) {

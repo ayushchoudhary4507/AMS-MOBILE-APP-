@@ -165,15 +165,17 @@ class RealtimeNotificationService {
     String? recipientRole,
     BuildContext? context,
   }) {
-    // Role-based safety filter (Step 9)
+    // Role-based safety filter: ONLY ADMIN receives check-in, check-out, login, leave request notifications
     try {
-      final String? currentRole = ref?.read(authProvider).role?.toLowerCase();
-      if (currentRole != null && currentRole != 'admin') {
+      final authState = ref?.read(authProvider);
+      final bool isAdmin = authState?.isAdmin ?? false;
+      if (!isAdmin) {
         final lowerType = type.toLowerCase();
         if (lowerType.contains('login') ||
             lowerType.contains('checkin') ||
             lowerType.contains('checkout') ||
-            lowerType == 'leave_request') {
+            lowerType.contains('attendance') ||
+            lowerType.contains('leave_request')) {
           // Employee must NEVER receive self-action notifications
           return;
         }

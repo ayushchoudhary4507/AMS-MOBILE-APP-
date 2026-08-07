@@ -274,16 +274,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
             isCheckedIn: true,
             isCheckedOut: checkedOut,
           );
-          if (_ref != null) {
-            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
-            RealtimeNotificationService.dispatchNotification(
-              _ref,
-              title: 'Attendance Update',
-              message: 'Check In marked at $timeStr.',
-              type: 'attendance_checkin',
-              category: NotificationCategory.attendanceCheckIn,
-            );
-          }
         }
       }
     } catch (_) {}
