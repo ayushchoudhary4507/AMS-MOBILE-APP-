@@ -15,6 +15,9 @@ dependencies:
 
   # HTTP Client
   dio: ^5.7.0
+
+  # Socket IO
+  socket_io_client: ^3.0.2
   
   # State Management
   flutter_riverpod: ^2.6.1

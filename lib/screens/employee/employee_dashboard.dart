@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/chat_provider.dart';
 
 import '../shared/notifications_screen.dart';
 
@@ -1462,6 +1463,27 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/projects');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  trailing: ref.watch(chatProvider).totalUnread > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${ref.watch(chatProvider).totalUnread}',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/chat');
                   },
                 ),
                 Divider(color: context.dividerCol),

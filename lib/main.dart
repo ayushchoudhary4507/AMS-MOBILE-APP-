@@ -20,6 +20,8 @@ import 'screens/admin/projects_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/shared/notifications_screen.dart';
 import 'screens/shared/holidays_screen.dart';
+import 'screens/chat/chat_list_screen.dart';
+import 'screens/chat/chat_room_screen.dart';
 
 import 'services/realtime_notification_service.dart';
 
@@ -136,6 +138,23 @@ final _router = GoRouter(
     GoRoute(
       path: '/notifications',
       builder: (context, state) => const NotificationsScreen(),
+    ),
+
+    // Chat & Messaging Routes
+    GoRoute(
+      path: '/chat',
+      builder: (context, state) => const ChatListScreen(),
+    ),
+    GoRoute(
+      path: '/chat/:userId',
+      builder: (context, state) {
+        final userId = state.pathParameters['userId'] ?? '';
+        final extra = state.extra as Map<String, dynamic>?;
+        return ChatRoomScreen(
+          targetUserId: userId,
+          initialUserData: extra,
+        );
+      },
     ),
   ],
 );
