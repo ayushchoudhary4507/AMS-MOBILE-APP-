@@ -435,18 +435,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           error: null,
         );
 
-        if (_ref != null) {
-          final userName = user?['name']?.toString() ?? 'Employee';
-          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'Attendance Update',
-            message: '$userName marked Check In at $timeStr.',
-            type: 'attendance_checkin',
-            category: NotificationCategory.attendanceCheckIn,
-          );
-        }
-
         await loadStats();
         return true;
       } else {
@@ -478,17 +466,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           isCheckedOut: false,
           error: null,
         );
-        if (_ref != null) {
-          final userName = user?['name']?.toString() ?? 'Employee';
-          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'Attendance Update',
-            message: '$userName marked Check In at $timeStr.',
-            type: 'attendance_checkin',
-            category: NotificationCategory.attendanceCheckIn,
-          );
-        }
         return true;
       }
 
@@ -551,18 +528,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           error: null,
         );
 
-        if (_ref != null) {
-          final userName = user?['name']?.toString() ?? 'Employee';
-          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'Attendance Update',
-            message: '$userName marked Check Out at $timeStr.',
-            type: 'attendance_checkout',
-            category: NotificationCategory.attendanceCheckOut,
-          );
-        }
-
         await loadStats();
         return true;
       } else {
@@ -593,17 +558,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           isCheckedOut: true,
           error: null,
         );
-        if (_ref != null) {
-          final userName = user?['name']?.toString() ?? 'Employee';
-          final timeStr = DateFormat('hh:mm a').format(DateTime.now());
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'Attendance Update',
-            message: '$userName marked Check Out at $timeStr.',
-            type: 'attendance_checkout',
-            category: NotificationCategory.attendanceCheckOut,
-          );
-        }
         return true;
       }
 
@@ -781,17 +735,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       );
       state = state.copyWith(isLoading: false);
       if (data['success'] == true || data['status'] == 'success') {
-        if (_ref != null) {
-          final user = await StorageService.getUser();
-          final userName = user?['name']?.toString() ?? 'Employee';
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'New Leave Request',
-            message: '$userName applied for $leaveType.',
-            type: 'leave_request',
-            category: NotificationCategory.leaveRequest,
-          );
-        }
         await loadMyLeaves();
         return true;
       }

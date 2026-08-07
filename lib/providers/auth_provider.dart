@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
 import '../services/employee_service.dart';
-import '../services/realtime_notification_service.dart';
 import '../core/utils/storage_service.dart';
 import 'attendance_provider.dart';
 import 'employee_provider.dart';
@@ -295,24 +294,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role,
           token: token,
         );
-        _syncDeviceToken(user);
-        if (role.toLowerCase() != 'admin') {
-          final empName = user?['name']?.toString() ?? 'Employee';
-          final empEmail = user?['email']?.toString() ?? '';
-          NotificationService.sendNotification(
-            title: 'Employee Logged In',
-            message: '$empName ($empEmail) logged in to AMS App.',
-            type: 'user_login',
-            recipientRole: 'admin',
-          );
-          RealtimeNotificationService.dispatchNotification(
-            _ref,
-            title: 'Employee Logged In',
-            message: '$empName ($empEmail) logged in to AMS App.',
-            type: 'employee_login',
-            category: NotificationCategory.userLogin,
-          );
-        }
         await refreshProfile();
         return true;
       }

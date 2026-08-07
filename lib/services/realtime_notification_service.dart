@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
 import '../main.dart';
 import '../screens/shared/notifications_screen.dart';
+import '../providers/auth_provider.dart';
 
 enum NotificationCategory {
   userLogin,
@@ -151,7 +152,7 @@ class RealtimeNotificationService {
     } catch (_) {}
   }
 
-  /// Dispatch a new real-time notification event
+  /// Dispatch a new real-time notification event with role validation
   static void dispatchNotification(
     dynamic ref, {
     required String title,
@@ -159,8 +160,24 @@ class RealtimeNotificationService {
     required String type,
     required NotificationCategory category,
     String? referenceId,
+    String? recipientRole,
     BuildContext? context,
   }) {
+    // Role-based safety filter (Step 9)
+    try {
+      final String? currentRole = ref?.read(authProvider).role?.toLowerCase();
+      if (currentRole != null && currentRole != 'admin') {
+        final lowerType = type.toLowerCase();
+        if (lowerType.contains('login') ||
+            lowerType.contains('checkin') ||
+            lowerType.contains('checkout') ||
+            lowerType == 'leave_request') {
+          // Employee must NEVER receive self-action notifications
+          return;
+        }
+      }
+    } catch (_) {}
+
     final newId = 'notif_${DateTime.now().millisecondsSinceEpoch}';
     final item = RealtimeNotificationItem(
       id: newId,
@@ -354,13 +371,15 @@ class RealtimeNotificationService {
     }
   }
 
-  /// Tap Action Navigation logic based on Notification Type & Role
+  /// Tap Action Navigation logic based on Notification Type & Role (Step 12)
   static void handleNotificationTap(
       BuildContext context, Map<String, dynamic> notif) {
     final type = (notif['type'] ?? notif['category'])?.toString().toLowerCase() ?? '';
     final title = (notif['title'])?.toString().toLowerCase() ?? '';
 
-    if (type.contains('attendance') || title.contains('attendance')) {
+    if (type.contains('login') || title.contains('login')) {
+      context.go('/admin/projects');
+    } else if (type.contains('checkin') || type.contains('checkout') || type.contains('attendance') || title.contains('attendance')) {
       context.go('/notifications');
     } else if (type.contains('leave') || title.contains('leave')) {
       context.go('/notifications');
