@@ -36,8 +36,12 @@ class SocketService {
 
       _currentUserId = userId;
 
-      if (_socket != null && _socket!.connected) {
-        _socket!.emit('join', userId);
+      if (_socket != null) {
+        if (!_socket!.connected) {
+          _socket!.connect();
+        } else {
+          _socket!.emit('join', userId);
+        }
         return;
       }
 
@@ -53,12 +57,22 @@ class SocketService {
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
             .enableReconnection()
+            .setReconnectionAttempts(10)
+            .setReconnectionDelay(2000)
             .build(),
       );
 
       _socket!.onConnect((_) {
         _isConnected = true;
         print('⚡ Socket connected to $socketUrl');
+        if (_currentUserId != null) {
+          _socket!.emit('join', _currentUserId);
+        }
+      });
+
+      _socket!.onReconnect((_) {
+        _isConnected = true;
+        print('⚡ Socket reconnected to $socketUrl');
         if (_currentUserId != null) {
           _socket!.emit('join', _currentUserId);
         }

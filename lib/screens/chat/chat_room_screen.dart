@@ -117,8 +117,27 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  String _extractId(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is String) return raw;
+    if (raw is Map) {
+      return (raw['_id'] ?? raw['id'] ?? raw['userId'])?.toString() ?? '';
+    }
+    return raw.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<ChatState>(chatProvider, (previous, next) {
+      final prevMsgs = previous?.messagesMap[widget.targetUserId] ?? [];
+      final nextMsgs = next.messagesMap[widget.targetUserId] ?? [];
+      if (nextMsgs.length > prevMsgs.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    });
+
     final chatState = ref.watch(chatProvider);
     final messages = chatState.messagesMap[widget.targetUserId] ?? [];
     final isOnline = chatState.onlineUserIds.contains(widget.targetUserId);
@@ -202,8 +221,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      final senderId = (msg['senderId'] ?? msg['sender'])?.toString();
-                      final isMe = senderId == _currentUserId;
+                      final senderIdStr = _extractId(msg['senderId'] ?? msg['sender']);
+                      final isMe = senderIdStr == _currentUserId;
                       final text = (msg['message'] ?? '').toString();
                       final type = (msg['messageType'] ?? 'text').toString();
                       final fileUrl = (msg['fileUrl'] ?? '').toString();
