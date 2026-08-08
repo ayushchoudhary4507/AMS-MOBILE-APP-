@@ -126,6 +126,45 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     return raw.toString();
   }
 
+  DateTime _parseToLocal(dynamic raw) {
+    if (raw == null) return DateTime.now();
+    if (raw is DateTime) return raw.toLocal();
+    final str = raw.toString().trim();
+    if (str.isEmpty) return DateTime.now();
+
+    try {
+      String formattedStr = str;
+      if (formattedStr.contains('T') &&
+          !formattedStr.endsWith('Z') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('+') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('-')) {
+        formattedStr += 'Z';
+      }
+      return DateTime.parse(formattedStr).toLocal();
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final msgDate = DateTime(date.year, date.month, date.day);
+
+    if (msgDate == today) {
+      return 'Today';
+    } else if (msgDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('dd MMM yyyy').format(date);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<ChatState>(chatProvider, (previous, next) {
@@ -229,21 +268,51 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       final isRead = msg['read'] == true;
                       final isDelivered = msg['delivered'] == true;
 
-                      DateTime? time;
-                      if (msg['timestamp'] != null) {
-                        time = DateTime.tryParse(msg['timestamp'].toString());
-                      }
-                      final timeStr = time != null ? DateFormat('hh:mm a').format(time) : '';
+                      final msgTime = _parseToLocal(msg['timestamp'] ?? msg['createdAt']);
+                      final timeStr = DateFormat('hh:mm a').format(msgTime);
 
-                      return _buildMessageBubble(
-                        context: context,
-                        isMe: isMe,
-                        text: text,
-                        type: type,
-                        fileUrl: fileUrl,
-                        timeStr: timeStr,
-                        isRead: isRead,
-                        isDelivered: isDelivered,
+                      bool showDateHeader = false;
+                      if (index == 0) {
+                        showDateHeader = true;
+                      } else {
+                        final prevMsgTime = _parseToLocal(messages[index - 1]['timestamp'] ?? messages[index - 1]['createdAt']);
+                        showDateHeader = !_isSameDay(msgTime, prevMsgTime);
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showDateHeader)
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: context.cardBg.withValues(alpha: 0.8),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: context.borderCol.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  _formatDateHeader(msgTime),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.txtSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          _buildMessageBubble(
+                            context: context,
+                            isMe: isMe,
+                            text: text,
+                            type: type,
+                            fileUrl: fileUrl,
+                            timeStr: timeStr,
+                            isRead: isRead,
+                            isDelivered: isDelivered,
+                          ),
+                        ],
                       );
                     },
                   ),

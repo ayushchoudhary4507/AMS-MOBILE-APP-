@@ -150,7 +150,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final lastMsgObj = {
       'message': msg['message'] ?? '',
-      'timestamp': msg['timestamp'] ?? DateTime.now().toIso8601String(),
+      'timestamp': msg['timestamp'] ?? msg['createdAt'] ?? DateTime.now().toUtc().toIso8601String(),
       'senderId': senderId,
     };
 
@@ -234,6 +234,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final senderName = (user?['name'] ?? 'Me').toString();
 
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final utcNowIso = DateTime.now().toUtc().toIso8601String();
       final localMsg = {
         'id': tempId,
         '_id': tempId,
@@ -246,7 +247,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         'fileUrl': fileUrl ?? '',
         'fileName': fileName ?? '',
         'fileType': fileType ?? '',
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': utcNowIso,
+        'createdAt': utcNowIso,
         'read': false,
         'delivered': false,
       };
@@ -267,7 +269,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
         final existingConv = Map<String, dynamic>.from(conversations[convIndex]);
         existingConv['lastMessage'] = {
           'message': text,
-          'timestamp': DateTime.now().toIso8601String(),
+          'timestamp': utcNowIso,
+          'createdAt': utcNowIso,
+          'senderId': senderId,
+        };
+        conversations[convIndex] = existingConv;
+      }
           'senderId': senderId,
         };
         conversations[convIndex] = existingConv;
