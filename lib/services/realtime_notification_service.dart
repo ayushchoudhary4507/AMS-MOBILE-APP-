@@ -154,7 +154,21 @@ class RealtimeNotificationService {
       );
 
       // 1. Foreground Message Handler
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+        final senderId = (message.data['senderId'] ?? message.data['sender'])?.toString();
+        final receiverId = (message.data['receiverId'] ?? message.data['receiver'])?.toString();
+        final user = await StorageService.getUser();
+        final currentUserId = (user?['_id'] ?? user?['id'] ?? user?['userId'])?.toString();
+
+        if (senderId != null && currentUserId != null && senderId == currentUserId) {
+          // Do NOT show notification to the sender who sent the message
+          return;
+        }
+        if (receiverId != null && currentUserId != null && receiverId != currentUserId) {
+          // Do NOT show notification meant for another recipient
+          return;
+        }
+
         final notification = message.notification;
         final title = notification?.title ?? message.data['title'] ?? 'AMS Notification';
         final body = notification?.body ?? message.data['message'] ?? message.data['body'] ?? '';

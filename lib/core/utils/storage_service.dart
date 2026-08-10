@@ -85,10 +85,11 @@ class StorageService {
     final name = user['name']?.toString();
     final avatar = (user['avatar'] ??
             user['profilePicture'] ??
+            user['profileImage'] ??
+            user['profile_picture'] ??
             user['image'] ??
             user['avatarUrl'] ??
-            user['photo'] ??
-            user['profile_picture'])
+            user['photo'])
         ?.toString();
 
     if (avatar != null && avatar.isNotEmpty) {
@@ -118,10 +119,11 @@ class StorageService {
         final name = userMap['name']?.toString();
         final currentAvatar = (userMap['avatar'] ??
                 userMap['profilePicture'] ??
+                userMap['profileImage'] ??
+                userMap['profile_picture'] ??
                 userMap['image'] ??
                 userMap['avatarUrl'] ??
-                userMap['photo'] ??
-                userMap['profile_picture'])
+                userMap['photo'])
             ?.toString();
 
         if ((currentAvatar == null || currentAvatar.isEmpty) && email != null) {
@@ -129,9 +131,16 @@ class StorageService {
           if (cachedAvatar != null && cachedAvatar.isNotEmpty) {
             userMap['avatar'] = cachedAvatar;
             userMap['profilePicture'] = cachedAvatar;
+            userMap['profileImage'] = cachedAvatar;
+            userMap['profile_picture'] = cachedAvatar;
             userMap['image'] = cachedAvatar;
           }
         } else if (currentAvatar != null && currentAvatar.isNotEmpty) {
+          userMap['avatar'] = currentAvatar;
+          userMap['profilePicture'] = currentAvatar;
+          userMap['profileImage'] = currentAvatar;
+          userMap['profile_picture'] = currentAvatar;
+          userMap['image'] = currentAvatar;
           if (email != null && email.isNotEmpty) avatarCache[email.trim().toLowerCase()] = currentAvatar;
           if (id != null && id.isNotEmpty) avatarCache[id.trim().toLowerCase()] = currentAvatar;
           if (name != null && name.isNotEmpty) avatarCache[name.trim().toLowerCase()] = currentAvatar;

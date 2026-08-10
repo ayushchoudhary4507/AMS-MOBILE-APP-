@@ -107,7 +107,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: filteredConversations.length,
-                      separatorBuilder: (_, __) => Divider(
+                      separatorBuilder: (_, _) => Divider(
                         color: context.borderCol.withValues(alpha: 0.3),
                         height: 1,
                         indent: 76,
@@ -122,9 +122,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         final unreadCount = (conv['unreadCount'] ?? 0) as int;
                         final isOnline = onlineUserIds.contains(userId);
 
+                        final rawTime = lastMsgObj is Map
+                            ? (lastMsgObj['createdAt'] ?? lastMsgObj['timestamp'] ?? lastMsgObj['created_at'] ?? lastMsgObj['date'] ?? lastMsgObj['time'])
+                            : null;
                         DateTime? time;
-                        if (lastMsgObj is Map && lastMsgObj['timestamp'] != null) {
-                          time = DateTime.tryParse(lastMsgObj['timestamp'].toString());
+                        if (rawTime != null) {
+                          if (rawTime is DateTime) {
+                            time = rawTime.toLocal();
+                          } else {
+                            time = DateTime.tryParse(rawTime.toString())?.toLocal();
+                          }
                         }
 
                         final timeStr = time != null

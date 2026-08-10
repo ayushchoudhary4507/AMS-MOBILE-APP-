@@ -81,8 +81,23 @@ class NotifNotifier extends StateNotifier<NotifState> {
       if (newItems.isNotEmpty) {
         state = state.copyWith(notifications: [...newItems, ...state.notifications]);
         final role = (await StorageService.getRole())?.toLowerCase() ?? 'employee';
+        final user = await StorageService.getUser();
+        final currentUserId = (user?['_id'] ?? user?['id'] ?? user?['userId'])?.toString();
+
         for (final item in newItems) {
           if (item is Map) {
+            final senderId = (item['senderId'] ?? item['sender'])?.toString();
+            final receiverId = (item['receiverId'] ?? item['receiver'])?.toString();
+
+            // Do NOT trigger popups/system notifications for self-sent actions/messages
+            if (senderId != null && currentUserId != null && senderId == currentUserId) {
+              continue;
+            }
+            // Do NOT trigger popups meant for a different recipient
+            if (receiverId != null && currentUserId != null && receiverId != currentUserId) {
+              continue;
+            }
+
             final title = item['title']?.toString() ?? 'New Notification';
             final message = item['message']?.toString() ?? item['body']?.toString() ?? '';
             final type = (item['type']?.toString() ?? '').toLowerCase();

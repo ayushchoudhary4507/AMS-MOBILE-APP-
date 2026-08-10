@@ -195,6 +195,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         'fileName': fileName ?? '',
         'fileType': fileType ?? '',
         'timestamp': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toIso8601String(),
         'read': false,
         'delivered': false,
       };

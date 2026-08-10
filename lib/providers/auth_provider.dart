@@ -272,10 +272,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final email = (user['email'] ?? user['id'] ?? user['_id'])?.toString();
           final serverAvatar = (user['avatar'] ??
                   user['profilePicture'] ??
+                  user['profileImage'] ??
+                  user['profile_picture'] ??
                   user['image'] ??
                   user['avatarUrl'] ??
-                  user['photo'] ??
-                  user['profile_picture'])
+                  user['photo'])
               ?.toString();
 
           final cachedAvatar = email != null ? await StorageService.getUserAvatar(email) : null;
@@ -287,6 +288,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           if (avatarToUse != null && avatarToUse.isNotEmpty) {
             user['avatar'] = avatarToUse;
             user['profilePicture'] = avatarToUse;
+            user['profileImage'] = avatarToUse;
+            user['profile_picture'] = avatarToUse;
             user['image'] = avatarToUse;
           }
         }
@@ -404,8 +407,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (avatarToUse != null && avatarToUse.isNotEmpty) {
         userData['avatar'] = avatarToUse;
         userData['profilePicture'] = avatarToUse;
-        userData['image'] = avatarToUse;
+        userData['profileImage'] = avatarToUse;
         userData['profile_picture'] = avatarToUse;
+        userData['image'] = avatarToUse;
         userData['avatarUrl'] = avatarToUse;
         userData['photo'] = avatarToUse;
 
@@ -435,8 +439,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (profilePicture != null && profilePicture.isNotEmpty) {
       currentMap['avatar'] = profilePicture;
       currentMap['profilePicture'] = profilePicture;
-      currentMap['image'] = profilePicture;
+      currentMap['profileImage'] = profilePicture;
       currentMap['profile_picture'] = profilePicture;
+      currentMap['image'] = profilePicture;
       currentMap['avatarUrl'] = profilePicture;
       currentMap['photo'] = profilePicture;
 

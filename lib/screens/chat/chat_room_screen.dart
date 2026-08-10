@@ -125,7 +125,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final isTyping = chatState.typingMap[widget.targetUserId] == true;
 
     final targetName = (widget.initialUserData?['name'] ?? 'User').toString();
-    final targetEmail = (widget.initialUserData?['email'] ?? '').toString();
 
     return Scaffold(
       appBar: AppBar(
@@ -210,11 +209,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       final isRead = msg['read'] == true;
                       final isDelivered = msg['delivered'] == true;
 
+                      final rawTime = msg['createdAt'] ?? msg['timestamp'] ?? msg['created_at'] ?? msg['date'] ?? msg['time'];
                       DateTime? time;
-                      if (msg['timestamp'] != null) {
-                        time = DateTime.tryParse(msg['timestamp'].toString());
+                      if (rawTime != null) {
+                        if (rawTime is DateTime) {
+                          time = rawTime.toLocal();
+                        } else {
+                          time = DateTime.tryParse(rawTime.toString())?.toLocal();
+                        }
                       }
-                      final timeStr = time != null ? DateFormat('hh:mm a').format(time) : '';
+                      time ??= DateTime.now();
+                      final timeStr = DateFormat('hh:mm a').format(time);
 
                       return _buildMessageBubble(
                         context: context,

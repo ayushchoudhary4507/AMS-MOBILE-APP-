@@ -81,6 +81,8 @@ class AuthService {
         if (profilePicture != null) ...{
           'avatar': profilePicture,
           'profilePicture': profilePicture,
+          'profileImage': profilePicture,
+          'profile_picture': profilePicture,
           'image': profilePicture,
         },
       },
