@@ -393,7 +393,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } catch (_) {}
       }
 
-      final cachedAvatar = userEmail != null ? await StorageService.getUserAvatar(userEmail) : null;
+      String? cachedAvatar;
+      if (userEmail != null && userEmail.isNotEmpty) {
+        cachedAvatar = await StorageService.getUserAvatar(userEmail);
+      }
+      if ((cachedAvatar == null || cachedAvatar.isEmpty) && userId != null && userId.isNotEmpty) {
+        cachedAvatar = await StorageService.getUserAvatar(userId);
+      }
+      if ((cachedAvatar == null || cachedAvatar.isEmpty) && userName != null && userName.isNotEmpty) {
+        cachedAvatar = await StorageService.getUserAvatar(userName);
+      }
+
       final existingAvatar = extractAvatarUrl(currentUser) ?? cachedAvatar;
       final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
           ? serverAvatar
@@ -415,6 +425,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
         if (userEmail != null && userEmail.isNotEmpty) {
           await StorageService.saveUserAvatar(userEmail, avatarToUse);
+        }
+        if (userId != null && userId.isNotEmpty) {
+          await StorageService.saveUserAvatar(userId, avatarToUse);
+        }
+        if (userName != null && userName.isNotEmpty) {
+          await StorageService.saveUserAvatar(userName, avatarToUse);
         }
       }
 
@@ -446,8 +462,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       currentMap['photo'] = profilePicture;
 
       final userEmail = (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])?.toString();
+      final userId = (currentMap['id'] ?? currentMap['_id'])?.toString();
+      final userName = currentMap['name']?.toString();
+
       if (userEmail != null && userEmail.isNotEmpty) {
         await StorageService.saveUserAvatar(userEmail, profilePicture);
+      }
+      if (userId != null && userId.isNotEmpty) {
+        await StorageService.saveUserAvatar(userId, profilePicture);
+      }
+      if (userName != null && userName.isNotEmpty) {
+        await StorageService.saveUserAvatar(userName, profilePicture);
       }
     }
 
@@ -464,16 +489,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // If backend returned raw user object, merge non-null fields
       if (res['data'] is Map<String, dynamic>) {
         final serverMap = Map<String, dynamic>.from(res['data']);
-        if (serverMap['avatar'] == null && currentMap['avatar'] != null) {
-          serverMap['avatar'] = currentMap['avatar'];
-          serverMap['profilePicture'] = currentMap['profilePicture'];
+        final existingAvatar = extractAvatarUrl(currentMap);
+        if (extractAvatarUrl(serverMap) == null && existingAvatar != null) {
+          serverMap['avatar'] = existingAvatar;
+          serverMap['profilePicture'] = existingAvatar;
+          serverMap['profileImage'] = existingAvatar;
+          serverMap['profile_picture'] = existingAvatar;
         }
         currentMap.addAll(serverMap);
       } else if (res['user'] is Map<String, dynamic>) {
         final serverMap = Map<String, dynamic>.from(res['user']);
-        if (serverMap['avatar'] == null && currentMap['avatar'] != null) {
-          serverMap['avatar'] = currentMap['avatar'];
-          serverMap['profilePicture'] = currentMap['profilePicture'];
+        final existingAvatar = extractAvatarUrl(currentMap);
+        if (extractAvatarUrl(serverMap) == null && existingAvatar != null) {
+          serverMap['avatar'] = existingAvatar;
+          serverMap['profilePicture'] = existingAvatar;
+          serverMap['profileImage'] = existingAvatar;
+          serverMap['profile_picture'] = existingAvatar;
         }
         currentMap.addAll(serverMap);
       }

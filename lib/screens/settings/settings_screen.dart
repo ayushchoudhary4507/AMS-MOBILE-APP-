@@ -328,9 +328,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String email,
     String role,
   ) {
-    final avatar = user?['avatar']?.toString() ??
-        user?['profilePicture']?.toString() ??
-        user?['image']?.toString();
     final phone = user?['phone']?.toString() ?? user?['phoneNumber']?.toString();
 
     return Container(
@@ -353,7 +350,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               Stack(
                 children: [
-                  _buildAvatarWidget(avatar, name, 30),
+                  _buildAvatarWidget(user, name, 30),
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -467,9 +464,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final currentPhone = user?['phone']?.toString() ?? user?['phoneNumber']?.toString() ?? '';
     final currentEmail = user?['email']?.toString() ?? '';
     final currentRole = (user?['role']?.toString() ?? 'Employee').toUpperCase();
-    String? currentAvatar = user?['avatar']?.toString() ??
-        user?['profilePicture']?.toString() ??
-        user?['image']?.toString();
+    String? currentAvatar = extractAvatarUrl(user);
 
     final nameController = TextEditingController(text: currentName);
     final phoneController = TextEditingController(text: currentPhone);

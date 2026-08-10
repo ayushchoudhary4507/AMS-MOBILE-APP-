@@ -447,9 +447,6 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
 
     final authState = ref.watch(authProvider);
     final user = authState.user;
-    final avatar = user?['avatar']?.toString() ??
-        user?['profilePicture']?.toString() ??
-        user?['image']?.toString();
 
     return Container(
       width: double.infinity,
@@ -560,7 +557,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                         width: 2,
                       ),
                     ),
-                    child: _buildAvatarWidget(avatar, firstName, 32),
+                    child: _buildAvatarWidget(user, firstName, 32),
                   ),
                   // Active Green Status Indicator Dot
                   Positioned(
@@ -1357,9 +1354,6 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   Widget _buildEmployeeDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
     final userName = auth.user?['name'] ?? 'Employee User';
     final userEmail = auth.user?['email'] ?? 'employee@ams.com';
-    final avatar = auth.user?['avatar']?.toString() ??
-        auth.user?['profilePicture']?.toString() ??
-        auth.user?['image']?.toString();
 
     return Drawer(
       backgroundColor: context.drawerBg,
@@ -1401,7 +1395,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               style: const TextStyle(color: Colors.white70, fontSize: 13),
               overflow: TextOverflow.ellipsis,
             ),
-            currentAccountPicture: _buildAvatarWidget(avatar, userName, 28),
+            currentAccountPicture: _buildAvatarWidget(auth.user, userName, 28),
           ),
           Expanded(
             child: ListView(
@@ -1904,9 +1898,6 @@ class _SalaryTab extends ConsumerWidget {
 
     final empName = user?['name'] ?? 'Employee';
     final designation = user?['designation'] ?? user?['position'] ?? 'Software Engineer';
-    final avatar = user?['avatar']?.toString() ??
-        user?['profilePicture']?.toString() ??
-        user?['image']?.toString();
 
     return Column(
       children: [
@@ -1934,7 +1925,7 @@ class _SalaryTab extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  _buildAvatarWidget(avatar, empName, 22),
+                  _buildAvatarWidget(user, empName, 22),
                   const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -2247,9 +2247,6 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   Widget _buildAdminDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
     final userName = auth.user?['name'] ?? 'Admin User';
     final userEmail = auth.user?['email'] ?? 'admin@ams.com';
-    final avatar = auth.user?['avatar']?.toString() ??
-        auth.user?['profilePicture']?.toString() ??
-        auth.user?['image']?.toString();
 
     return Drawer(
       backgroundColor: context.drawerBg,
@@ -2287,7 +2284,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               userEmail,
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
-            currentAccountPicture: _buildAvatarWidget(avatar, userName, 28),
+            currentAccountPicture: _buildAvatarWidget(auth.user, userName, 28),
           ),
           Expanded(
             child: ListView(
