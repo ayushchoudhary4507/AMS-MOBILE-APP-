@@ -99,8 +99,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     _onlineSub?.cancel();
     _onlineSub = socketService.onlineUsersStream.listen((onlineIds) {
-      state = state.copyWith(onlineUserIds: onlineIds);
+      state = state.copyWith(onlineUserIds: Set<String>.from(onlineIds));
     });
+    // Set initial online user IDs from socket service cache immediately
+    state = state.copyWith(onlineUserIds: Set<String>.from(socketService.onlineUserIds));
   }
 
   void _handleIncomingSocketMessage(Map<String, dynamic> msg) async {
@@ -144,7 +146,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Real-time conversation list update
     final conversations = List<dynamic>.from(state.conversations);
     final convIndex = conversations.indexWhere((c) {
-      final cUserId = _extractId(c['userId'] ?? c['user']?['_id'] ?? c['user']?['id']);
+      final cUserId = _extractId(c['userId'] ?? c['user']?['_id'] ?? c['user']?['id'] ?? c['user']);
       return cUserId == targetUserId;
     });
 
@@ -160,7 +162,27 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (senderId != currentUserId) {
         existingConv['unreadCount'] = (existingConv['unreadCount'] ?? 0) + 1;
       }
-      conversations[convIndex] = existingConv;
+      conversations.removeAt(convIndex);
+      conversations.insert(0, existingConv);
+    } else {
+      dynamic matchContact;
+      for (final c in state.contacts) {
+        if (_extractId(c['_id'] ?? c['id']) == targetUserId) {
+          matchContact = c;
+          break;
+        }
+      }
+      final userName = (matchContact?['name'] ?? msg['senderName'] ?? 'User').toString();
+      final userEmail = (matchContact?['email'] ?? '').toString();
+
+      final newConv = {
+        'userId': targetUserId,
+        'userName': userName,
+        'userEmail': userEmail,
+        'lastMessage': lastMsgObj,
+        'unreadCount': (senderId != currentUserId) ? 1 : 0,
+      };
+      conversations.insert(0, newConv);
     }
 
     state = state.copyWith(
@@ -168,7 +190,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       conversations: conversations,
     );
 
-    // Refresh unread count and conversations from server for sync
+    // Refresh unread count from server for sync
     loadUnreadCount();
   }
 

@@ -32,6 +32,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     super.dispose();
   }
 
+  String _extractId(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is String) return raw;
+    if (raw is Map) {
+      return (raw['_id'] ?? raw['id'] ?? raw['userId'])?.toString() ?? '';
+    }
+    return raw.toString();
+  }
+
   DateTime? _parseToLocal(dynamic raw) {
     if (raw == null) return null;
     if (raw is DateTime) return raw.toLocal();
@@ -58,11 +67,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final conversations = chatState.conversations;
     final onlineUserIds = chatState.onlineUserIds;
 
-    final filteredConversations = conversations.where((conv) {
-      final userName = (conv['userName'] ?? conv['user']?['name'] ?? '').toString().toLowerCase();
-      final userEmail = (conv['userEmail'] ?? conv['user']?['email'] ?? '').toString().toLowerCase();
-      final q = _searchQuery.toLowerCase();
-      return userName.contains(q) || userEmail.contains(q);
+    final filteredConversations = conversations.where((c) {
+      final name = (c['userName'] ?? c['user']?['name'] ?? '').toString().toLowerCase();
+      final email = (c['userEmail'] ?? c['user']?['email'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery) || email.contains(_searchQuery);
     }).toList();
 
     return Scaffold(
@@ -95,7 +103,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ),
               child: TextField(
                 controller: _searchController,
-                onChanged: (val) => setState(() => _searchQuery = val),
+                onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
                 decoration: InputDecoration(
                   hintText: 'Search chats or employees...',
                   prefixIcon: Icon(Icons.search_rounded, color: context.txtSecondary),
@@ -134,7 +142,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       ),
                       itemBuilder: (context, index) {
                         final conv = filteredConversations[index];
-                        final userId = (conv['userId'] ?? conv['user']?['_id'] ?? conv['user']?['id'])?.toString() ?? '';
+                        final userId = _extractId(conv['userId'] ?? conv['user'] ?? conv['id'] ?? conv['_id']);
                         final userName = (conv['userName'] ?? conv['user']?['name'] ?? 'User').toString();
                         final userEmail = (conv['userEmail'] ?? conv['user']?['email'] ?? '').toString();
                         final lastMsgObj = conv['lastMessage'];
@@ -354,7 +362,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                             itemCount: contacts.length,
                             itemBuilder: (ctx, i) {
                               final contact = contacts[i];
-                              final id = (contact['id'] ?? contact['_id'])?.toString() ?? '';
+                              final id = _extractId(contact);
                               final name = (contact['name'] ?? 'User').toString();
                               final email = (contact['email'] ?? '').toString();
                               final role = (contact['role'] ?? 'employee').toString();

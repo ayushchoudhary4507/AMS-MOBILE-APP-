@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/biometric_service.dart';
 import '../../widgets/common/app_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -19,7 +18,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    BiometricAuthService.disableBiometricLogin();
     _navigate();
   }
 

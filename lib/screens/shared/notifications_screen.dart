@@ -695,16 +695,23 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String _formatTime(dynamic raw) {
     if (raw == null) return '';
     try {
-      final dt = DateTime.parse(raw.toString()).toLocal();
+      String str = raw.toString().trim();
+      if (str.isEmpty) return '';
+      if (str.contains('T') &&
+          !str.endsWith('Z') &&
+          !str.substring(str.indexOf('T')).contains('+') &&
+          !str.substring(str.indexOf('T')).contains('-')) {
+        str += 'Z';
+      }
+      final dt = DateTime.parse(str).toLocal();
       final now = DateTime.now();
       final diff = now.difference(dt);
 
-      if (diff.inMinutes < 1) return 'Just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays == 1) return 'Yesterday';
-      if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return DateFormat('d MMM yyyy').format(dt);
+      if (diff.inSeconds < 45) return 'Just now (${DateFormat('hh:mm a').format(dt)})';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago (${DateFormat('hh:mm a').format(dt)})';
+      if (diff.inHours < 24) return '${diff.inHours}h ago (${DateFormat('hh:mm a').format(dt)})';
+      if (diff.inDays == 1) return 'Yesterday at ${DateFormat('hh:mm a').format(dt)}';
+      return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
     } catch (_) {
       return raw.toString();
     }

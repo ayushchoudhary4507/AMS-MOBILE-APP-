@@ -489,13 +489,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 final picker = ImagePicker();
                 final XFile? pickedFile = await picker.pickImage(
                   source: source,
-                  maxWidth: 800,
-                  maxHeight: 800,
-                  imageQuality: 85,
+                  maxWidth: 600,
+                  maxHeight: 600,
+                  imageQuality: 70,
                 );
                 if (pickedFile != null) {
                   final bytes = await pickedFile.readAsBytes();
-                  final base64String = 'data:image/png;base64,${base64Encode(bytes)}';
+                  final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
                   setModalState(() {
                     selectedBase64Image = base64String;
                   });

@@ -41,6 +41,7 @@ class SocketService {
           _socket!.connect();
         } else {
           _socket!.emit('join', userId);
+          _onlineUsersController.add(Set<String>.from(_onlineUserIds));
         }
         return;
       }
@@ -101,7 +102,7 @@ class SocketService {
       _socket!.on('online_users', (data) {
         if (data is List) {
           _onlineUserIds = data.map((e) => e.toString()).toSet();
-          _onlineUsersController.add(_onlineUserIds);
+          _onlineUsersController.add(Set<String>.from(_onlineUserIds));
         }
       });
 
@@ -118,7 +119,7 @@ class SocketService {
             } else {
               _onlineUserIds.remove(uid);
             }
-            _onlineUsersController.add(_onlineUserIds);
+            _onlineUsersController.add(Set<String>.from(_onlineUserIds));
             _userStatusController.add(statusMap);
           }
         }
