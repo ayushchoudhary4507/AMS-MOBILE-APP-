@@ -68,6 +68,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _initSocketListeners();
   }
 
+  String? _extractId(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return raw;
+    if (raw is Map) {
+      return (raw['_id'] ?? raw['id'] ?? raw['userId'])?.toString();
+    }
+    return raw.toString();
+  }
+
   void _initSocketListeners() async {
     final socketService = SocketService();
     await socketService.initSocket();
@@ -79,7 +88,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     _typingSub?.cancel();
     _typingSub = socketService.typingStream.listen((data) {
-      final uid = data['userId']?.toString();
+      final uid = _extractId(data['userId']);
       final isTyping = data['isTyping'] == true;
       if (uid != null) {
         final updatedTyping = Map<String, bool>.from(state.typingMap);
@@ -95,30 +104,72 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void _handleIncomingSocketMessage(Map<String, dynamic> msg) async {
-    final senderId = (msg['senderId'] ?? msg['sender'])?.toString();
-    final currentUserId = (await StorageService.getUser())?['_id']?.toString();
+    final senderId = _extractId(msg['senderId'] ?? msg['sender']);
+    final receiverId = _extractId(msg['receiverId'] ?? msg['receiver']);
+    final user = await StorageService.getUser();
+    final currentUserId = _extractId(user);
 
     if (senderId == null || senderId.isEmpty) return;
+    if (currentUserId == null || currentUserId.isEmpty) return;
 
-    final targetUserId = (senderId == currentUserId) ? msg['receiverId']?.toString() : senderId;
-    if (targetUserId == null) return;
+    // Target user is the chat partner (the other person in the 1-on-1 conversation)
+    final targetUserId = (senderId == currentUserId) ? receiverId : senderId;
+    if (targetUserId == null || targetUserId.isEmpty) return;
 
     // Update active chat message list if cached
     final currentMap = Map<String, List<dynamic>>.from(state.messagesMap);
     final userMsgs = List<dynamic>.from(currentMap[targetUserId] ?? []);
     
-    // Deduplicate
-    final newId = (msg['id'] ?? msg['_id'] ?? msg['tempId'])?.toString();
-    final exists = userMsgs.any((m) => (m['id'] ?? m['_id'])?.toString() == newId);
-    if (!exists) {
+    // Deduplication using id, _id, or tempId
+    final newId = _extractId(msg['id'] ?? msg['_id']) ?? msg['tempId']?.toString();
+    final tempId = msg['tempId']?.toString();
+
+    final existsIndex = userMsgs.indexWhere((m) {
+      final mId = _extractId(m['id'] ?? m['_id']) ?? m['tempId']?.toString();
+      final mTempId = m['tempId']?.toString();
+      
+      if (newId != null && mId != null && newId == mId) return true;
+      if (tempId != null && mTempId != null && tempId == mTempId) return true;
+      return false;
+    });
+
+    if (existsIndex >= 0) {
+      userMsgs[existsIndex] = msg;
+    } else {
       userMsgs.add(msg);
-      currentMap[targetUserId] = userMsgs;
-      state = state.copyWith(messagesMap: currentMap);
     }
 
-    // Refresh conversations list
-    await loadConversations();
-    await loadUnreadCount();
+    currentMap[targetUserId] = userMsgs;
+
+    // Real-time conversation list update
+    final conversations = List<dynamic>.from(state.conversations);
+    final convIndex = conversations.indexWhere((c) {
+      final cUserId = _extractId(c['userId'] ?? c['user']?['_id'] ?? c['user']?['id']);
+      return cUserId == targetUserId;
+    });
+
+    final lastMsgObj = {
+      'message': msg['message'] ?? '',
+      'timestamp': msg['timestamp'] ?? msg['createdAt'] ?? DateTime.now().toUtc().toIso8601String(),
+      'senderId': senderId,
+    };
+
+    if (convIndex >= 0) {
+      final existingConv = Map<String, dynamic>.from(conversations[convIndex]);
+      existingConv['lastMessage'] = lastMsgObj;
+      if (senderId != currentUserId) {
+        existingConv['unreadCount'] = (existingConv['unreadCount'] ?? 0) + 1;
+      }
+      conversations[convIndex] = existingConv;
+    }
+
+    state = state.copyWith(
+      messagesMap: currentMap,
+      conversations: conversations,
+    );
+
+    // Refresh unread count and conversations from server for sync
+    loadUnreadCount();
   }
 
   /// Load conversations from API
@@ -179,13 +230,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }) async {
     try {
       final user = await StorageService.getUser();
-      final senderId = (user?['_id'] ?? user?['id'])?.toString() ?? '';
+      final senderId = _extractId(user) ?? '';
       final senderName = (user?['name'] ?? 'Me').toString();
 
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final utcNowIso = DateTime.now().toUtc().toIso8601String();
       final localMsg = {
         'id': tempId,
         '_id': tempId,
+        'tempId': tempId,
         'senderId': senderId,
         'senderName': senderName,
         'receiverId': receiverId,
@@ -194,9 +247,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
         'fileUrl': fileUrl ?? '',
         'fileName': fileName ?? '',
         'fileType': fileType ?? '',
-        'timestamp': DateTime.now().toIso8601String(),
-        'createdAt': DateTime.now().toIso8601String(),
-        'created_at': DateTime.now().toIso8601String(),
+        'timestamp': utcNowIso,
+        'createdAt': utcNowIso,
+        'created_at': utcNowIso,
         'read': false,
         'delivered': false,
       };
@@ -206,7 +259,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final userMsgs = List<dynamic>.from(currentMap[receiverId] ?? []);
       userMsgs.add(localMsg);
       currentMap[receiverId] = userMsgs;
-      state = state.copyWith(messagesMap: currentMap);
+
+      // Optimistically update conversation entry
+      final conversations = List<dynamic>.from(state.conversations);
+      final convIndex = conversations.indexWhere((c) {
+        final cUserId = _extractId(c['userId'] ?? c['user']?['_id'] ?? c['user']?['id']);
+        return cUserId == receiverId;
+      });
+      if (convIndex >= 0) {
+        final existingConv = Map<String, dynamic>.from(conversations[convIndex]);
+        existingConv['lastMessage'] = {
+          'message': text,
+          'timestamp': utcNowIso,
+          'createdAt': utcNowIso,
+          'senderId': senderId,
+        };
+        conversations[convIndex] = existingConv;
+      }
+
+      state = state.copyWith(
+        messagesMap: currentMap,
+        conversations: conversations,
+      );
 
       // Emit socket event for instant socket delivery
       SocketService().sendMessage(localMsg);
@@ -222,7 +296,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
       );
 
       if (res['success'] == true) {
-        await loadMessages(receiverId);
+        if (res['data'] != null) {
+          final serverMsg = res['data'];
+          final updatedMap = Map<String, List<dynamic>>.from(state.messagesMap);
+          final msgs = List<dynamic>.from(updatedMap[receiverId] ?? []);
+          final idx = msgs.indexWhere((m) => m['tempId'] == tempId || m['id'] == tempId || m['_id'] == tempId);
+          if (idx >= 0) {
+            msgs[idx] = serverMsg;
+            updatedMap[receiverId] = msgs;
+            state = state.copyWith(messagesMap: updatedMap);
+          }
+        }
         await loadConversations();
         return true;
       }

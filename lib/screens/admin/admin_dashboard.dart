@@ -44,7 +44,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   Widget build(BuildContext context) {
     ref.watch(notifScreenProvider);
     final auth = ref.watch(authProvider);
-    final today = DateFormat('EEEE, d MMMM').format(DateTime.now());
+    final today = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1441,14 +1441,38 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final auth = ref.watch(authProvider);
     final user = auth.user;
 
-    // Member Since date calculation
-    String memberSince = '24 May 2024';
-    final rawDate = user?['createdAt'] ?? user?['joiningDate'] ?? user?['created_at'];
-    if (rawDate != null) {
+    // Member Since date calculation dynamically from user/employee profile
+    String memberSince = '';
+    final rawDate = user?['createdAt'] ?? user?['joiningDate'] ?? user?['created_at'] ?? user?['dateJoined'] ?? user?['date'];
+    if (rawDate != null && rawDate.toString().trim().isNotEmpty) {
       try {
         final dt = DateTime.parse(rawDate.toString());
         memberSince = DateFormat('d MMM yyyy').format(dt);
       } catch (_) {}
+    }
+    if (memberSince.isEmpty) {
+      final empList = ref.watch(employeeProvider).employees;
+      final uEmail = user?['email']?.toString().toLowerCase();
+      final uName = user?['name']?.toString().toLowerCase();
+      for (var emp in empList) {
+        if (emp is Map) {
+          final eEmail = emp['email']?.toString().toLowerCase();
+          final eName = emp['name']?.toString().toLowerCase();
+          if ((uEmail != null && eEmail == uEmail) || (uName != null && eName == uName)) {
+            final eDate = emp['joiningDate'] ?? emp['createdAt'] ?? emp['created_at'];
+            if (eDate != null && eDate.toString().trim().isNotEmpty) {
+              try {
+                final dt = DateTime.parse(eDate.toString());
+                memberSince = DateFormat('d MMM yyyy').format(dt);
+                break;
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    }
+    if (memberSince.isEmpty) {
+      memberSince = DateFormat('d MMM yyyy').format(DateTime.now());
     }
 
     final roleStr = (user?['role'] ?? auth.role ?? 'Admin').toString();

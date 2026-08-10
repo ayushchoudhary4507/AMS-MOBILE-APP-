@@ -32,6 +32,26 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     super.dispose();
   }
 
+  DateTime? _parseToLocal(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw.toLocal();
+    final str = raw.toString().trim();
+    if (str.isEmpty) return null;
+
+    try {
+      String formattedStr = str;
+      if (formattedStr.contains('T') &&
+          !formattedStr.endsWith('Z') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('+') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('-')) {
+        formattedStr += 'Z';
+      }
+      return DateTime.parse(formattedStr).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider);
@@ -125,17 +145,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         final rawTime = lastMsgObj is Map
                             ? (lastMsgObj['createdAt'] ?? lastMsgObj['timestamp'] ?? lastMsgObj['created_at'] ?? lastMsgObj['date'] ?? lastMsgObj['time'])
                             : null;
-                        DateTime? time;
-                        if (rawTime != null) {
-                          if (rawTime is DateTime) {
-                            time = rawTime.toLocal();
-                          } else {
-                            time = DateTime.tryParse(rawTime.toString())?.toLocal();
-                          }
-                        }
+                        final time = _parseToLocal(rawTime);
+                        final now = DateTime.now();
 
                         final timeStr = time != null
-                            ? DateFormat(DateTime.now().day == time.day ? 'hh:mm a' : 'MMM d').format(time)
+                            ? DateFormat(now.day == time.day && now.month == time.month && now.year == time.year ? 'hh:mm a' : 'MMM d').format(time)
                             : '';
 
                         return ListTile(

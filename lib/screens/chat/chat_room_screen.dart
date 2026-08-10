@@ -117,8 +117,66 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  String _extractId(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is String) return raw;
+    if (raw is Map) {
+      return (raw['_id'] ?? raw['id'] ?? raw['userId'])?.toString() ?? '';
+    }
+    return raw.toString();
+  }
+
+  DateTime _parseToLocal(dynamic raw) {
+    if (raw == null) return DateTime.now();
+    if (raw is DateTime) return raw.toLocal();
+    final str = raw.toString().trim();
+    if (str.isEmpty) return DateTime.now();
+
+    try {
+      String formattedStr = str;
+      if (formattedStr.contains('T') &&
+          !formattedStr.endsWith('Z') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('+') &&
+          !formattedStr.substring(formattedStr.indexOf('T')).contains('-')) {
+        formattedStr += 'Z';
+      }
+      return DateTime.parse(formattedStr).toLocal();
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final msgDate = DateTime(date.year, date.month, date.day);
+
+    if (msgDate == today) {
+      return 'Today';
+    } else if (msgDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('dd MMM yyyy').format(date);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<ChatState>(chatProvider, (previous, next) {
+      final prevMsgs = previous?.messagesMap[widget.targetUserId] ?? [];
+      final nextMsgs = next.messagesMap[widget.targetUserId] ?? [];
+      if (nextMsgs.length > prevMsgs.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    });
+
     final chatState = ref.watch(chatProvider);
     final messages = chatState.messagesMap[widget.targetUserId] ?? [];
     final isOnline = chatState.onlineUserIds.contains(widget.targetUserId);
@@ -201,35 +259,59 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      final senderId = (msg['senderId'] ?? msg['sender'])?.toString();
-                      final isMe = senderId == _currentUserId;
+                      final senderIdStr = _extractId(msg['senderId'] ?? msg['sender']);
+                      final isMe = senderIdStr == _currentUserId;
                       final text = (msg['message'] ?? '').toString();
                       final type = (msg['messageType'] ?? 'text').toString();
                       final fileUrl = (msg['fileUrl'] ?? '').toString();
                       final isRead = msg['read'] == true;
                       final isDelivered = msg['delivered'] == true;
 
-                      final rawTime = msg['createdAt'] ?? msg['timestamp'] ?? msg['created_at'] ?? msg['date'] ?? msg['time'];
-                      DateTime? time;
-                      if (rawTime != null) {
-                        if (rawTime is DateTime) {
-                          time = rawTime.toLocal();
-                        } else {
-                          time = DateTime.tryParse(rawTime.toString())?.toLocal();
-                        }
-                      }
-                      time ??= DateTime.now();
-                      final timeStr = DateFormat('hh:mm a').format(time);
+                      final msgTime = _parseToLocal(msg['createdAt'] ?? msg['timestamp'] ?? msg['created_at'] ?? msg['date'] ?? msg['time']);
+                      final timeStr = DateFormat('hh:mm a').format(msgTime);
 
-                      return _buildMessageBubble(
-                        context: context,
-                        isMe: isMe,
-                        text: text,
-                        type: type,
-                        fileUrl: fileUrl,
-                        timeStr: timeStr,
-                        isRead: isRead,
-                        isDelivered: isDelivered,
+                      bool showDateHeader = false;
+                      if (index == 0) {
+                        showDateHeader = true;
+                      } else {
+                        final prevMsgTime = _parseToLocal(messages[index - 1]['createdAt'] ?? messages[index - 1]['timestamp'] ?? messages[index - 1]['created_at']);
+                        showDateHeader = !_isSameDay(msgTime, prevMsgTime);
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showDateHeader)
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: context.cardBg.withValues(alpha: 0.8),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: context.borderCol.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  _formatDateHeader(msgTime),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.txtSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          _buildMessageBubble(
+                            context: context,
+                            isMe: isMe,
+                            text: text,
+                            type: type,
+                            fileUrl: fileUrl,
+                            timeStr: timeStr,
+                            isRead: isRead,
+                            isDelivered: isDelivered,
+                          ),
+                        ],
                       );
                     },
                   ),
