@@ -165,20 +165,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  int _prevMsgCount = 0;
+
   @override
   Widget build(BuildContext context) {
-    ref.listen<ChatState>(chatProvider, (previous, next) {
-      final prevMsgs = previous?.messagesMap[widget.targetUserId] ?? [];
-      final nextMsgs = next.messagesMap[widget.targetUserId] ?? [];
-      if (nextMsgs.length > prevMsgs.length) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom();
-        });
-      }
-    });
-
     final chatState = ref.watch(chatProvider);
     final messages = chatState.messagesMap[widget.targetUserId] ?? [];
+    if (messages.length > _prevMsgCount) {
+      _prevMsgCount = messages.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
     final isOnline = chatState.onlineUserIds.contains(widget.targetUserId);
     final isTyping = chatState.typingMap[widget.targetUserId] == true;
 

@@ -28,8 +28,19 @@ import 'services/realtime_notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.init();
-  await RealtimeNotificationService.initNativeNotifications();
-  await RealtimeNotificationService.initFirebaseMessaging();
+
+  try {
+    await RealtimeNotificationService.initNativeNotifications();
+  } catch (e) {
+    debugPrint('Native notifications init warning: $e');
+  }
+
+  try {
+    await RealtimeNotificationService.initFirebaseMessaging();
+  } catch (e) {
+    debugPrint('Firebase messaging init warning: $e');
+  }
+
   runApp(
     const ProviderScope(
       child: AMSApp(),

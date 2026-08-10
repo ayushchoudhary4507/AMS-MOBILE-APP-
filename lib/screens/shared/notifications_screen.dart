@@ -48,10 +48,19 @@ class NotifNotifier extends StateNotifier<NotifState> {
     _startPolling();
   }
 
+  bool _isSyncing = false;
+
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) {
-      syncFromBackend();
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (_isSyncing) return;
+      _isSyncing = true;
+      try {
+        await syncFromBackend();
+      } catch (_) {
+      } finally {
+        _isSyncing = false;
+      }
     });
   }
 

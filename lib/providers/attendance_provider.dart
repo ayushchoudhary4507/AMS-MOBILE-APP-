@@ -84,18 +84,27 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     _startBackgroundSync();
   }
 
+  bool _isSyncing = false;
+
   void _startBackgroundSync() {
     _bgSyncTimer?.cancel();
-    _bgSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      final user = await StorageService.getUser();
-      if (user == null) return;
-      final role = (user['role'] ?? '').toString().toLowerCase();
-      if (role == 'admin') {
-        _syncAdminAttendanceFromWeb();
-        _syncAdminLeavesFromWeb();
-        _syncAdminLoginNotificationsFromWeb();
-      } else {
-        _syncEmployeeAttendanceFromWeb();
+    _bgSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (_isSyncing) return;
+      _isSyncing = true;
+      try {
+        final user = await StorageService.getUser();
+        if (user == null) return;
+        final role = (user['role'] ?? '').toString().toLowerCase();
+        if (role == 'admin') {
+          await _syncAdminAttendanceFromWeb();
+          await _syncAdminLeavesFromWeb();
+          await _syncAdminLoginNotificationsFromWeb();
+        } else {
+          await _syncEmployeeAttendanceFromWeb();
+        }
+      } catch (_) {
+      } finally {
+        _isSyncing = false;
       }
     });
   }
