@@ -211,7 +211,19 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
           if (!_isFirstAdminSync && !_adminTrackedCheckInIds.contains(uniqueCheckInKey)) {
             _adminTrackedCheckInIds.add(uniqueCheckInKey);
-            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+            DateTime checkInDt = DateTime.now();
+            try {
+              String str = checkInVal.toString().trim();
+              if (str.contains('T') &&
+                  !str.endsWith('Z') &&
+                  !str.substring(str.indexOf('T')).contains('+') &&
+                  !str.substring(str.indexOf('T')).contains('-')) {
+                str += 'Z';
+              }
+              checkInDt = DateTime.parse(str).toLocal();
+            } catch (_) {}
+
+            final timeStr = DateFormat('hh:mm a').format(checkInDt);
             if (_ref != null) {
               RealtimeNotificationService.dispatchNotification(
                 _ref,
@@ -219,6 +231,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
                 message: '$empName marked Check In at $timeStr.',
                 type: 'attendance_checkin',
                 category: NotificationCategory.attendanceCheckIn,
+                createdAt: checkInDt,
               );
             }
           } else {
@@ -229,7 +242,19 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         if (checkOutVal != null && checkOutVal.toString().isNotEmpty) {
           if (!_isFirstAdminSync && !_adminTrackedCheckOutIds.contains(uniqueCheckOutKey)) {
             _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
-            final timeStr = DateFormat('hh:mm a').format(DateTime.now());
+            DateTime checkOutDt = DateTime.now();
+            try {
+              String str = checkOutVal.toString().trim();
+              if (str.contains('T') &&
+                  !str.endsWith('Z') &&
+                  !str.substring(str.indexOf('T')).contains('+') &&
+                  !str.substring(str.indexOf('T')).contains('-')) {
+                str += 'Z';
+              }
+              checkOutDt = DateTime.parse(str).toLocal();
+            } catch (_) {}
+
+            final timeStr = DateFormat('hh:mm a').format(checkOutDt);
             if (_ref != null) {
               RealtimeNotificationService.dispatchNotification(
                 _ref,
@@ -237,6 +262,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
                 message: '$empName marked Check Out at $timeStr.',
                 type: 'attendance_checkout',
                 category: NotificationCategory.attendanceCheckOut,
+                createdAt: checkOutDt,
               );
             }
           } else {
