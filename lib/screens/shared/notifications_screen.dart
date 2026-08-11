@@ -128,12 +128,28 @@ class NotifNotifier extends StateNotifier<NotifState> {
                         ? NotificationCategory.leaveRequest
                         : NotificationCategory.attendanceCheckIn));
 
+            final rawTime = item['loginAt'] ?? item['createdAt'] ?? item['timestamp'] ?? item['loginTimestampUtc'];
+            DateTime? createdAt;
+            if (rawTime != null && rawTime.toString().isNotEmpty) {
+              try {
+                String str = rawTime.toString().trim();
+                if (str.contains('T') &&
+                    !str.endsWith('Z') &&
+                    !str.substring(str.indexOf('T')).contains('+') &&
+                    !str.substring(str.indexOf('T')).contains('-')) {
+                  str += 'Z';
+                }
+                createdAt = DateTime.parse(str);
+              } catch (_) {}
+            }
+
             final notifItem = RealtimeNotificationItem(
               id: (item['_id'] ?? item['id'])?.toString() ?? '',
               title: title,
               message: message,
               type: type,
               category: category,
+              createdAt: createdAt,
             );
             RealtimeNotificationService.showTopNotificationPopup(null, notifItem);
             RealtimeNotificationService.showNativeSystemNotification(notifItem);
@@ -450,7 +466,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final isRead = notif['read'] == true || notif['isRead'] == true;
     final type = (notif['type']?.toString() ?? '').toLowerCase();
     final createdAt =
-        notif['createdAt'] ?? notif['date'] ?? notif['timestamp'];
+        notif['loginAt'] ?? notif['createdAt'] ?? notif['date'] ?? notif['timestamp'] ?? notif['loginTimestampUtc'];
 
     final (iconData, iconColor, bgColor) = _typeStyle(type);
 

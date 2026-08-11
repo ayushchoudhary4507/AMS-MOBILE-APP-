@@ -179,6 +179,24 @@ class RealtimeNotificationService {
         final body = notification?.body ?? message.data['message'] ?? message.data['body'] ?? '';
         final type = (message.data['type'] ?? 'general').toString();
 
+        final rawTime = message.data['loginAt'] ??
+            message.data['createdAt'] ??
+            message.data['loginTimestampUtc'] ??
+            message.data['timestamp'];
+        DateTime? createdAt;
+        if (rawTime != null && rawTime.toString().isNotEmpty) {
+          try {
+            String str = rawTime.toString().trim();
+            if (str.contains('T') &&
+                !str.endsWith('Z') &&
+                !str.substring(str.indexOf('T')).contains('+') &&
+                !str.substring(str.indexOf('T')).contains('-')) {
+              str += 'Z';
+            }
+            createdAt = DateTime.parse(str);
+          } catch (_) {}
+        }
+
         final category = _parseCategory(type);
         final item = RealtimeNotificationItem(
           id: message.messageId ?? 'fcm_${DateTime.now().millisecondsSinceEpoch}',
@@ -186,6 +204,7 @@ class RealtimeNotificationService {
           message: body,
           type: type,
           category: category,
+          createdAt: createdAt,
         );
 
         showTopNotificationPopup(null, item);
@@ -292,6 +311,7 @@ class RealtimeNotificationService {
     String? referenceId,
     String? recipientRole,
     BuildContext? context,
+    DateTime? createdAt,
   }) {
     // Role-based safety filter: ONLY ADMIN receives check-in, check-out, login, leave request notifications
     try {
@@ -318,6 +338,7 @@ class RealtimeNotificationService {
       type: type,
       category: category,
       referenceId: referenceId,
+      createdAt: createdAt,
     );
 
     // 1. Broadcast item to stream

@@ -130,12 +130,28 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           if (!_isFirstLoginSync && !_adminTrackedLoginIds.contains(id)) {
             _adminTrackedLoginIds.add(id);
             if (_ref != null) {
+              final rawTime = item['loginAt'] ?? item['createdAt'] ?? item['timestamp'] ?? item['loginTimestampUtc'];
+              DateTime? createdAt;
+              if (rawTime != null && rawTime.toString().isNotEmpty) {
+                try {
+                  String str = rawTime.toString().trim();
+                  if (str.contains('T') &&
+                      !str.endsWith('Z') &&
+                      !str.substring(str.indexOf('T')).contains('+') &&
+                      !str.substring(str.indexOf('T')).contains('-')) {
+                    str += 'Z';
+                  }
+                  createdAt = DateTime.parse(str);
+                } catch (_) {}
+              }
+
               RealtimeNotificationService.dispatchNotification(
                 _ref,
                 title: title.isNotEmpty ? title : 'Employee Logged In',
                 message: message.isNotEmpty ? message : 'An employee has logged in.',
                 type: 'employee_login',
                 category: NotificationCategory.userLogin,
+                createdAt: createdAt,
               );
             }
           } else {
