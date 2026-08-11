@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/theme_provider.dart';
+import 'admin_dashboard.dart';
 
 class AdminAnalyticsScreen extends ConsumerWidget {
   const AdminAnalyticsScreen({super.key});
@@ -76,19 +77,24 @@ class AdminAnalyticsScreen extends ConsumerWidget {
   }
 
   Widget _buildAnalyticsContent(BuildContext context, WidgetRef ref, Map<String, dynamic> analytics, AttendanceState attendance) {
+    final employeeState = ref.watch(employeeProvider);
     final stats = attendance.stats ?? analytics;
 
-    final totalEmployees = _parseInt(
-      analytics['totalEmployees'] ?? analytics['totalEmployee'] ?? stats['totalEmployees'] ?? stats['total'] ?? 0
-    );
+    final totalEmployees = employeeState.employees.isNotEmpty
+        ? employeeState.employees.length
+        : _parseInt(stats['totalEmployees'] ?? stats['total'] ?? 0);
+
     final presentToday = _parseInt(
       analytics['presentToday'] ?? analytics['present'] ?? stats['presentCount'] ?? stats['present'] ?? 0
     );
     final absentToday = _parseInt(
       analytics['absentToday'] ?? analytics['absent'] ?? stats['absentCount'] ?? stats['absent'] ?? 0
     );
+
+    final activeTodayLeavesCount = attendance.allLeaves.where((l) => isLeaveActiveToday(l)).length;
+
     final onLeave = _parseInt(
-      analytics['onLeave'] ?? analytics['leaveCount'] ?? stats['leaveCount'] ?? stats['onLeave'] ?? attendance.allLeaves.length
+      analytics['onLeave'] ?? analytics['leaveCount'] ?? stats['leaveCount'] ?? stats['onLeave'] ?? activeTodayLeavesCount
     );
     final pendingLeaves = attendance.allLeaves.where((l) {
       if (l is! Map) return false;

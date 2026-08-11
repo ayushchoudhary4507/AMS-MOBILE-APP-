@@ -276,9 +276,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     }
 
     for (var leave in attendance.allLeaves) {
-      if (leave is! Map) continue;
-      final st = (leave['status'] ?? '').toString().toLowerCase();
-      if (st == 'approved') {
+      if (isLeaveActiveToday(leave)) {
         final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
         String? id, email, name;
         if (empObj is Map) {
@@ -544,11 +542,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               }
             }
 
-            // 2. Collect Leave records
+            // 2. Collect Leave records (Active Today only)
+            final addedLeaveEmpKeys = <String>{};
             for (var leave in attendance.allLeaves) {
-              if (leave is! Map) continue;
-              final st = (leave['status'] ?? '').toString().toLowerCase();
-              if (st == 'approved') {
+              if (isLeaveActiveToday(leave)) {
                 final (name, avatar) = _extractLeaveEmployeeInfo(leave, allEmployees);
                 final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
                 String? id, email;
@@ -562,13 +559,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
                 leaveKeys.addAll(keys);
 
-                leaveList.add({
-                  'name': name,
-                  'email': leave['email'] ?? leave['leaveType'] ?? 'Approved Leave',
-                  'avatar': avatar,
-                  'status': 'On Leave',
-                  'note': leave['leaveType'] ?? 'Approved Leave',
-                });
+                final empKey = (id ?? email ?? name)?.toString().toLowerCase() ?? 'emp';
+                if (!addedLeaveEmpKeys.contains(empKey)) {
+                  addedLeaveEmpKeys.add(empKey);
+                  leaveList.add({
+                    'name': name,
+                    'email': leave['email'] ?? leave['leaveType'] ?? 'Approved Leave',
+                    'avatar': avatar,
+                    'status': 'On Leave',
+                    'note': leave['leaveType'] ?? 'Approved Leave',
+                  });
+                }
               }
             }
 
@@ -3729,5 +3730,35 @@ class _BannerWavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Helper function to check if a leave application is APPROVED and active TODAY (Asia/Kolkata IST)
+bool isLeaveActiveToday(dynamic leave, [DateTime? targetDate]) {
+  if (leave is! Map) return false;
+
+  // 1. Must be APPROVED (case-insensitive)
+  final status = (leave['status'] ?? '').toString().trim().toLowerCase();
+  if (status != 'approved') return false;
+
+  // 2. Parse startDate & endDate
+  final rawStart = leave['startDate'] ?? leave['start_date'] ?? leave['from'];
+  final rawEnd = leave['endDate'] ?? leave['end_date'] ?? leave['to'];
+  if (rawStart == null || rawEnd == null) return false;
+
+  try {
+    final now = targetDate ?? DateTime.now();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+
+    final startDt = DateTime.parse(rawStart.toString().trim()).toLocal();
+    final endDt = DateTime.parse(rawEnd.toString().trim()).toLocal();
+
+    final startStr = DateFormat('yyyy-MM-dd').format(startDt);
+    final endStr = DateFormat('yyyy-MM-dd').format(endDt);
+
+    // Start date <= today AND end date >= today (inclusive)
+    return startStr.compareTo(todayStr) <= 0 && endStr.compareTo(todayStr) >= 0;
+  } catch (_) {
+    return false;
+  }
 }
 

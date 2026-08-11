@@ -489,10 +489,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   imageQuality: 70,
                 );
                 if (pickedFile != null) {
-                  final bytes = await pickedFile.readAsBytes();
-                  final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
                   setModalState(() {
-                    selectedBase64Image = base64String;
+                    selectedBase64Image = pickedFile.path;
                   });
                 }
               } catch (e) {

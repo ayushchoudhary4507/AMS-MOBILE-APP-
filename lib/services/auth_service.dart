@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import 'api_service.dart';
@@ -73,19 +74,39 @@ class AuthService {
     String? phone,
     String? profilePicture,
   }) async {
+    dynamic payload;
+
+    if (profilePicture != null && profilePicture.isNotEmpty) {
+      final cleanPath = profilePicture.replaceFirst('file://', '');
+      final file = File(cleanPath);
+      if (file.existsSync()) {
+        final formData = FormData.fromMap({
+          'name': name,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          'profileImage': await MultipartFile.fromFile(
+            file.path,
+            filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          ),
+        });
+        payload = formData;
+      }
+    }
+
+    payload ??= {
+      'name': name,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (profilePicture != null) ...{
+        'avatar': profilePicture,
+        'profilePicture': profilePicture,
+        'profileImage': profilePicture,
+        'profile_picture': profilePicture,
+        'image': profilePicture,
+      },
+    };
+
     final response = await ApiService.put(
       '${ApiConstants.settings}/profile',
-      data: {
-        'name': name,
-        'phone': ?phone,
-        if (profilePicture != null) ...{
-          'avatar': profilePicture,
-          'profilePicture': profilePicture,
-          'profileImage': profilePicture,
-          'profile_picture': profilePicture,
-          'image': profilePicture,
-        },
-      },
+      data: payload,
     );
     return ApiService.toMap(response.data);
   }
