@@ -511,7 +511,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       await StorageService.saveUser(currentMap);
       state = state.copyWith(user: currentMap);
+
+      // Save the avatar we just uploaded so refreshProfile() doesn't wipe it
+      final uploadedAvatar = profilePicture;
+
       await refreshProfile();
+
+      // If refreshProfile() lost our avatar (server didn't return it), restore it
+      if (uploadedAvatar != null && uploadedAvatar.isNotEmpty) {
+        final afterRefreshAvatar = extractAvatarUrl(state.user);
+        if (afterRefreshAvatar == null || afterRefreshAvatar.isEmpty) {
+          final restoredMap = Map<String, dynamic>.from(state.user ?? {});
+          restoredMap['avatar'] = uploadedAvatar;
+          restoredMap['profilePicture'] = uploadedAvatar;
+          restoredMap['profileImage'] = uploadedAvatar;
+          restoredMap['profile_picture'] = uploadedAvatar;
+          restoredMap['image'] = uploadedAvatar;
+          restoredMap['avatarUrl'] = uploadedAvatar;
+          restoredMap['photo'] = uploadedAvatar;
+          await StorageService.saveUser(restoredMap);
+          state = state.copyWith(user: restoredMap);
+        }
+      }
+
       return true;
     } catch (e) {
       // Offline / backend fallback — local state is already saved!
