@@ -459,7 +459,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final title = notif['title']?.toString() ??
         notif['subject']?.toString() ??
         'Notification';
-    final message = notif['message']?.toString() ??
+    final rawMessage = notif['message']?.toString() ??
         notif['body']?.toString() ??
         notif['description']?.toString() ??
         '';
@@ -467,6 +467,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final type = (notif['type']?.toString() ?? '').toLowerCase();
     final createdAt =
         notif['loginAt'] ?? notif['createdAt'] ?? notif['date'] ?? notif['timestamp'] ?? notif['loginTimestampUtc'];
+    final message = RealtimeNotificationService.sanitizeNotificationMessage(rawMessage, createdAt);
 
     final (iconData, iconColor, bgColor) = _typeStyle(type);
 

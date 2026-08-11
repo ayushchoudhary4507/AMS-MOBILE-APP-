@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../core/utils/storage_service.dart';
 import '../main.dart';
@@ -45,13 +46,15 @@ class RealtimeNotificationItem {
   RealtimeNotificationItem({
     required this.id,
     required this.title,
-    required this.message,
+    required String message,
     required this.type,
     required this.category,
     this.referenceId,
     DateTime? createdAt,
     this.read = false,
-  }) : createdAt = createdAt ?? DateTime.now();
+  })  : createdAt = createdAt ?? DateTime.now(),
+        message = RealtimeNotificationService.sanitizeNotificationMessage(
+            message, createdAt ?? DateTime.now());
 
   Map<String, dynamic> toMap() {
     return {
@@ -515,5 +518,46 @@ class RealtimeNotificationService {
     } else {
       context.go('/notifications');
     }
+  }
+
+  /// Replaces embedded UTC time patterns (e.g. 3:36:00 PM) with exact local IST time (e.g. 9:06 PM)
+  static String sanitizeNotificationMessage(String message, dynamic rawTimestamp) {
+    if (message.isEmpty) return message;
+
+    DateTime? dt;
+    if (rawTimestamp != null) {
+      try {
+        if (rawTimestamp is DateTime) {
+          dt = rawTimestamp.toLocal();
+        } else {
+          String str = rawTimestamp.toString().trim();
+          if (str.isNotEmpty) {
+            if (str.contains('T') &&
+                !str.endsWith('Z') &&
+                !str.substring(str.indexOf('T')).contains('+') &&
+                !str.substring(str.indexOf('T')).contains('-')) {
+              str += 'Z';
+            }
+            dt = DateTime.parse(str).toLocal();
+          }
+        }
+      } catch (_) {}
+    }
+    dt ??= DateTime.now();
+
+    final formattedTime = DateFormat('h:mm a').format(dt);
+    final timeRegex = RegExp(r'\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\b');
+
+    if (timeRegex.hasMatch(message)) {
+      return message.replaceAllMapped(timeRegex, (match) {
+        final matchedStr = match.group(0) ?? '';
+        if (matchedStr.contains(':')) {
+          return formattedTime;
+        }
+        return matchedStr;
+      });
+    }
+
+    return message;
   }
 }
