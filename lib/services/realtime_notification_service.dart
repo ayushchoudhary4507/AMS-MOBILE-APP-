@@ -521,8 +521,16 @@ class RealtimeNotificationService {
   }
 
   /// Replaces embedded UTC time patterns (e.g. 3:36:00 PM) with exact local IST time (e.g. 9:06 PM)
+  /// NOTE: Skips login notification messages — backend already embeds correct IST login time.
   static String sanitizeNotificationMessage(String message, dynamic rawTimestamp) {
     if (message.isEmpty) return message;
+
+    // Login notification messages already contain the correct IST-formatted time
+    // set by the backend (loginController.js) — do NOT overwrite them.
+    final lowerMsg = message.toLowerCase();
+    if (lowerMsg.contains('logged in at') || lowerMsg.contains('employee login')) {
+      return message;
+    }
 
     DateTime? dt;
     if (rawTimestamp != null) {
