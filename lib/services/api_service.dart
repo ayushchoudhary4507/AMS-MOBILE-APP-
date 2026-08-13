@@ -102,10 +102,7 @@ class ApiService {
   }
 
   // PUT request
-  static Future<Response> put(
-    String path, {
-    dynamic data,
-  }) async {
+  static Future<Response> put(String path, {dynamic data}) async {
     return await _dio.put(path, data: data);
   }
 
@@ -115,11 +112,7 @@ class ApiService {
   }
 
   // PATCH request
-  static Future<Response> patch(
-    String path, {
-    dynamic data,
-  }) async {
+  static Future<Response> patch(String path, {dynamic data}) async {
     return await _dio.patch(path, data: data);
   }
 }
-

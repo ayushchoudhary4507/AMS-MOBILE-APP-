@@ -56,9 +56,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           child: Column(
             children: [
               _buildHeader(name, today, auth),
-              Expanded(
-                child: _buildBody(),
-              ),
+              Expanded(child: _buildBody()),
             ],
           ),
         ),
@@ -249,43 +247,19 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
 
     final stats = attendance.stats;
 
-    final presentDays = stats?['presentDays']?.toString() ??
+    final presentDays =
+        stats?['presentDays']?.toString() ??
         stats?['presentCount']?.toString() ??
         stats?['present']?.toString() ??
         '0';
-    final absentDaysRaw = stats?['absentDays']?.toString() ??
-        stats?['absentCount']?.toString() ??
-        stats?['absent']?.toString() ??
-        '0';
-
-    int calAbsentCount = 0;
-    if (absentDaysRaw == '0') {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      final presentDates = <String>{};
-      for (var item in attendance.calendarData) {
-        if (item is Map) {
-          final st = (item['status'] ?? '').toString().toLowerCase();
-          if (!st.contains('absent')) {
-            String rawD = (item['date'] ?? item['createdAt'])?.toString() ?? '';
-            if (rawD.contains('T')) rawD = rawD.split('T').first;
-            if (rawD.length >= 10) presentDates.add(rawD.substring(0, 10));
-          }
-        }
-      }
-      for (var d = startOfMonth; d.isBefore(today); d = d.add(const Duration(days: 1))) {
-        if (d.weekday != DateTime.sunday) {
-          final dStr = DateFormat('yyyy-MM-dd').format(d);
-          if (!presentDates.contains(dStr)) calAbsentCount++;
-        }
-      }
-    }
-
-    final absentDays = (absentDaysRaw != '0')
-        ? absentDaysRaw
-        : (calAbsentCount > 0 ? calAbsentCount.toString() : '0');
-    final leaveDays = stats?['leaveDays']?.toString() ??
+    final absentListComputed = _computeEmployeeRecords(
+      calendar: attendance.calendarData,
+      history: attendance.history,
+      filter: 'absent',
+    );
+    final absentDays = absentListComputed.length.toString();
+    final leaveDays =
+        stats?['leaveDays']?.toString() ??
         stats?['leaveCount']?.toString() ??
         stats?['leave']?.toString() ??
         attendance.myLeaves.length.toString();
@@ -364,7 +338,16 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   iconColor: const Color(0xFF10B981),
                   bgColor: const Color(0xFFDCFCE7),
                   sparklineColor: const Color(0xFF10B981),
-                  sparklinePoints: const [0.2, 0.4, 0.3, 0.6, 0.5, 0.8, 0.7, 0.9],
+                  sparklinePoints: const [
+                    0.2,
+                    0.4,
+                    0.3,
+                    0.6,
+                    0.5,
+                    0.8,
+                    0.7,
+                    0.9,
+                  ],
                   onTap: () => setState(() => _selectedIndex = 1),
                 ),
                 const SizedBox(width: 12),
@@ -376,7 +359,16 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   iconColor: const Color(0xFFEF4444),
                   bgColor: const Color(0xFFFEE2E2),
                   sparklineColor: const Color(0xFFEF4444),
-                  sparklinePoints: const [0.3, 0.5, 0.4, 0.7, 0.4, 0.6, 0.5, 0.4],
+                  sparklinePoints: const [
+                    0.3,
+                    0.5,
+                    0.4,
+                    0.7,
+                    0.4,
+                    0.6,
+                    0.5,
+                    0.4,
+                  ],
                   onTap: () => _showMyAbsentModal(context, ref),
                 ),
                 const SizedBox(width: 12),
@@ -388,7 +380,16 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   iconColor: const Color(0xFF8B5CF6),
                   bgColor: const Color(0xFFEDE9FE),
                   sparklineColor: const Color(0xFF8B5CF6),
-                  sparklinePoints: const [0.3, 0.6, 0.5, 0.8, 0.7, 0.9, 0.8, 1.0],
+                  sparklinePoints: const [
+                    0.3,
+                    0.6,
+                    0.5,
+                    0.8,
+                    0.7,
+                    0.9,
+                    0.8,
+                    1.0,
+                  ],
                   onTap: () => context.push('/employee/projects'),
                 ),
                 const SizedBox(width: 12),
@@ -400,16 +401,25 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   iconColor: const Color(0xFF3B82F6),
                   bgColor: const Color(0xFFDBEAFE),
                   sparklineColor: const Color(0xFF3B82F6),
-                  sparklinePoints: const [0.3, 0.4, 0.6, 0.5, 0.7, 0.6, 0.8, 0.7],
+                  sparklinePoints: const [
+                    0.3,
+                    0.4,
+                    0.6,
+                    0.5,
+                    0.7,
+                    0.6,
+                    0.8,
+                    0.7,
+                  ],
                   onTap: () => setState(() => _selectedIndex = 2),
                 ),
               ],
             ),
           ).animate().slideX(
-                begin: 0.1,
-                end: 0,
-                duration: const Duration(milliseconds: 350),
-              ),
+            begin: 0.1,
+            end: 0,
+            duration: const Duration(milliseconds: 350),
+          ),
 
           const SizedBox(height: 24),
 
@@ -463,16 +473,14 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     );
   }
 
-
-
   // --- Hero Welcome Banner ---
   Widget _buildWelcomeBanner({required String firstName}) {
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Good Morning! 👋'
         : hour < 17
-            ? 'Good Afternoon! 👋'
-            : 'Good Evening! 👋';
+        ? 'Good Afternoon! 👋'
+        : 'Good Evening! 👋';
 
     final authState = ref.watch(authProvider);
     final user = authState.user;
@@ -484,11 +492,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF4338CA),
-            Color(0xFF4F46E5),
-            Color(0xFF6366F1),
-          ],
+          colors: [Color(0xFF4338CA), Color(0xFF4F46E5), Color(0xFF6366F1)],
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
@@ -598,10 +602,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF22C55E),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2.5,
-                        ),
+                        border: Border.all(color: Colors.white, width: 2.5),
                       ),
                     ),
                   ),
@@ -611,7 +612,10 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           ),
         ],
       ),
-    ).animate().scale(duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+    ).animate().scale(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
   }
 
   // --- Today's Attendance Card Component ---
@@ -623,32 +627,30 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     final checkOutTime = todayModel?.formattedCheckOutTime ?? '--:-- --';
 
     // Status config
-    final statusLabel = todayModel?.displayStatus ??
+    final statusLabel =
+        todayModel?.displayStatus ??
         (isCheckedOut
             ? 'Done ✓'
             : isCheckedIn
-                ? 'Checked In'
-                : 'Not Marked');
+            ? 'Checked In'
+            : 'Not Marked');
     final statusBgColor = isCheckedOut
         ? const Color(0xFFDCFCE7)
         : isCheckedIn
-            ? const Color(0xFFFEF3C7)
-            : const Color(0xFFDCFCE7); // Matches green pill in design
+        ? const Color(0xFFFEF3C7)
+        : const Color(0xFFDCFCE7); // Matches green pill in design
     final statusTextColor = isCheckedOut
         ? const Color(0xFF16A34A)
         : isCheckedIn
-            ? const Color(0xFFD97706)
-            : const Color(0xFF16A34A);
+        ? const Color(0xFFD97706)
+        : const Color(0xFF16A34A);
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: context.cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.borderCol,
-          width: 1,
-        ),
+        border: Border.all(color: context.borderCol, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: context.isDark ? 0.2 : 0.04),
@@ -687,7 +689,10 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: statusBgColor,
                   borderRadius: BorderRadius.circular(20),
@@ -763,11 +768,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                     ],
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 38,
-                  color: context.borderCol,
-                ),
+                Container(width: 1, height: 38, color: context.borderCol),
                 Expanded(
                   child: Column(
                     children: [
@@ -838,7 +839,9 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                           final err = ref.read(attendanceProvider).error;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(err ?? 'Failed to mark attendance.'),
+                              content: Text(
+                                err ?? 'Failed to mark attendance.',
+                              ),
                               backgroundColor: AppColors.accentRed,
                               behavior: SnackBarBehavior.floating,
                             ),
@@ -850,8 +853,15 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.login_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                 label: Text(
                   attendance.isLoading ? 'Marking...' : 'Mark Check In',
                   style: const TextStyle(
@@ -900,7 +910,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                           );
                         }
                       },
-                icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 label: const Text(
                   'Mark Check Out',
                   style: TextStyle(
@@ -936,7 +950,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Attendance Completed for Today',
@@ -975,13 +993,12 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         decoration: BoxDecoration(
           color: context.cardBg,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: context.borderCol,
-            width: 1,
-          ),
+          border: Border.all(color: context.borderCol, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.03),
+              color: Colors.black.withValues(
+                alpha: context.isDark ? 0.15 : 0.03,
+              ),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1061,13 +1078,12 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
         decoration: BoxDecoration(
           color: context.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: context.borderCol,
-            width: 1,
-          ),
+          border: Border.all(color: context.borderCol, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
+              color: Colors.black.withValues(
+                alpha: context.isDark ? 0.1 : 0.03,
+              ),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1114,7 +1130,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   }
 
   // --- Employee Drawer ---
-  Widget _buildEmployeeDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
+  Widget _buildEmployeeDrawer(
+    BuildContext context,
+    WidgetRef ref,
+    AuthState auth,
+  ) {
     final userName = auth.user?['name'] ?? 'Employee User';
     final userEmail = auth.user?['email'] ?? 'employee@ams.com';
 
@@ -1125,7 +1145,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           UserAccountsDrawerHeader(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF4338CA)],
+                colors: [
+                  Color(0xFF1E1B4B),
+                  Color(0xFF312E81),
+                  Color(0xFF4338CA),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -1135,20 +1159,30 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 Expanded(
                   child: Text(
                     userName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6366F1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
                     'EMPLOYEE',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -1165,26 +1199,51 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               padding: EdgeInsets.zero,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.home_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Dashboard', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.home_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 0);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.chat_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Messages',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   trailing: ref.watch(chatProvider).totalUnread > 0
                       ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF6366F1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${ref.watch(chatProvider).totalUnread}',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         )
                       : null,
@@ -1194,48 +1253,102 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.calendar_today_rounded, color: Color(0xFF10B981)),
-                  title: Text('Attendance Calendar', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: Color(0xFF10B981),
+                  ),
+                  title: Text(
+                    'Attendance Calendar',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 1);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.event_note_rounded, color: Color(0xFFF59E0B)),
-                  title: Text('Apply Leave', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.event_note_rounded,
+                    color: Color(0xFFF59E0B),
+                  ),
+                  title: Text(
+                    'Apply Leave',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 2);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.bar_chart_rounded, color: Color(0xFF3B82F6)),
-                  title: Text('Reports & Analytics', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: Color(0xFF3B82F6),
+                  ),
+                  title: Text(
+                    'Reports & Analytics',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 3);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.payments_rounded, color: Color(0xFF06B6D4)),
-                  title: Text('My Salary & Payroll', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.payments_rounded,
+                    color: Color(0xFF06B6D4),
+                  ),
+                  title: Text(
+                    'My Salary & Payroll',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/salary');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.assignment_rounded, color: Color(0xFF8B5CF6)),
-                  title: Text('My Tasks', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.assignment_rounded,
+                    color: Color(0xFF8B5CF6),
+                  ),
+                  title: Text(
+                    'My Tasks',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/tasks');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.folder_special_rounded, color: Color(0xFFEC4899)),
-                  title: Text('Projects', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.folder_special_rounded,
+                    color: Color(0xFFEC4899),
+                  ),
+                  title: Text(
+                    'Projects',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/projects');
@@ -1243,24 +1356,45 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 ),
                 Divider(color: context.dividerCol),
                 ListTile(
-                  leading: const Icon(Icons.person_rounded, color: Color(0xFF64748B)),
-                  title: Text('Account Settings', style: TextStyle(color: context.txtPrimary)),
+                  leading: const Icon(
+                    Icons.person_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: Text(
+                    'Account Settings',
+                    style: TextStyle(color: context.txtPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.settings_rounded, color: Color(0xFF64748B)),
-                  title: Text('Settings', style: TextStyle(color: context.txtPrimary)),
+                  leading: const Icon(
+                    Icons.settings_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: Text(
+                    'Settings',
+                    style: TextStyle(color: context.txtPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                  title: const Text('Logout', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                  leading: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFEF4444),
+                  ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Color(0xFFEF4444),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   onTap: () async {
                     final router = GoRouter.of(context);
                     Navigator.pop(context);
@@ -1395,10 +1529,7 @@ class _SparklinePainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          color.withValues(alpha: 0.25),
-          color.withValues(alpha: 0.0),
-        ],
+        colors: [color.withValues(alpha: 0.25), color.withValues(alpha: 0.0)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
@@ -1436,10 +1567,7 @@ class _ReportsTab extends ConsumerWidget {
           const SizedBox(height: 6),
           Text(
             'Monthly performance and attendance summary',
-            style: TextStyle(
-              fontSize: 13,
-              color: context.txtMuted,
-            ),
+            style: TextStyle(fontSize: 13, color: context.txtMuted),
           ),
           const SizedBox(height: 20),
           Container(
@@ -1454,7 +1582,10 @@ class _ReportsTab extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.analytics_rounded, color: Color(0xFF4F46E5)),
+                    const Icon(
+                      Icons.analytics_rounded,
+                      color: Color(0xFF4F46E5),
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       'Monthly Attendance Summary',
@@ -1467,13 +1598,33 @@ class _ReportsTab extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                _reportRow(context, 'Present Days', stats?['presentDays']?.toString() ?? '0', const Color(0xFF10B981)),
+                _reportRow(
+                  context,
+                  'Present Days',
+                  stats?['presentDays']?.toString() ?? '0',
+                  const Color(0xFF10B981),
+                ),
                 const SizedBox(height: 10),
-                _reportRow(context, 'Absent Days', stats?['absentDays']?.toString() ?? '0', const Color(0xFFEF4444)),
+                _reportRow(
+                  context,
+                  'Absent Days',
+                  stats?['absentDays']?.toString() ?? '0',
+                  const Color(0xFFEF4444),
+                ),
                 const SizedBox(height: 10),
-                _reportRow(context, 'Late Days', stats?['lateDays']?.toString() ?? '0', const Color(0xFFF59E0B)),
+                _reportRow(
+                  context,
+                  'Late Days',
+                  stats?['lateDays']?.toString() ?? '0',
+                  const Color(0xFFF59E0B),
+                ),
                 const SizedBox(height: 10),
-                _reportRow(context, 'Approved Leaves', attendance.myLeaves.length.toString(), const Color(0xFF3B82F6)),
+                _reportRow(
+                  context,
+                  'Approved Leaves',
+                  attendance.myLeaves.length.toString(),
+                  const Color(0xFF3B82F6),
+                ),
               ],
             ),
           ),
@@ -1482,7 +1633,12 @@ class _ReportsTab extends ConsumerWidget {
     );
   }
 
-  Widget _reportRow(BuildContext context, String label, String value, Color color) {
+  Widget _reportRow(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1494,19 +1650,30 @@ class _ReportsTab extends ConsumerWidget {
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: context.txtSecondary, fontSize: 14)),
+            Text(
+              label,
+              style: TextStyle(color: context.txtSecondary, fontSize: 14),
+            ),
           ],
         ),
         Text(
           value,
-          style: TextStyle(color: context.txtPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: context.txtPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
   }
 }
 
-Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radius) {
+Widget _buildAvatarWidget(
+  dynamic avatarOrUser,
+  String fallbackText,
+  double radius,
+) {
   return AppAvatar(
     avatarOrUser: avatarOrUser,
     fallbackText: fallbackText,
@@ -1554,10 +1721,7 @@ class _SalaryTab extends ConsumerWidget {
           const SizedBox(height: 6),
           Text(
             'Pay slips, earnings and deduction details',
-            style: TextStyle(
-              fontSize: 13,
-              color: context.txtMuted,
-            ),
+            style: TextStyle(fontSize: 13, color: context.txtMuted),
           ),
           const SizedBox(height: 20),
           salaryAsync.when(
@@ -1575,36 +1739,43 @@ class _SalaryTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildSalaryHero(BuildContext context, Map<String, dynamic>? salary, AuthState auth, WidgetRef ref) {
+  Widget _buildSalaryHero(
+    BuildContext context,
+    Map<String, dynamic>? salary,
+    AuthState auth,
+    WidgetRef ref,
+  ) {
     final user = auth.user;
-    final userSalaryMap = user?['salary'] is Map ? Map<String, dynamic>.from(user!['salary']) : null;
+    final userSalaryMap = user?['salary'] is Map
+        ? Map<String, dynamic>.from(user!['salary'])
+        : null;
     final activeData = salary ?? userSalaryMap;
 
     final basicSalary = _numVal(
       activeData?['basicSalary'] ??
-      activeData?['basic'] ??
-      activeData?['base'] ??
-      activeData?['amount'] ??
-      user?['basicSalary'] ??
-      user?['salary']
+          activeData?['basic'] ??
+          activeData?['base'] ??
+          activeData?['amount'] ??
+          user?['basicSalary'] ??
+          user?['salary'],
     );
     final allowances = _numVal(
       activeData?['allowances'] ??
-      activeData?['totalAllowances'] ??
-      activeData?['bonus'] ??
-      user?['allowances']
+          activeData?['totalAllowances'] ??
+          activeData?['bonus'] ??
+          user?['allowances'],
     );
     final deductions = _numVal(
       activeData?['deductions'] ??
-      activeData?['totalDeductions'] ??
-      activeData?['tax'] ??
-      user?['deductions']
+          activeData?['totalDeductions'] ??
+          activeData?['tax'] ??
+          user?['deductions'],
     );
     final netPay = _numVal(
       activeData?['netSalary'] ??
-      activeData?['netPay'] ??
-      activeData?['net'] ??
-      (basicSalary > 0 ? (basicSalary + allowances - deductions) : 0)
+          activeData?['netPay'] ??
+          activeData?['net'] ??
+          (basicSalary > 0 ? (basicSalary + allowances - deductions) : 0),
     );
 
     if (basicSalary == 0 && netPay == 0) {
@@ -1619,7 +1790,11 @@ class _SalaryTab extends ConsumerWidget {
                   color: const Color(0xFF6366F1).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.payments_outlined, size: 48, color: Color(0xFF6366F1)),
+                child: const Icon(
+                  Icons.payments_outlined,
+                  size: 48,
+                  color: Color(0xFF6366F1),
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -1641,8 +1816,13 @@ class _SalaryTab extends ConsumerWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6366F1),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
                 onPressed: () => ref.refresh(mySalaryProvider),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
@@ -1654,13 +1834,15 @@ class _SalaryTab extends ConsumerWidget {
       );
     }
 
-    final month = activeData?['month']?.toString() ??
+    final month =
+        activeData?['month']?.toString() ??
         activeData?['salaryMonth']?.toString() ??
         DateFormat('MMMM yyyy').format(DateTime.now());
     final status = activeData?['status']?.toString() ?? 'Processed';
 
     final empName = user?['name'] ?? 'Employee';
-    final designation = user?['designation'] ?? user?['position'] ?? 'Software Engineer';
+    final designation =
+        user?['designation'] ?? user?['position'] ?? 'Software Engineer';
 
     return Column(
       children: [
@@ -1712,7 +1894,10 @@ class _SalaryTab extends ConsumerWidget {
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(20),
@@ -1786,13 +1971,34 @@ class _SalaryTab extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              _itemRow(context, 'Base Salary', _fmtCurrency(basicSalary), const Color(0xFF10B981)),
+              _itemRow(
+                context,
+                'Base Salary',
+                _fmtCurrency(basicSalary),
+                const Color(0xFF10B981),
+              ),
               const SizedBox(height: 10),
-              _itemRow(context, 'Allowances & Bonuses', '+ ${_fmtCurrency(allowances)}', const Color(0xFF3B82F6)),
+              _itemRow(
+                context,
+                'Allowances & Bonuses',
+                '+ ${_fmtCurrency(allowances)}',
+                const Color(0xFF3B82F6),
+              ),
               const SizedBox(height: 10),
-              _itemRow(context, 'Deductions (Taxes & PF)', '- ${_fmtCurrency(deductions)}', const Color(0xFFEF4444)),
+              _itemRow(
+                context,
+                'Deductions (Taxes & PF)',
+                '- ${_fmtCurrency(deductions)}',
+                const Color(0xFFEF4444),
+              ),
               const Divider(height: 24),
-              _itemRow(context, 'Total Take Home', _fmtCurrency(netPay), const Color(0xFF4F46E5), isBold: true),
+              _itemRow(
+                context,
+                'Total Take Home',
+                _fmtCurrency(netPay),
+                const Color(0xFF4F46E5),
+                isBold: true,
+              ),
             ],
           ),
         ),
@@ -1800,7 +2006,13 @@ class _SalaryTab extends ConsumerWidget {
     );
   }
 
-  Widget _itemRow(BuildContext context, String label, String value, Color color, {bool isBold = false}) {
+  Widget _itemRow(
+    BuildContext context,
+    String label,
+    String value,
+    Color color, {
+    bool isBold = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1843,16 +2055,14 @@ class _AttendanceCalendarTabState
   }
 
   void _loadCalendar() {
-    ref.read(attendanceProvider.notifier).loadCalendar(
-          month: _currentMonth.month,
-          year: _currentMonth.year,
-        );
+    ref
+        .read(attendanceProvider.notifier)
+        .loadCalendar(month: _currentMonth.month, year: _currentMonth.year);
   }
 
   void _changeMonth(int delta) {
     setState(() {
-      _currentMonth =
-          DateTime(_currentMonth.year, _currentMonth.month + delta);
+      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + delta);
     });
     _loadCalendar();
   }
@@ -1933,8 +2143,11 @@ class _AttendanceCalendarTabState
             children: [
               IconButton(
                 onPressed: () => _changeMonth(-1),
-                icon: const Icon(Icons.chevron_left_rounded,
-                    color: AppColors.primary, size: 28),
+                icon: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
               ),
               Text(
                 monthLabel,
@@ -1945,13 +2158,15 @@ class _AttendanceCalendarTabState
                 ),
               ),
               IconButton(
-                onPressed: _currentMonth.month == DateTime.now().month &&
+                onPressed:
+                    _currentMonth.month == DateTime.now().month &&
                         _currentMonth.year == DateTime.now().year
                     ? null
                     : () => _changeMonth(1),
                 icon: Icon(
                   Icons.chevron_right_rounded,
-                  color: _currentMonth.month == DateTime.now().month &&
+                  color:
+                      _currentMonth.month == DateTime.now().month &&
                           _currentMonth.year == DateTime.now().year
                       ? AppColors.textMuted.withValues(alpha: 0.3)
                       : AppColors.primary,
@@ -1966,8 +2181,7 @@ class _AttendanceCalendarTabState
           // Summary Stats Row
           Row(
             children: [
-              _summaryChip(
-                  'Present', presentCount, AppColors.statusPresent),
+              _summaryChip('Present', presentCount, AppColors.statusPresent),
               const SizedBox(width: 10),
               _summaryChip('Absent', absentCount, AppColors.statusAbsent),
               const SizedBox(width: 10),
@@ -1990,21 +2204,21 @@ class _AttendanceCalendarTabState
               child: Column(
                 children: [
                   const SizedBox(height: 40),
-                  Icon(Icons.calendar_month_outlined,
-                      size: 60,
-                      color: AppColors.textMuted.withValues(alpha: 0.4)),
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    size: 60,
+                    color: AppColors.textMuted.withValues(alpha: 0.4),
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'No attendance records found',
-                    style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 15),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 15),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Records will appear here once\nattendance is marked.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -2030,14 +2244,16 @@ class _AttendanceCalendarTabState
             Text(
               count.toString(),
               style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: color),
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
             ),
             const SizedBox(height: 2),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textMuted)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
           ],
         ),
       ),
@@ -2049,7 +2265,8 @@ class _AttendanceCalendarTabState
     final color = _statusColor(status);
     final icon = _statusIcon(status);
     final dateLabel = _formatAttendanceDate(
-        record['date'] ?? record['attendanceDate'] ?? record['createdAt']);
+      record['date'] ?? record['attendanceDate'] ?? record['createdAt'],
+    );
     final checkIn = record['checkIn'] ?? record['checkInTime'];
     final checkOut = record['checkOut'] ?? record['checkOutTime'];
 
@@ -2090,20 +2307,24 @@ class _AttendanceCalendarTabState
                   Text(
                     '${checkIn != null ? "In: ${_formatTime(checkIn)}" : ""}${checkOut != null ? "  Out: ${_formatTime(checkOut)}" : ""}',
                     style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
                   )
                 else
                   Text(
                     status?.toUpperCase() ?? 'N/A',
                     style: TextStyle(
-                        color: color, fontSize: 12, fontWeight: FontWeight.w500),
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
@@ -2111,9 +2332,10 @@ class _AttendanceCalendarTabState
             child: Text(
               (status ?? 'N/A').toUpperCase(),
               style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700),
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -2135,7 +2357,8 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
   void initState() {
     super.initState();
     Future.microtask(
-        () => ref.read(attendanceProvider.notifier).loadMyLeaves());
+      () => ref.read(attendanceProvider.notifier).loadMyLeaves(),
+    );
   }
 
   @override
@@ -2143,8 +2366,20 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
     final attendance = ref.watch(attendanceProvider);
     final allMyLeaves = attendance.myLeaves;
 
-    final approvedCount = allMyLeaves.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'approved')).length;
-    final pendingCount = allMyLeaves.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'pending')).length;
+    final approvedCount = allMyLeaves
+        .where(
+          (l) =>
+              (l is Map &&
+              (l['status'] ?? '').toString().toLowerCase() == 'approved'),
+        )
+        .length;
+    final pendingCount = allMyLeaves
+        .where(
+          (l) =>
+              (l is Map &&
+              (l['status'] ?? '').toString().toLowerCase() == 'pending'),
+        )
+        .length;
     final rejectedCount = allMyLeaves.where((l) {
       if (l is! Map) return false;
       final st = (l['status'] ?? '').toString().toLowerCase();
@@ -2156,15 +2391,32 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
       final st = (l['status'] ?? '').toString().toLowerCase();
       if (_leaveFilter == 'Approved') return st == 'approved';
       if (_leaveFilter == 'Pending') return st == 'pending';
-      if (_leaveFilter == 'Rejected') return st == 'rejected' || st == 'cancelled';
+      if (_leaveFilter == 'Rejected')
+        return st == 'rejected' || st == 'cancelled';
       return true;
     }).toList();
 
     final filterOptions = [
-      {'label': 'All', 'count': allMyLeaves.length, 'color': const Color(0xFF6366F1)},
-      {'label': 'Approved', 'count': approvedCount, 'color': const Color(0xFF10B981)},
-      {'label': 'Pending', 'count': pendingCount, 'color': const Color(0xFFF59E0B)},
-      {'label': 'Rejected', 'count': rejectedCount, 'color': const Color(0xFFEF4444)},
+      {
+        'label': 'All',
+        'count': allMyLeaves.length,
+        'color': const Color(0xFF6366F1),
+      },
+      {
+        'label': 'Approved',
+        'count': approvedCount,
+        'color': const Color(0xFF10B981),
+      },
+      {
+        'label': 'Pending',
+        'count': pendingCount,
+        'color': const Color(0xFFF59E0B),
+      },
+      {
+        'label': 'Rejected',
+        'count': rejectedCount,
+        'color': const Color(0xFFEF4444),
+      },
     ];
 
     return SingleChildScrollView(
@@ -2177,9 +2429,10 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
               Text(
                 'Leave Status',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: context.txtPrimary),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: context.txtPrimary,
+                ),
               ),
               const Spacer(),
               ElevatedButton.icon(
@@ -2189,10 +2442,13 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -2214,7 +2470,10 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                     onTap: () => setState(() => _leaveFilter = label),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: isSel ? color : context.cardBg,
                         borderRadius: BorderRadius.circular(12),
@@ -2229,7 +2488,9 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                             label,
                             style: TextStyle(
                               color: isSel ? Colors.white : context.txtPrimary,
-                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                              fontWeight: isSel
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                               fontSize: 12,
                             ),
                           ),
@@ -2237,7 +2498,9 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                           Text(
                             '($count)',
                             style: TextStyle(
-                              color: isSel ? Colors.white.withValues(alpha: 0.9) : color,
+                              color: isSel
+                                  ? Colors.white.withValues(alpha: 0.9)
+                                  : color,
                               fontWeight: FontWeight.w700,
                               fontSize: 11,
                             ),
@@ -2252,21 +2515,26 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
           ),
           const SizedBox(height: 16),
           if (attendance.isLoading)
-            const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           else if (filtered.isEmpty)
             Center(
               child: Column(
                 children: [
                   const SizedBox(height: 40),
-                  Icon(Icons.beach_access,
-                      size: 60, color: AppColors.textMuted.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.beach_access,
+                    size: 60,
+                    color: AppColors.textMuted.withValues(alpha: 0.5),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     _leaveFilter == 'Approved'
                         ? 'No approved leaves found'
                         : _leaveFilter == 'Pending'
-                            ? 'No pending leaves found'
-                            : 'No leaves found',
+                        ? 'No pending leaves found'
+                        : 'No leaves found',
                     style: const TextStyle(color: AppColors.textMuted),
                   ),
                 ],
@@ -2284,8 +2552,8 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
     final Color statusColor = status == 'Approved'
         ? AppColors.statusPresent
         : status == 'Rejected'
-            ? AppColors.statusAbsent
-            : AppColors.statusPending;
+        ? AppColors.statusAbsent
+        : AppColors.statusPending;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -2303,14 +2571,17 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
               Text(
                 leave['leaveType'] ?? 'Leave',
                 style: TextStyle(
-                    color: context.txtPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15),
+                  color: context.txtPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
               ),
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -2318,9 +2589,10 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                 child: Text(
                   status,
                   style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -2328,16 +2600,20 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
           const SizedBox(height: 8),
           Text(
             '${_formatDate(leave['startDate'])} → ${_formatDate(leave['endDate'])}',
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
           ),
           if (leave['reason'] != null && leave['reason'].toString().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 leave['reason'],
-                style:
-                    const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                ),
               ),
             ),
         ],
@@ -2374,16 +2650,23 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
             border: Border.all(color: context.borderCol),
           ),
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            20,
+            20,
+            20,
+            MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Apply Leave',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: context.txtPrimary)),
+              Text(
+                'Apply Leave',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: context.txtPrimary,
+                ),
+              ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 initialValue: leaveTypeController.value,
@@ -2398,16 +2681,16 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                     borderSide: BorderSide(color: context.borderCol),
                   ),
                 ),
-                items: [
-                  'Sick Leave',
-                  'Casual Leave',
-                  'Paid Leave',
-                  'Emergency Leave',
-                  'Unpaid Leave'
-                ]
-                    .map((e) =>
-                        DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
+                items:
+                    [
+                          'Sick Leave',
+                          'Casual Leave',
+                          'Paid Leave',
+                          'Emergency Leave',
+                          'Unpaid Leave',
+                        ]
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
                 onChanged: (v) {
                   if (v != null) leaveTypeController.value = v;
                 },
@@ -2421,17 +2704,21 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                         final d = await showDatePicker(
                           context: ctx,
                           initialDate: DateTime.now(),
-                          firstDate: DateTime.now()
-                              .subtract(const Duration(days: 30)),
-                          lastDate: DateTime.now().add(const Duration(days: 90)),
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 30),
+                          ),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 90),
+                          ),
                         );
                         if (d != null) setModalState(() => startDate = d);
                       },
                       child: _datePickerField(
-                          'Start Date',
-                          startDate != null
-                              ? DateFormat('dd MMM').format(startDate!)
-                              : null),
+                        'Start Date',
+                        startDate != null
+                            ? DateFormat('dd MMM').format(startDate!)
+                            : null,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -2442,15 +2729,18 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                           context: ctx,
                           initialDate: startDate ?? DateTime.now(),
                           firstDate: startDate ?? DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 90)),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 90),
+                          ),
                         );
                         if (d != null) setModalState(() => endDate = d);
                       },
                       child: _datePickerField(
-                          'End Date',
-                          endDate != null
-                              ? DateFormat('dd MMM').format(endDate!)
-                              : null),
+                        'End Date',
+                        endDate != null
+                            ? DateFormat('dd MMM').format(endDate!)
+                            : null,
+                      ),
                     ),
                   ),
                 ],
@@ -2494,8 +2784,9 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Leave applied successfully!'),
-                            backgroundColor: AppColors.statusPresent),
+                          content: Text('Leave applied successfully!'),
+                          backgroundColor: AppColors.statusPresent,
+                        ),
                       );
                     }
                   },
@@ -2504,10 +2795,13 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Submit',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Submit',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -2527,21 +2821,22 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
       ),
       child: Row(
         children: [
-          Icon(Icons.calendar_today,
-              color: context.txtMuted, size: 16),
+          Icon(Icons.calendar_today, color: context.txtMuted, size: 16),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: TextStyle(
-                      color: context.txtMuted, fontSize: 11)),
+              Text(
+                label,
+                style: TextStyle(color: context.txtMuted, fontSize: 11),
+              ),
               Text(
                 value ?? 'Select',
                 style: TextStyle(
-                    color: context.txtPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500),
+                  color: context.txtPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -2563,13 +2858,19 @@ class CustomLogoutButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.logout, color: AppColors.accentRed),
-        label: const Text('Logout',
-            style:
-                TextStyle(color: AppColors.accentRed, fontWeight: FontWeight.w600)),
+        label: const Text(
+          'Logout',
+          style: TextStyle(
+            color: AppColors.accentRed,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14),
           side: const BorderSide(color: AppColors.accentRed),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
@@ -2580,7 +2881,8 @@ class _MyAbsentModalSheet extends ConsumerStatefulWidget {
   const _MyAbsentModalSheet();
 
   @override
-  ConsumerState<_MyAbsentModalSheet> createState() => _MyAbsentModalSheetState();
+  ConsumerState<_MyAbsentModalSheet> createState() =>
+      _MyAbsentModalSheetState();
 }
 
 class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
@@ -2592,79 +2894,21 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
     final calendar = attendance.calendarData;
     final history = attendance.history;
 
-    final absentList = <Map<String, String>>[];
-    final presentList = <Map<String, String>>[];
-    final allList = <Map<String, String>>[];
-
-    final seenDates = <String>{};
-    final uniqueRecords = <dynamic>[];
-    for (var item in [...calendar, ...history]) {
-      if (item is! Map) continue;
-      String rawD = (item['date'] ?? item['createdAt'] ?? item['timestamp'])?.toString() ?? '';
-      if (rawD.isEmpty && item['_id'] != null && item['_id'].toString().startsWith('virtual_absent_')) {
-        rawD = item['_id'].toString().replaceAll('virtual_absent_', '');
-      }
-      final dateKey = rawD.contains('T') ? rawD.split('T').first : (rawD.length >= 10 ? rawD.substring(0, 10) : rawD);
-      if (dateKey.isNotEmpty && seenDates.contains(dateKey)) continue;
-      if (dateKey.isNotEmpty) seenDates.add(dateKey);
-      uniqueRecords.add(item);
-    }
-
-    // Client-side fallback: ensure all past working days (Mon-Sat) for current month up to yesterday are accounted for
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final startOfMonth = DateTime(now.year, now.month, 1);
-
-    for (var d = startOfMonth; d.isBefore(today); d = d.add(const Duration(days: 1))) {
-      if (d.weekday == DateTime.sunday) continue;
-
-      final dateStr = DateFormat('yyyy-MM-dd').format(d);
-      if (!seenDates.contains(dateStr)) {
-        seenDates.add(dateStr);
-        uniqueRecords.add({
-          '_id': 'virtual_absent_$dateStr',
-          'date': '${dateStr}T00:00:00.000Z',
-          'status': 'Absent',
-          'notes': 'Unexcused Absence',
-          'createdAt': '${dateStr}T00:00:00.000Z',
-        });
-      }
-    }
-
-    for (var item in uniqueRecords) {
-      if (item is! Map) continue;
-      final status = (item['status'] ?? '').toString().toLowerCase();
-      
-      String rawDate = (item['date'] ?? item['createdAt'] ?? item['timestamp'])?.toString() ?? '';
-      if (rawDate.isEmpty && item['_id'] != null && item['_id'].toString().startsWith('virtual_absent_')) {
-        rawDate = item['_id'].toString().replaceAll('virtual_absent_', '');
-      }
-
-      String formattedDate = rawDate;
-      if (rawDate.isNotEmpty) {
-        try {
-          final dt = DateTime.parse(rawDate).toLocal();
-          formattedDate = DateFormat('EEEE, MMM d, yyyy').format(dt);
-        } catch (_) {}
-      }
-
-      final isAbs = status.contains('absent');
-      final isLve = status.contains('leave');
-      final statusLabel = isAbs ? 'Absent' : (isLve ? 'On Leave' : 'Present');
-
-      final rec = {
-        'date': formattedDate.isNotEmpty ? formattedDate : 'Record Date',
-        'status': statusLabel,
-        'reason': item['notes']?.toString() ?? item['reason']?.toString() ?? (isAbs ? 'Unexcused Absence' : 'Present / Checked In'),
-      };
-
-      allList.add(rec);
-      if (isAbs) {
-        absentList.add(rec);
-      } else {
-        presentList.add(rec);
-      }
-    }
+    final absentList = _computeEmployeeRecords(
+      calendar: calendar,
+      history: history,
+      filter: 'absent',
+    );
+    final presentList = _computeEmployeeRecords(
+      calendar: calendar,
+      history: history,
+      filter: 'present',
+    );
+    final allList = _computeEmployeeRecords(
+      calendar: calendar,
+      history: history,
+      filter: 'all',
+    );
 
     final activeList = currentFilter == 'present'
         ? presentList
@@ -2680,8 +2924,11 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                size: 48, color: Color(0xFF10B981)),
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              size: 48,
+              color: Color(0xFF10B981),
+            ),
             const SizedBox(height: 12),
             Text(
               'No records for this category.',
@@ -2753,7 +3000,10 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(8),
@@ -2805,7 +3055,11 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
                     color: const Color(0xFFEF4444).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.calendar_today_rounded, color: Color(0xFFEF4444), size: 22),
+                  child: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: Color(0xFFEF4444),
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Column(
@@ -2866,9 +3120,7 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
           ),
           const Divider(height: 20),
 
-          Expanded(
-            child: bodyWidget,
-          ),
+          Expanded(child: bodyWidget),
         ],
       ),
     );
@@ -2907,4 +3159,102 @@ class _MyAbsentModalSheetState extends ConsumerState<_MyAbsentModalSheet> {
       ),
     );
   }
+}
+
+List<Map<String, String>> _computeEmployeeRecords({
+  required List<dynamic> calendar,
+  required List<dynamic> history,
+  required String filter, // 'absent', 'present', 'all'
+}) {
+  final seenDates = <String>{};
+  final uniqueRecords = <dynamic>[];
+
+  for (var item in [...calendar, ...history]) {
+    if (item is! Map) continue;
+    String rawD =
+        (item['date'] ?? item['createdAt'] ?? item['timestamp'])?.toString() ??
+        '';
+    if (rawD.isEmpty &&
+        item['_id'] != null &&
+        item['_id'].toString().startsWith('virtual_absent_')) {
+      rawD = item['_id'].toString().replaceAll('virtual_absent_', '');
+    }
+    final dateKey = rawD.contains('T')
+        ? rawD.split('T').first
+        : (rawD.length >= 10 ? rawD.substring(0, 10) : rawD);
+    if (dateKey.isNotEmpty && seenDates.contains(dateKey)) continue;
+    if (dateKey.isNotEmpty) seenDates.add(dateKey);
+    uniqueRecords.add(item);
+  }
+
+  // Client-side fallback: ensure all past working days (Mon-Sat) for current month up to yesterday are accounted for
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final startOfMonth = DateTime(now.year, now.month, 1);
+
+  for (
+    var d = startOfMonth;
+    d.isBefore(today);
+    d = d.add(const Duration(days: 1))
+  ) {
+    if (d.weekday == DateTime.sunday) continue;
+
+    final dateStr = DateFormat('yyyy-MM-dd').format(d);
+    if (!seenDates.contains(dateStr)) {
+      seenDates.add(dateStr);
+      uniqueRecords.add({
+        '_id': 'virtual_absent_$dateStr',
+        'date': '${dateStr}T00:00:00.000Z',
+        'status': 'Absent',
+        'notes': 'Unexcused Absence',
+        'createdAt': '${dateStr}T00:00:00.000Z',
+      });
+    }
+  }
+
+  final resultList = <Map<String, String>>[];
+  for (var item in uniqueRecords) {
+    if (item is! Map) continue;
+    final status = (item['status'] ?? '').toString().toLowerCase();
+
+    String rawDate =
+        (item['date'] ?? item['createdAt'] ?? item['timestamp'])?.toString() ??
+        '';
+    if (rawDate.isEmpty &&
+        item['_id'] != null &&
+        item['_id'].toString().startsWith('virtual_absent_')) {
+      rawDate = item['_id'].toString().replaceAll('virtual_absent_', '');
+    }
+
+    String formattedDate = rawDate;
+    if (rawDate.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(rawDate).toLocal();
+        formattedDate = DateFormat('EEEE, MMM d, yyyy').format(dt);
+      } catch (_) {}
+    }
+
+    final isAbs = status.contains('absent');
+    final isLve = status.contains('leave');
+    final statusLabel = isAbs ? 'Absent' : (isLve ? 'On Leave' : 'Present');
+
+    final rec = {
+      'date': formattedDate.isNotEmpty ? formattedDate : 'Record Date',
+      'status': statusLabel,
+      'reason':
+          item['notes']?.toString() ??
+          item['reason']?.toString() ??
+          (isAbs ? 'Unexcused Absence' : 'Present / Checked In'),
+    };
+
+    if (filter == 'all') {
+      resultList.add(rec);
+    } else if (filter == 'absent' && isAbs) {
+      resultList.add(rec);
+    } else if (filter == 'present' && !isAbs) {
+      resultList.add(rec);
+    }
+  }
+
+  return resultList;
 }

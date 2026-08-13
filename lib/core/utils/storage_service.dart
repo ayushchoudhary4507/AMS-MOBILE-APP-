@@ -21,22 +21,29 @@ class StorageService {
   static final Map<String, String> avatarCache = {};
 
   // Save Today Attendance cache per user/date
-  static Future<void> saveTodayAttendance(String emailOrId, Map<String, dynamic> att) async {
+  static Future<void> saveTodayAttendance(
+    String emailOrId,
+    Map<String, dynamic> att,
+  ) async {
     if (emailOrId.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
-    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final keyLower = emailOrId.trim().toLowerCase();
     final key = 'today_att_${keyLower}_$dateStr';
     await prefs.setString(key, jsonEncode(att));
   }
 
   // Get Today Attendance cache per user/date
-  static Future<Map<String, dynamic>?> getTodayAttendance(String emailOrId) async {
+  static Future<Map<String, dynamic>?> getTodayAttendance(
+    String emailOrId,
+  ) async {
     if (emailOrId.trim().isEmpty) return null;
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
-    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final keyLower = emailOrId.trim().toLowerCase();
     final key = 'today_att_${keyLower}_$dateStr';
     final raw = prefs.getString(key);
@@ -63,7 +70,8 @@ class StorageService {
   static Future<String?> getUserAvatar(String emailOrId) async {
     if (emailOrId.trim().isEmpty) return null;
     final keyLower = emailOrId.trim().toLowerCase();
-    if (avatarCache.containsKey(keyLower) && avatarCache[keyLower]!.isNotEmpty) {
+    if (avatarCache.containsKey(keyLower) &&
+        avatarCache[keyLower]!.isNotEmpty) {
       return avatarCache[keyLower];
     }
     final prefs = await SharedPreferences.getInstance();
@@ -83,17 +91,19 @@ class StorageService {
     final email = user['email']?.toString();
     final id = (user['id'] ?? user['_id'])?.toString();
     final name = user['name']?.toString();
-    final avatar = (user['avatar'] ??
-            user['profilePicture'] ??
-            user['profileImage'] ??
-            user['profile_picture'] ??
-            user['image'] ??
-            user['avatarUrl'] ??
-            user['photo'])
-        ?.toString();
+    final avatar =
+        (user['avatar'] ??
+                user['profilePicture'] ??
+                user['profileImage'] ??
+                user['profile_picture'] ??
+                user['image'] ??
+                user['avatarUrl'] ??
+                user['photo'])
+            ?.toString();
 
     if (avatar != null && avatar.isNotEmpty) {
-      if (email != null && email.isNotEmpty) await saveUserAvatar(email, avatar);
+      if (email != null && email.isNotEmpty)
+        await saveUserAvatar(email, avatar);
       if (id != null && id.isNotEmpty) await saveUserAvatar(id, avatar);
       if (name != null && name.isNotEmpty) await saveUserAvatar(name, avatar);
     }
@@ -117,14 +127,15 @@ class StorageService {
         final email = userMap['email']?.toString();
         final id = (userMap['id'] ?? userMap['_id'])?.toString();
         final name = userMap['name']?.toString();
-        final currentAvatar = (userMap['avatar'] ??
-                userMap['profilePicture'] ??
-                userMap['profileImage'] ??
-                userMap['profile_picture'] ??
-                userMap['image'] ??
-                userMap['avatarUrl'] ??
-                userMap['photo'])
-            ?.toString();
+        final currentAvatar =
+            (userMap['avatar'] ??
+                    userMap['profilePicture'] ??
+                    userMap['profileImage'] ??
+                    userMap['profile_picture'] ??
+                    userMap['image'] ??
+                    userMap['avatarUrl'] ??
+                    userMap['photo'])
+                ?.toString();
 
         if ((currentAvatar == null || currentAvatar.isEmpty) && email != null) {
           final cachedAvatar = await getUserAvatar(email);
@@ -141,9 +152,12 @@ class StorageService {
           userMap['profileImage'] = currentAvatar;
           userMap['profile_picture'] = currentAvatar;
           userMap['image'] = currentAvatar;
-          if (email != null && email.isNotEmpty) avatarCache[email.trim().toLowerCase()] = currentAvatar;
-          if (id != null && id.isNotEmpty) avatarCache[id.trim().toLowerCase()] = currentAvatar;
-          if (name != null && name.isNotEmpty) avatarCache[name.trim().toLowerCase()] = currentAvatar;
+          if (email != null && email.isNotEmpty)
+            avatarCache[email.trim().toLowerCase()] = currentAvatar;
+          if (id != null && id.isNotEmpty)
+            avatarCache[id.trim().toLowerCase()] = currentAvatar;
+          if (name != null && name.isNotEmpty)
+            avatarCache[name.trim().toLowerCase()] = currentAvatar;
         }
       }
       return userMap;

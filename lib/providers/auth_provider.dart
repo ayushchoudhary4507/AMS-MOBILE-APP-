@@ -29,6 +29,7 @@ class AuthState {
     final r = role ?? user?['role']?.toString();
     return r != null && r.toLowerCase() == 'admin';
   }
+
   bool get isAuthenticated => status == AuthStatus.authenticated;
 
   AuthState copyWith({
@@ -53,7 +54,8 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
   if (avatarOrUser == null) return null;
   if (avatarOrUser is String) {
     final clean = avatarOrUser.trim();
-    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') return clean;
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined')
+      return clean;
     return null;
   }
   if (avatarOrUser is Map) {
@@ -119,7 +121,10 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
       final cached = StorageService.avatarCache[email];
       if (cached != null && cached.isNotEmpty) return cached;
     }
-    final id = (avatarOrUser['_id'] ?? avatarOrUser['id'])?.toString().trim().toLowerCase();
+    final id = (avatarOrUser['_id'] ?? avatarOrUser['id'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
     if (id != null && StorageService.avatarCache.containsKey(id)) {
       final cached = StorageService.avatarCache[id];
       if (cached != null && cached.isNotEmpty) return cached;
@@ -241,16 +246,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
           ? await AuthService.adminLogin(email, password)
           : await AuthService.login(email, password);
 
-      final token = (data['token'] ??
-              data['accessToken'] ??
-              data['access_token'] ??
-              data['jwt'] ??
-              data['data']?['token'] ??
-              data['data']?['accessToken'] ??
-              data['data']?['access_token'] ??
-              data['result']?['token'] ??
-              data['result']?['accessToken'])
-          ?.toString();
+      final token =
+          (data['token'] ??
+                  data['accessToken'] ??
+                  data['access_token'] ??
+                  data['jwt'] ??
+                  data['data']?['token'] ??
+                  data['data']?['accessToken'] ??
+                  data['data']?['access_token'] ??
+                  data['result']?['token'] ??
+                  data['result']?['accessToken'])
+              ?.toString();
 
       Map<String, dynamic>? user;
       if (data['user'] is Map<String, dynamic>) {
@@ -264,26 +270,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
         user = Map<String, dynamic>.from(data['employee']);
       }
 
-      final role = user?['role']?.toString() ??
-          (isAdmin ? 'admin' : 'employee');
+      final role =
+          user?['role']?.toString() ?? (isAdmin ? 'admin' : 'employee');
 
       if (token != null && token.isNotEmpty) {
         if (user != null) {
-          final email = (user['email'] ?? user['id'] ?? user['_id'])?.toString();
-          final serverAvatar = (user['avatar'] ??
-                  user['profilePicture'] ??
-                  user['profileImage'] ??
-                  user['profile_picture'] ??
-                  user['image'] ??
-                  user['avatarUrl'] ??
-                  user['photo'])
+          final email = (user['email'] ?? user['id'] ?? user['_id'])
               ?.toString();
+          final serverAvatar =
+              (user['avatar'] ??
+                      user['profilePicture'] ??
+                      user['profileImage'] ??
+                      user['profile_picture'] ??
+                      user['image'] ??
+                      user['avatarUrl'] ??
+                      user['photo'])
+                  ?.toString();
 
-          final cachedAvatar = email != null ? await StorageService.getUserAvatar(email) : null;
+          final cachedAvatar = email != null
+              ? await StorageService.getUserAvatar(email)
+              : null;
 
           final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
               ? serverAvatar
-              : (cachedAvatar != null && cachedAvatar.isNotEmpty ? cachedAvatar : null);
+              : (cachedAvatar != null && cachedAvatar.isNotEmpty
+                    ? cachedAvatar
+                    : null);
 
           if (avatarToUse != null && avatarToUse.isNotEmpty) {
             user['avatar'] = avatarToUse;
@@ -319,11 +331,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
             e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.sendTimeout ||
             e.type == DioExceptionType.connectionError) {
-          errorMsg = 'Cannot connect to server. Please check your internet and try again.';
+          errorMsg =
+              'Cannot connect to server. Please check your internet and try again.';
         } else {
           final resData = e.response?.data;
           if (resData is Map) {
-            errorMsg = resData['message']?.toString() ??
+            errorMsg =
+                resData['message']?.toString() ??
                 resData['error']?.toString() ??
                 errorMsg;
           }
@@ -355,10 +369,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
 
       final currentUser = state.user ?? await StorageService.getUser() ?? {};
-      final userEmail = (currentUser['email'] ?? rawUser?['email'])?.toString().toLowerCase().trim();
-      final userId = (currentUser['id'] ?? currentUser['_id'] ?? rawUser?['id'] ?? rawUser?['_id'])?.toString();
-      final userName = (currentUser['name'] ?? rawUser?['name'])?.toString().toLowerCase().trim();
-      final userPhone = (currentUser['phone'] ?? rawUser?['phone'])?.toString().trim();
+      final userEmail = (currentUser['email'] ?? rawUser?['email'])
+          ?.toString()
+          .toLowerCase()
+          .trim();
+      final userId =
+          (currentUser['id'] ??
+                  currentUser['_id'] ??
+                  rawUser?['id'] ??
+                  rawUser?['_id'])
+              ?.toString();
+      final userName = (currentUser['name'] ?? rawUser?['name'])
+          ?.toString()
+          .toLowerCase()
+          .trim();
+      final userPhone = (currentUser['phone'] ?? rawUser?['phone'])
+          ?.toString()
+          .trim();
 
       var serverAvatar = extractAvatarUrl(rawUser);
 
@@ -366,7 +393,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (serverAvatar == null || serverAvatar.isEmpty) {
         try {
           final resMap = await EmployeeService.getAll();
-          final rawList = resMap['employees'] ?? resMap['data'] ?? resMap['records'] ?? resMap['result'] ?? resMap['items'];
+          final rawList =
+              resMap['employees'] ??
+              resMap['data'] ??
+              resMap['records'] ??
+              resMap['result'] ??
+              resMap['items'];
           if (rawList is List) {
             for (final emp in rawList) {
               if (emp is Map) {
@@ -375,10 +407,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
                 final empName = emp['name']?.toString().toLowerCase().trim();
                 final empPhone = emp['phone']?.toString().trim();
 
-                final isMatch = (userEmail != null && empEmail == userEmail) ||
+                final isMatch =
+                    (userEmail != null && empEmail == userEmail) ||
                     (userId != null && empId == userId) ||
-                    (userName != null && empName != null && empName == userName) ||
-                    (userPhone != null && userPhone.isNotEmpty && empPhone == userPhone);
+                    (userName != null &&
+                        empName != null &&
+                        empName == userName) ||
+                    (userPhone != null &&
+                        userPhone.isNotEmpty &&
+                        empPhone == userPhone);
 
                 if (isMatch) {
                   final empAvatar = extractAvatarUrl(emp);
@@ -397,17 +434,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (userEmail != null && userEmail.isNotEmpty) {
         cachedAvatar = await StorageService.getUserAvatar(userEmail);
       }
-      if ((cachedAvatar == null || cachedAvatar.isEmpty) && userId != null && userId.isNotEmpty) {
+      if ((cachedAvatar == null || cachedAvatar.isEmpty) &&
+          userId != null &&
+          userId.isNotEmpty) {
         cachedAvatar = await StorageService.getUserAvatar(userId);
       }
-      if ((cachedAvatar == null || cachedAvatar.isEmpty) && userName != null && userName.isNotEmpty) {
+      if ((cachedAvatar == null || cachedAvatar.isEmpty) &&
+          userName != null &&
+          userName.isNotEmpty) {
         cachedAvatar = await StorageService.getUserAvatar(userName);
       }
 
       final existingAvatar = extractAvatarUrl(currentUser) ?? cachedAvatar;
       final avatarToUse = (serverAvatar != null && serverAvatar.isNotEmpty)
           ? serverAvatar
-          : (existingAvatar != null && existingAvatar.isNotEmpty ? existingAvatar : null);
+          : (existingAvatar != null && existingAvatar.isNotEmpty
+                ? existingAvatar
+                : null);
 
       final userData = Map<String, dynamic>.from(currentUser);
       if (rawUser != null) {
@@ -461,7 +504,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       currentMap['avatarUrl'] = profilePicture;
       currentMap['photo'] = profilePicture;
 
-      final userEmail = (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])?.toString();
+      final userEmail =
+          (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])
+              ?.toString();
       final userId = (currentMap['id'] ?? currentMap['_id'])?.toString();
       final userName = currentMap['name']?.toString();
 
@@ -588,8 +633,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         if (res is Map) {
           msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
         }
-        if (e.response?.statusCode == 404 || msg.toLowerCase().contains('route not found') || msg.toLowerCase().contains('not found')) {
-          msg = 'Password reset is not configured on the server. Please contact your administrator.';
+        if (e.response?.statusCode == 404 ||
+            msg.toLowerCase().contains('route not found') ||
+            msg.toLowerCase().contains('not found')) {
+          msg =
+              'Password reset is not configured on the server. Please contact your administrator.';
         }
       }
       state = state.copyWith(status: AuthStatus.error, error: msg);
@@ -618,8 +666,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         if (res is Map) {
           msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
         }
-        if (e.response?.statusCode == 404 || msg.toLowerCase().contains('route not found') || msg.toLowerCase().contains('not found')) {
-          msg = 'Password reset is not configured on the server. Please contact your administrator.';
+        if (e.response?.statusCode == 404 ||
+            msg.toLowerCase().contains('route not found') ||
+            msg.toLowerCase().contains('not found')) {
+          msg =
+              'Password reset is not configured on the server. Please contact your administrator.';
         }
       }
       state = state.copyWith(status: AuthStatus.error, error: msg);
@@ -627,7 +678,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 }
-
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref);

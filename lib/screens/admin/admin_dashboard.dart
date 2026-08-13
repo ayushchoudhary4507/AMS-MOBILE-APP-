@@ -55,7 +55,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               icon: const Icon(Icons.person_add_rounded, color: Colors.white),
               label: const Text(
                 'Add Employee',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               backgroundColor: const Color(0xFF6366F1),
             )
@@ -237,7 +240,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
     final todayList = attendance.todayAllAttendance.isNotEmpty
         ? attendance.todayAllAttendance
-        : (attendance.todayAttendance != null ? [attendance.todayAttendance!.toJson()] : []);
+        : (attendance.todayAttendance != null
+              ? [attendance.todayAttendance!.toJson()]
+              : []);
 
     // todayAllAttendance now contains only present-today employees from API
     // Each record has: { name, email, userId, employeeId, status, checkIn, checkOut, employee: {...} }
@@ -259,7 +264,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       email ??= att['email']?.toString();
       name ??= att['name']?.toString();
 
-      final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+      final keys = [id, email, name]
+          .where((k) => k != null && k.isNotEmpty)
+          .map((k) => k!.trim().toLowerCase())
+          .toSet();
 
       if (st.contains('leave')) {
         leaveKeys.addAll(keys);
@@ -267,8 +275,15 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         presentKeys.addAll(keys);
 
         // Check if employee has checked out (completed shift)
-        final cOut = att['checkOut'] ?? att['checkOutTime'] ?? att['check_out'] ?? att['outTime'];
-        final isCheckedOut = (cOut != null && cOut.toString().trim().isNotEmpty && cOut.toString() != 'null');
+        final cOut =
+            att['checkOut'] ??
+            att['checkOutTime'] ??
+            att['check_out'] ??
+            att['outTime'];
+        final isCheckedOut =
+            (cOut != null &&
+            cOut.toString().trim().isNotEmpty &&
+            cOut.toString() != 'null');
         if (!isCheckedOut) {
           activePresentKeys.addAll(keys);
         }
@@ -277,18 +292,27 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
     for (var leave in attendance.allLeaves) {
       if (isLeaveActiveToday(leave)) {
-        final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
+        final empObj =
+            leave['employeeId'] ?? leave['user'] ?? leave['employee'];
         String? id, email, name;
         if (empObj is Map) {
           id = (empObj['_id'] ?? empObj['id'])?.toString();
           email = empObj['email']?.toString();
           name = empObj['name']?.toString();
         }
-        id ??= (leave['userId'] ?? (leave['employeeId'] is String ? leave['employeeId'] : null))?.toString();
+        id ??=
+            (leave['userId'] ??
+                    (leave['employeeId'] is String
+                        ? leave['employeeId']
+                        : null))
+                ?.toString();
         email ??= leave['email']?.toString();
         name ??= (leave['employeeName'] ?? leave['name'])?.toString();
 
-        final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+        final keys = [id, email, name]
+            .where((k) => k != null && k.isNotEmpty)
+            .map((k) => k!.trim().toLowerCase())
+            .toSet();
         leaveKeys.addAll(keys);
       }
     }
@@ -304,15 +328,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         final email = emp['email']?.toString().trim().toLowerCase();
         final name = emp['name']?.toString().trim().toLowerCase();
 
-        final isPresent = (id != null && presentKeys.contains(id)) ||
+        final isPresent =
+            (id != null && presentKeys.contains(id)) ||
             (email != null && presentKeys.contains(email)) ||
             (name != null && presentKeys.contains(name));
 
-        final isActive = (id != null && activePresentKeys.contains(id)) ||
+        final isActive =
+            (id != null && activePresentKeys.contains(id)) ||
             (email != null && activePresentKeys.contains(email)) ||
             (name != null && activePresentKeys.contains(name));
 
-        final isOnLeave = (id != null && leaveKeys.contains(id)) ||
+        final isOnLeave =
+            (id != null && leaveKeys.contains(id)) ||
             (email != null && leaveKeys.contains(email)) ||
             (name != null && leaveKeys.contains(name));
 
@@ -329,13 +356,21 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     } else {
       realActivePresent = activePresentKeys.length;
       realLeave = leaveKeys.length;
-      final statsAbsent = int.tryParse(stats?['absentCount']?.toString() ?? stats?['absent']?.toString() ?? '');
+      final statsAbsent = int.tryParse(
+        stats?['absentCount']?.toString() ?? stats?['absent']?.toString() ?? '',
+      );
       realAbsent = statsAbsent ?? 0;
     }
 
     final totalEmpCount = allEmps.isNotEmpty
         ? allEmps.length
-        : (int.tryParse(stats?['totalEmployees']?.toString() ?? stats?['total']?.toString() ?? stats?['count']?.toString() ?? '') ?? 0);
+        : (int.tryParse(
+                stats?['totalEmployees']?.toString() ??
+                    stats?['total']?.toString() ??
+                    stats?['count']?.toString() ??
+                    '',
+              ) ??
+              0);
 
     final totalEmp = totalEmpCount.toString();
     final presentCount = realActivePresent.toString();
@@ -348,7 +383,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. Welcome Banner Hero Card
-          _buildWelcomeBanner(authName: ref.watch(authProvider).user?['name'] ?? 'Admin'),
+          _buildWelcomeBanner(
+            authName: ref.watch(authProvider).user?['name'] ?? 'Admin',
+          ),
           const SizedBox(height: 24),
 
           // 2. Overview Section Header & Stat Cards
@@ -365,7 +402,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.refresh_rounded, size: 18, color: context.txtMuted),
+                icon: Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: context.txtMuted,
+                ),
                 onPressed: () {
                   ref.read(attendanceProvider.notifier).loadStats();
                   ref.read(employeeProvider.notifier).loadEmployees();
@@ -398,8 +439,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 icon: Icons.check_circle_rounded,
                 color: const Color(0xFF10B981),
                 bgColor: const Color(0xFF10B981).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(context, ref,
-                    title: 'Present Employees Today', statusType: 'present'),
+                onTap: () => _showAttendanceModal(
+                  context,
+                  ref,
+                  title: 'Present Employees Today',
+                  statusType: 'present',
+                ),
               ),
               _buildOverviewCard(
                 title: 'On Leave Today',
@@ -407,8 +452,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 icon: Icons.calendar_month_rounded,
                 color: const Color(0xFFF59E0B),
                 bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(context, ref,
-                    title: 'Employees On Leave Today', statusType: 'leave'),
+                onTap: () => _showAttendanceModal(
+                  context,
+                  ref,
+                  title: 'Employees On Leave Today',
+                  statusType: 'leave',
+                ),
               ),
               _buildOverviewCard(
                 title: 'Absent Today',
@@ -416,15 +465,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 icon: Icons.cancel_rounded,
                 color: const Color(0xFFEF4444),
                 bgColor: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(context, ref,
-                    title: 'Absent Employees Today', statusType: 'absent'),
+                onTap: () => _showAttendanceModal(
+                  context,
+                  ref,
+                  title: 'Absent Employees Today',
+                  statusType: 'absent',
+                ),
               ),
             ],
           ).animate().slideY(
-                begin: 0.15,
-                end: 0,
-                duration: const Duration(milliseconds: 350),
-              ),
+            begin: 0.15,
+            end: 0,
+            duration: const Duration(milliseconds: 350),
+          ),
 
           const SizedBox(height: 24),
 
@@ -478,14 +531,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  void _showAttendanceModal(BuildContext context, WidgetRef ref,
-      {required String title, required String statusType}) {
+  void _showAttendanceModal(
+    BuildContext context,
+    WidgetRef ref, {
+    required String title,
+    required String statusType,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        String activeCategory = statusType; // 'absent', 'present', 'leave', or 'all'
+        String activeCategory =
+            statusType; // 'absent', 'present', 'leave', or 'all'
 
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -521,7 +579,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               name ??= att['name']?.toString();
               avatar ??= extractAvatarUrl(att);
 
-              final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+              final keys = [id, email, name]
+                  .where((k) => k != null && k.isNotEmpty)
+                  .map((k) => k!.trim().toLowerCase())
+                  .toSet();
 
               if (st.contains('leave')) {
                 leaveKeys.addAll(keys);
@@ -546,25 +607,41 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             final addedLeaveEmpKeys = <String>{};
             for (var leave in attendance.allLeaves) {
               if (isLeaveActiveToday(leave)) {
-                final (name, avatar) = _extractLeaveEmployeeInfo(leave, allEmployees);
-                final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
+                final (name, avatar) = _extractLeaveEmployeeInfo(
+                  leave,
+                  allEmployees,
+                );
+                final empObj =
+                    leave['employeeId'] ?? leave['user'] ?? leave['employee'];
                 String? id, email;
                 if (empObj is Map) {
                   id = (empObj['_id'] ?? empObj['id'])?.toString();
                   email = empObj['email']?.toString();
                 }
-                id ??= (leave['userId'] ?? (leave['employeeId'] is String ? leave['employeeId'] : null))?.toString();
+                id ??=
+                    (leave['userId'] ??
+                            (leave['employeeId'] is String
+                                ? leave['employeeId']
+                                : null))
+                        ?.toString();
                 email ??= leave['email']?.toString();
 
-                final keys = [id, email, name].where((k) => k != null && k.isNotEmpty).map((k) => k!.trim().toLowerCase()).toSet();
+                final keys = [id, email, name]
+                    .where((k) => k != null && k.isNotEmpty)
+                    .map((k) => k!.trim().toLowerCase())
+                    .toSet();
                 leaveKeys.addAll(keys);
 
-                final empKey = (id ?? email ?? name)?.toString().toLowerCase() ?? 'emp';
+                final empKey =
+                    (id ?? email ?? name)?.toString().toLowerCase() ?? 'emp';
                 if (!addedLeaveEmpKeys.contains(empKey)) {
                   addedLeaveEmpKeys.add(empKey);
                   leaveList.add({
                     'name': name,
-                    'email': leave['email'] ?? leave['leaveType'] ?? 'Approved Leave',
+                    'email':
+                        leave['email'] ??
+                        leave['leaveType'] ??
+                        'Approved Leave',
                     'avatar': avatar,
                     'status': 'On Leave',
                     'note': leave['leaveType'] ?? 'Approved Leave',
@@ -576,26 +653,35 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             // 3. Cross-reference all employees to calculate Absent and All status
             for (var emp in allEmployees) {
               if (emp is! Map) continue;
-              final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
+              final id = (emp['_id'] ?? emp['id'])
+                  ?.toString()
+                  .trim()
+                  .toLowerCase();
               final email = emp['email']?.toString().trim().toLowerCase();
               final name = emp['name']?.toString().trim().toLowerCase();
               final avatar = extractAvatarUrl(emp);
 
-              final isPresent = (id != null && presentKeys.contains(id)) ||
+              final isPresent =
+                  (id != null && presentKeys.contains(id)) ||
                   (email != null && presentKeys.contains(email)) ||
                   (name != null && presentKeys.contains(name));
 
-              final isOnLeave = (id != null && leaveKeys.contains(id)) ||
+              final isOnLeave =
+                  (id != null && leaveKeys.contains(id)) ||
                   (email != null && leaveKeys.contains(email)) ||
                   (name != null && leaveKeys.contains(name));
 
               final empName = emp['name'] ?? 'Employee';
-              final empSub = emp['email'] ?? emp['department'] ?? emp['role'] ?? '';
+              final empSub =
+                  emp['email'] ?? emp['department'] ?? emp['role'] ?? '';
 
               if (isPresent) {
                 final match = presentList.firstWhere(
-                  (p) => ((email != null && p['email']?.toString().toLowerCase() == email) ||
-                          (name != null && p['name']?.toString().toLowerCase() == name)),
+                  (p) =>
+                      ((email != null &&
+                          p['email']?.toString().toLowerCase() == email) ||
+                      (name != null &&
+                          p['name']?.toString().toLowerCase() == name)),
                   orElse: () => {
                     'name': empName,
                     'email': empSub,
@@ -608,8 +694,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 }
               } else if (isOnLeave) {
                 final match = leaveList.firstWhere(
-                  (l) => ((email != null && l['email']?.toString().toLowerCase() == email) ||
-                          (name != null && l['name']?.toString().toLowerCase() == name)),
+                  (l) =>
+                      ((email != null &&
+                          l['email']?.toString().toLowerCase() == email) ||
+                      (name != null &&
+                          l['name']?.toString().toLowerCase() == name)),
                   orElse: () => {
                     'name': empName,
                     'email': empSub,
@@ -636,7 +725,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
             // Fallback for presentList if empty but present employees exist
             if (presentList.isEmpty) {
-              presentList.addAll(allList.where((e) => e['status'] == 'Present'));
+              presentList.addAll(
+                allList.where((e) => e['status'] == 'Present'),
+              );
             }
 
             // Determine active list for activeCategory
@@ -655,7 +746,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               height: MediaQuery.of(context).size.height * 0.70,
               decoration: BoxDecoration(
                 color: context.cardBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 border: Border.all(color: context.borderCol, width: 1),
               ),
               child: Column(
@@ -679,10 +772,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF6366F1,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.people_alt_rounded, color: Color(0xFF6366F1), size: 22),
+                          child: const Icon(
+                            Icons.people_alt_rounded,
+                            color: Color(0xFF6366F1),
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Column(
@@ -698,13 +797,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             ),
                             Text(
                               '${activeList.length} employee(s) listed',
-                              style: TextStyle(fontSize: 12, color: context.txtMuted),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.txtMuted,
+                              ),
                             ),
                           ],
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: context.txtMuted,
+                          ),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
@@ -722,28 +827,32 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           label: 'Absent (${absentList.length})',
                           isSelected: activeCategory == 'absent',
                           color: const Color(0xFFEF4444),
-                          onTap: () => setModalState(() => activeCategory = 'absent'),
+                          onTap: () =>
+                              setModalState(() => activeCategory = 'absent'),
                         ),
                         const SizedBox(width: 8),
                         _buildAdminModalChip(
                           label: 'Present / Not Absent (${presentList.length})',
                           isSelected: activeCategory == 'present',
                           color: const Color(0xFF10B981),
-                          onTap: () => setModalState(() => activeCategory = 'present'),
+                          onTap: () =>
+                              setModalState(() => activeCategory = 'present'),
                         ),
                         const SizedBox(width: 8),
                         _buildAdminModalChip(
                           label: 'On Leave (${leaveList.length})',
                           isSelected: activeCategory == 'leave',
                           color: const Color(0xFFF59E0B),
-                          onTap: () => setModalState(() => activeCategory = 'leave'),
+                          onTap: () =>
+                              setModalState(() => activeCategory = 'leave'),
                         ),
                         const SizedBox(width: 8),
                         _buildAdminModalChip(
                           label: 'All (${allList.length})',
                           isSelected: activeCategory == 'all',
                           color: const Color(0xFF6366F1),
-                          onTap: () => setModalState(() => activeCategory = 'all'),
+                          onTap: () =>
+                              setModalState(() => activeCategory = 'all'),
                         ),
                       ],
                     ),
@@ -757,8 +866,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.check_circle_outline_rounded,
-                                    size: 48, color: Color(0xFF10B981)),
+                                const Icon(
+                                  Icons.check_circle_outline_rounded,
+                                  size: 48,
+                                  color: Color(0xFF10B981),
+                                ),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No records for this category today',
@@ -772,131 +884,209 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
                             itemCount: activeList.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final item = activeList[index];
                               final empName = item['name'] ?? 'Employee';
                               final empSub = item['email'] ?? '';
                               final statusStr = item['status'] ?? 'Absent';
 
-                              final (statusBg, statusFg) = switch (statusStr.toLowerCase()) {
-                                'present' => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),
-                                'on leave' || 'leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
-                                _ => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
+                              final (statusBg, statusFg) = switch (statusStr
+                                  .toLowerCase()) {
+                                'present' => (
+                                  const Color(0xFFDCFCE7),
+                                  const Color(0xFF10B981),
+                                ),
+                                'on leave' || 'leave' => (
+                                  const Color(0xFFFEF3C7),
+                                  const Color(0xFFF59E0B),
+                                ),
+                                _ => (
+                                  const Color(0xFFFEE2E2),
+                                  const Color(0xFFEF4444),
+                                ),
                               };
 
                               return InkWell(
-                                onTap: () => _showEmployeeAttendanceDetailsModal(item),
+                                onTap: () =>
+                                    _showEmployeeAttendanceDetailsModal(item),
                                 borderRadius: BorderRadius.circular(14),
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: context.cardLightBg,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: context.borderCol, width: 1),
+                                    border: Border.all(
+                                      color: context.borderCol,
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Row(
-                                  children: [
-                                    _buildAvatarWidget(item['avatar'], empName, 20),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            empName,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700,
-                                              color: context.txtPrimary,
-                                            ),
-                                          ),
-                                          if (empSub.isNotEmpty)
+                                    children: [
+                                      _buildAvatarWidget(
+                                        item['avatar'],
+                                        empName,
+                                        20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
                                             Text(
-                                              empSub,
+                                              empName,
                                               style: TextStyle(
-                                                fontSize: 11,
-                                                color: context.txtMuted,
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                                color: context.txtPrimary,
                                               ),
                                             ),
-                                          const SizedBox(height: 4),
-                                          if (statusStr.toLowerCase() == 'present') ...[
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  'In: ${_formatTimeStr(item['checkIn'])}',
-                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
+                                            if (empSub.isNotEmpty)
+                                              Text(
+                                                empSub,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: context.txtMuted,
                                                 ),
-                                                const SizedBox(width: 10),
-                                                const Icon(Icons.logout_rounded, size: 12, color: Color(0xFF6366F1)),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  'Out: ${_formatTimeStr(item['checkOut'])}',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: (item['checkOut'] != null && item['checkOut'].toString() != 'null')
-                                                        ? const Color(0xFF6366F1)
-                                                        : context.txtMuted,
+                                              ),
+                                            const SizedBox(height: 4),
+                                            if (statusStr.toLowerCase() ==
+                                                'present') ...[
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.login_rounded,
+                                                    size: 12,
+                                                    color: Color(0xFF10B981),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ] else if (statusStr.toLowerCase() == 'absent') ...[
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.cancel_outlined, size: 12, color: Color(0xFFEF4444)),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    item['note'] ?? 'Attendance Not Marked Today',
-                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFEF4444)),
-                                                    overflow: TextOverflow.ellipsis,
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    'In: ${_formatTimeStr(item['checkIn'])}',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF10B981),
+                                                    ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ] else ...[
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.event_busy_rounded, size: 12, color: Color(0xFFF59E0B)),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    item['note'] ?? 'On Approved Leave',
-                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFF59E0B)),
-                                                    overflow: TextOverflow.ellipsis,
+                                                  const SizedBox(width: 10),
+                                                  const Icon(
+                                                    Icons.logout_rounded,
+                                                    size: 12,
+                                                    color: Color(0xFF6366F1),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    'Out: ${_formatTimeStr(item['checkOut'])}',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color:
+                                                          (item['checkOut'] !=
+                                                                  null &&
+                                                              item['checkOut']
+                                                                      .toString() !=
+                                                                  'null')
+                                                          ? const Color(
+                                                              0xFF6366F1,
+                                                            )
+                                                          : context.txtMuted,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ] else if (statusStr
+                                                    .toLowerCase() ==
+                                                'absent') ...[
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.cancel_outlined,
+                                                    size: 12,
+                                                    color: Color(0xFFEF4444),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item['note'] ??
+                                                          'Attendance Not Marked Today',
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: Color(
+                                                          0xFFEF4444,
+                                                        ),
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ] else ...[
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.event_busy_rounded,
+                                                    size: 12,
+                                                    color: Color(0xFFF59E0B),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item['note'] ??
+                                                          'On Approved Leave',
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: Color(
+                                                          0xFFF59E0B,
+                                                        ),
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ],
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: statusBg,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        statusStr,
-                                        style: TextStyle(
-                                          color: statusFg,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: statusBg,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          statusStr,
+                                          style: TextStyle(
+                                            color: statusFg,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
                             },
                           ),
                   ),
@@ -909,11 +1099,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-
-  (String, String?) _extractLeaveEmployeeInfo(dynamic leave, List<dynamic> allEmployees) {
+  (String, String?) _extractLeaveEmployeeInfo(
+    dynamic leave,
+    List<dynamic> allEmployees,
+  ) {
     if (leave is! Map) return ('Employee', null);
 
-    final empObj = leave['employeeId'] ?? leave['employee'] ?? leave['user'] ?? leave['userId'];
+    final empObj =
+        leave['employeeId'] ??
+        leave['employee'] ??
+        leave['user'] ??
+        leave['userId'];
 
     String? name;
     String? avatar;
@@ -921,7 +1117,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     String? email;
 
     if (empObj is Map) {
-      name = (empObj['name'] ?? empObj['employeeName'] ?? empObj['userName'])?.toString();
+      name = (empObj['name'] ?? empObj['employeeName'] ?? empObj['userName'])
+          ?.toString();
       avatar = extractAvatarUrl(empObj);
       empId = (empObj['_id'] ?? empObj['id'])?.toString();
       email = empObj['email']?.toString();
@@ -932,12 +1129,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       }
     }
 
-    name ??= (leave['employeeName'] ?? leave['userName'] ?? leave['name'])?.toString();
+    name ??= (leave['employeeName'] ?? leave['userName'] ?? leave['name'])
+        ?.toString();
     avatar ??= extractAvatarUrl(leave);
     email ??= leave['email']?.toString();
 
-    if ((name == null || name.isEmpty || name == 'Unknown') && allEmployees.isNotEmpty) {
-      final searchId = (empId ?? leave['userId'] ?? leave['employeeId'])?.toString().trim().toLowerCase();
+    if ((name == null || name.isEmpty || name == 'Unknown') &&
+        allEmployees.isNotEmpty) {
+      final searchId = (empId ?? leave['userId'] ?? leave['employeeId'])
+          ?.toString()
+          .trim()
+          .toLowerCase();
       final searchEmail = email?.trim().toLowerCase();
 
       for (var emp in allEmployees) {
@@ -955,12 +1157,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       }
     }
 
-    final finalName = (name != null && name.trim().isNotEmpty && name != 'Unknown') ? name.trim() : 'Employee';
+    final finalName =
+        (name != null && name.trim().isNotEmpty && name != 'Unknown')
+        ? name.trim()
+        : 'Employee';
     return (finalName, avatar);
   }
 
   String _formatTimeStr(dynamic raw) {
-    if (raw == null || raw.toString().trim().isEmpty || raw.toString() == 'null') {
+    if (raw == null ||
+        raw.toString().trim().isEmpty ||
+        raw.toString() == 'null') {
       return '--:--';
     }
     try {
@@ -974,16 +1181,24 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   }
 
   String _calculateDurationStr(dynamic checkInRaw, dynamic checkOutRaw) {
-    if (checkInRaw == null || checkInRaw.toString().isEmpty || checkInRaw.toString() == 'null') {
+    if (checkInRaw == null ||
+        checkInRaw.toString().isEmpty ||
+        checkInRaw.toString() == 'null') {
       return '0 hrs 0 mins';
     }
     try {
       final start = DateTime.parse(checkInRaw.toString());
-      final isOutMarked = (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null');
+      final isOutMarked =
+          (checkOutRaw != null &&
+          checkOutRaw.toString().isNotEmpty &&
+          checkOutRaw.toString() != 'null');
 
       if (!isOutMarked) {
         final now = DateTime.now();
-        final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
+        final isToday =
+            start.year == now.year &&
+            start.month == now.month &&
+            start.day == now.day;
         if (isToday) {
           final diff = now.difference(start);
           final hours = diff.inHours;
@@ -1013,7 +1228,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   }
 
   String _formatDateFullStr(dynamic rawDate) {
-    if (rawDate != null && rawDate.toString().isNotEmpty && rawDate.toString() != 'null') {
+    if (rawDate != null &&
+        rawDate.toString().isNotEmpty &&
+        rawDate.toString() != 'null') {
       try {
         final dt = DateTime.parse(rawDate.toString());
         return DateFormat('EEEE, d MMMM yyyy').format(dt.toLocal());
@@ -1031,7 +1248,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
     final (statusBg, statusFg) = switch (statusStr.toLowerCase()) {
       'present' => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),
-      'on leave' || 'leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
+      'on leave' ||
+      'leave' => (const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
       _ => (const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
     };
 
@@ -1052,7 +1270,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: context.isDark ? 0.3 : 0.1),
+                color: Colors.black.withValues(
+                  alpha: context.isDark ? 0.3 : 0.1,
+                ),
                 blurRadius: 20,
                 offset: const Offset(0, -6),
               ),
@@ -1123,7 +1343,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusBg,
                       borderRadius: BorderRadius.circular(16),
@@ -1144,15 +1367,24 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               // Date Header Card
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 14,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       fullDateStr,
@@ -1175,17 +1407,25 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.event_available_rounded, size: 18, color: Color(0xFFF59E0B)),
+                          const Icon(
+                            Icons.event_available_rounded,
+                            size: 18,
+                            color: Color(0xFFF59E0B),
+                          ),
                           const SizedBox(width: 8),
                           Text(
-                            item['note'] ?? item['raw']?['leaveType'] ?? 'Approved Leave',
+                            item['note'] ??
+                                item['raw']?['leaveType'] ??
+                                'Approved Leave',
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -1251,16 +1491,26 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                          color: const Color(
+                            0xFF10B981,
+                          ).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF10B981,
+                            ).withValues(alpha: 0.2),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(Icons.login_rounded, size: 16, color: Color(0xFF10B981)),
+                                Icon(
+                                  Icons.login_rounded,
+                                  size: 16,
+                                  color: Color(0xFF10B981),
+                                ),
                                 SizedBox(width: 6),
                                 Text(
                                   'Check In',
@@ -1292,14 +1542,22 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                          color:
+                              (checkOutRaw != null &&
+                                  checkOutRaw.toString().isNotEmpty &&
+                                  checkOutRaw.toString() != 'null')
                               ? const Color(0xFF6366F1).withValues(alpha: 0.08)
                               : const Color(0xFFF59E0B).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                            color:
+                                (checkOutRaw != null &&
+                                    checkOutRaw.toString().isNotEmpty &&
+                                    checkOutRaw.toString() != 'null')
                                 ? const Color(0xFF6366F1).withValues(alpha: 0.2)
-                                : const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                                : const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.2),
                           ),
                         ),
                         child: Column(
@@ -1310,7 +1568,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                 Icon(
                                   Icons.logout_rounded,
                                   size: 16,
-                                  color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                  color:
+                                      (checkOutRaw != null &&
+                                          checkOutRaw.toString().isNotEmpty &&
+                                          checkOutRaw.toString() != 'null')
                                       ? const Color(0xFF6366F1)
                                       : const Color(0xFFF59E0B),
                                 ),
@@ -1320,7 +1581,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                    color:
+                                        (checkOutRaw != null &&
+                                            checkOutRaw.toString().isNotEmpty &&
+                                            checkOutRaw.toString() != 'null')
                                         ? const Color(0xFF6366F1)
                                         : const Color(0xFFF59E0B),
                                   ),
@@ -1329,15 +1593,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                              (checkOutRaw != null &&
+                                      checkOutRaw.toString().isNotEmpty &&
+                                      checkOutRaw.toString() != 'null')
                                   ? outTimeFormatted
                                   : 'Not Marked Yet',
                               style: TextStyle(
-                                fontSize: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                fontSize:
+                                    (checkOutRaw != null &&
+                                        checkOutRaw.toString().isNotEmpty &&
+                                        checkOutRaw.toString() != 'null')
                                     ? 17
                                     : 13,
                                 fontWeight: FontWeight.w800,
-                                color: (checkOutRaw != null && checkOutRaw.toString().isNotEmpty && checkOutRaw.toString() != 'null')
+                                color:
+                                    (checkOutRaw != null &&
+                                        checkOutRaw.toString().isNotEmpty &&
+                                        checkOutRaw.toString() != 'null')
                                     ? context.txtPrimary
                                     : const Color(0xFFD97706),
                               ),
@@ -1364,10 +1636,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          color: const Color(
+                            0xFFF59E0B,
+                          ).withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.timer_rounded, size: 18, color: Color(0xFFF59E0B)),
+                        child: const Icon(
+                          Icons.timer_rounded,
+                          size: 18,
+                          color: Color(0xFFF59E0B),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Column(
@@ -1444,7 +1722,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
     // Member Since date calculation dynamically from user/employee profile
     String memberSince = '';
-    final rawDate = user?['createdAt'] ?? user?['joiningDate'] ?? user?['created_at'] ?? user?['dateJoined'] ?? user?['date'];
+    final rawDate =
+        user?['createdAt'] ??
+        user?['joiningDate'] ??
+        user?['created_at'] ??
+        user?['dateJoined'] ??
+        user?['date'];
     if (rawDate != null && rawDate.toString().trim().isNotEmpty) {
       try {
         final dt = DateTime.parse(rawDate.toString());
@@ -1459,8 +1742,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         if (emp is Map) {
           final eEmail = emp['email']?.toString().toLowerCase();
           final eName = emp['name']?.toString().toLowerCase();
-          if ((uEmail != null && eEmail == uEmail) || (uName != null && eName == uName)) {
-            final eDate = emp['joiningDate'] ?? emp['createdAt'] ?? emp['created_at'];
+          if ((uEmail != null && eEmail == uEmail) ||
+              (uName != null && eName == uName)) {
+            final eDate =
+                emp['joiningDate'] ?? emp['createdAt'] ?? emp['created_at'];
             if (eDate != null && eDate.toString().trim().isNotEmpty) {
               try {
                 final dt = DateTime.parse(eDate.toString());
@@ -1477,324 +1762,370 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     }
 
     final roleStr = (user?['role'] ?? auth.role ?? 'Admin').toString();
-    final roleTitle = roleStr.toLowerCase() == 'admin' ? 'Super Admin' : roleStr;
-    final statusText = (user?['status'] ?? 'Active').toString().toUpperCase() == 'INACTIVE'
+    final roleTitle = roleStr.toLowerCase() == 'admin'
+        ? 'Super Admin'
+        : roleStr;
+    final statusText =
+        (user?['status'] ?? 'Active').toString().toUpperCase() == 'INACTIVE'
         ? 'Inactive'
         : 'Active User';
 
     final isDark = context.isDark;
 
     return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: context.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.borderCol.withValues(alpha: 0.6),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: context.borderCol.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // 1. Right-side Fluid Wave Decorative Background
-            Positioned(
-              right: -15,
-              top: -15,
-              bottom: -15,
-              width: 180,
-              child: CustomPaint(
-                painter: _BannerWavePainter(isDark: isDark),
-              ),
-            ),
-
-            // Soft floating background circles
-            Positioned(
-              right: 140,
-              top: 24,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF818CF8).withValues(alpha: 0.3),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                // 1. Right-side Fluid Wave Decorative Background
+                Positioned(
+                  right: -15,
+                  top: -15,
+                  bottom: -15,
+                  width: 180,
+                  child: CustomPaint(
+                    painter: _BannerWavePainter(isDark: isDark),
+                  ),
                 ),
-              ),
-            ),
-            Positioned(
-              right: 130,
-              bottom: 30,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.25),
-                ),
-              ),
-            ),
 
-            // 2. Main Content Container (Compact Padding)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row: Left Greeting Info + Right Avatar & View Profile
-                  Row(
+                // Soft floating background circles
+                Positioned(
+                  right: 140,
+                  top: 24,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF818CF8).withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 130,
+                  bottom: 30,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.25),
+                    ),
+                  ),
+                ),
+
+                // 2. Main Content Container (Compact Padding)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Left Greeting Column
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Text('👋', style: TextStyle(fontSize: 12)),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Welcome back,',
-                                  style: TextStyle(
-                                    color: context.txtSecondary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    authName.split(' ').first,
-                                    style: TextStyle(
-                                      color: context.txtPrimary,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: -0.5,
-                                      height: 1.1,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                const Text('👋', style: TextStyle(fontSize: 19)),
-                              ],
-                            ),
-                            const SizedBox(height: 3),
-
-                            Text(
-                              "Here's what's happening today.",
-                              style: TextStyle(
-                                color: context.txtMuted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-
-                            // Blue accent underline line
-                            Container(
-                              width: 28,
-                              height: 3,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      // Right Column: Compact Profile Avatar with Badge + View Profile Button
-                      Column(
+                      // Top Row: Left Greeting Info + Right Avatar & View Profile
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () => context.push('/settings'),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              clipBehavior: Clip.none,
+                          // Left Greeting Column
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Outer translucent glow ring
-                                Container(
-                                  width: 72,
-                                  height: 72,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                                    border: Border.all(
-                                      color: const Color(0xFF818CF8).withValues(alpha: 0.35),
-                                      width: 1.5,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFF3B82F6,
+                                        ).withValues(alpha: 0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Text(
+                                        '👋',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Welcome back,',
+                                      style: TextStyle(
+                                        color: context.txtSecondary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        authName.split(' ').first,
+                                        style: TextStyle(
+                                          color: context.txtPrimary,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: -0.5,
+                                          height: 1.1,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    const Text(
+                                      '👋',
+                                      style: TextStyle(fontSize: 19),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+
+                                Text(
+                                  "Here's what's happening today.",
+                                  style: TextStyle(
+                                    color: context.txtMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                // Inner white/card border ring around avatar
+                                const SizedBox(height: 6),
+
+                                // Blue accent underline line
                                 Container(
-                                  width: 64,
-                                  height: 64,
+                                  width: 28,
+                                  height: 3,
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                      width: 2.5,
+                                    color: const Color(0xFF2563EB),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          // Right Column: Compact Profile Avatar with Badge + View Profile Button
+                          Column(
+                            children: [
+                              GestureDetector(
+                                onTap: () => context.push('/settings'),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    // Outer translucent glow ring
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(
+                                          0xFF6366F1,
+                                        ).withValues(alpha: 0.12),
+                                        border: Border.all(
+                                          color: const Color(
+                                            0xFF818CF8,
+                                          ).withValues(alpha: 0.35),
+                                          width: 1.5,
+                                        ),
+                                      ),
                                     ),
+                                    // Inner white/card border ring around avatar
+                                    Container(
+                                      width: 64,
+                                      height: 64,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isDark
+                                              ? const Color(0xFF1E293B)
+                                              : Colors.white,
+                                          width: 2.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: _buildAvatarWidget(
+                                        user,
+                                        authName,
+                                        29,
+                                      ),
+                                    ),
+                                    // Green Verified Checkmark Badge
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2.5),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isDark
+                                                ? const Color(0xFF1E293B)
+                                                : Colors.white,
+                                            width: 2,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(
+                                                0xFF10B981,
+                                              ).withValues(alpha: 0.4),
+                                              blurRadius: 5,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Compact View Profile Pill Button
+                              InkWell(
+                                onTap: () => context.push('/settings'),
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF2563EB),
+                                        Color(0xFF1D4ED8),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.12),
+                                        color: const Color(
+                                          0xFF2563EB,
+                                        ).withValues(alpha: 0.3),
                                         blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
-                                  child: _buildAvatarWidget(user, authName, 29),
-                                ),
-                                // Green Verified Checkmark Badge
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF10B981),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                        width: 2,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(
+                                        Icons.person_rounded,
+                                        color: Colors.white,
+                                        size: 12,
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'View Profile',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                      size: 11,
-                                    ),
+                                      ),
+                                      SizedBox(width: 3),
+                                      Icon(
+                                        Icons.arrow_forward_rounded,
+                                        color: Colors.white,
+                                        size: 11,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // Compact View Profile Pill Button
-                          InkWell(
-                            onTap: () => context.push('/settings'),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(Icons.person_rounded, color: Colors.white, size: 12),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'View Profile',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  SizedBox(width: 3),
-                                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 11),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
+
+                      const SizedBox(height: 12),
+
+                      // Bottom 3 Info Mini Cards Row (Member Since, Active User, Super Admin / System Role)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            // Card 1: Member Since
+                            _buildBannerMiniCard(
+                              icon: Icons.calendar_today_rounded,
+                              iconColor: const Color(0xFF6366F1),
+                              iconBgColor: const Color(0xFFEEF2FF),
+                              title: memberSince,
+                              subtitle: 'Member Since',
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Card 2: Status
+                            _buildBannerMiniCard(
+                              icon: Icons.verified_user_rounded,
+                              iconColor: const Color(0xFF10B981),
+                              iconBgColor: const Color(0xFFECFDF5),
+                              title: statusText,
+                              subtitle: 'Status',
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Card 3: System Role (Replaced Premium)
+                            _buildBannerMiniCard(
+                              icon: Icons.admin_panel_settings_rounded,
+                              iconColor: const Color(0xFF8B5CF6),
+                              iconBgColor: const Color(0xFFF3E8FF),
+                              title: roleTitle,
+                              subtitle: 'System Role',
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // Bottom 3 Info Mini Cards Row (Member Since, Active User, Super Admin / System Role)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        // Card 1: Member Since
-                        _buildBannerMiniCard(
-                          icon: Icons.calendar_today_rounded,
-                          iconColor: const Color(0xFF6366F1),
-                          iconBgColor: const Color(0xFFEEF2FF),
-                          title: memberSince,
-                          subtitle: 'Member Since',
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Card 2: Status
-                        _buildBannerMiniCard(
-                          icon: Icons.verified_user_rounded,
-                          iconColor: const Color(0xFF10B981),
-                          iconBgColor: const Color(0xFFECFDF5),
-                          title: statusText,
-                          subtitle: 'Status',
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Card 3: System Role (Replaced Premium)
-                        _buildBannerMiniCard(
-                          icon: Icons.admin_panel_settings_rounded,
-                          iconColor: const Color(0xFF8B5CF6),
-                          iconBgColor: const Color(0xFFF3E8FF),
-                          title: roleTitle,
-                          subtitle: 'System Role',
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(duration: const Duration(milliseconds: 350)).scale(
+          ),
+        )
+        .animate()
+        .fadeIn(duration: const Duration(milliseconds: 350))
+        .scale(
           begin: const Offset(0.97, 0.97),
           end: const Offset(1.0, 1.0),
           duration: const Duration(milliseconds: 400),
@@ -1882,13 +2213,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         decoration: BoxDecoration(
           color: context.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: context.borderCol,
-            width: 1,
-          ),
+          border: Border.all(color: context.borderCol, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.04),
+              color: Colors.black.withValues(
+                alpha: context.isDark ? 0.1 : 0.04,
+              ),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1959,7 +2289,6 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       return (l['status'] ?? '').toString().toLowerCase() == 'pending';
     }).toList();
 
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2006,21 +2335,32 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
             child: Column(
               children: [
-                Icon(Icons.event_available_rounded,
-                    size: 36, color: context.txtMuted.withValues(alpha: 0.5)),
+                Icon(
+                  Icons.event_available_rounded,
+                  size: 36,
+                  color: context.txtMuted.withValues(alpha: 0.5),
+                ),
                 const SizedBox(height: 10),
-                Text('No pending leaves',
-                    style: TextStyle(color: context.txtMuted, fontSize: 14)),
+                Text(
+                  'No pending leaves',
+                  style: TextStyle(color: context.txtMuted, fontSize: 14),
+                ),
               ],
             ),
           )
         else
-          ...pendingLeaves.take(3).map((leave) => _buildPendingLeaveCard(leave)),
+          ...pendingLeaves
+              .take(3)
+              .map((leave) => _buildPendingLeaveCard(leave)),
       ],
     );
   }
 
-  Widget _buildAvatarWidget(dynamic avatarOrUser, String fallbackText, double radius) {
+  Widget _buildAvatarWidget(
+    dynamic avatarOrUser,
+    String fallbackText,
+    double radius,
+  ) {
     return AppAvatar(
       avatarOrUser: avatarOrUser,
       fallbackText: fallbackText,
@@ -2097,7 +2437,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ],
           ),
           const SizedBox(height: 16),
-          if ((leave['status'] ?? 'Pending').toString().toLowerCase() == 'pending') ...[
+          if ((leave['status'] ?? 'Pending').toString().toLowerCase() ==
+              'pending') ...[
             // Reject and Approve Buttons Side-by-Side
             Row(
               children: [
@@ -2106,7 +2447,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     onPressed: () => _approveLeave(leaveId, 'Rejected'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFEF4444),
-                      side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
+                      side: const BorderSide(
+                        color: Color(0xFFEF4444),
+                        width: 1.2,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -2114,7 +2458,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     ),
                     child: const Text(
                       'Reject',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -2133,7 +2480,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     ),
                     child: const Text(
                       'Approve',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -2145,9 +2495,15 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               builder: (context) {
                 final stStr = (leave['status'] ?? '').toString();
                 final isAppr = stStr.toLowerCase() == 'approved';
-                final bgCol = isAppr ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
-                final fgCol = isAppr ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-                final iconData = isAppr ? Icons.check_circle_rounded : Icons.cancel_rounded;
+                final bgCol = isAppr
+                    ? const Color(0xFFDCFCE7)
+                    : const Color(0xFFFEE2E2);
+                final fgCol = isAppr
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444);
+                final iconData = isAppr
+                    ? Icons.check_circle_rounded
+                    : Icons.cancel_rounded;
 
                 return Container(
                   width: double.infinity,
@@ -2163,7 +2519,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       Icon(iconData, size: 16, color: fgCol),
                       const SizedBox(width: 6),
                       Text(
-                        stStr.isNotEmpty ? stStr : (isAppr ? 'Approved' : 'Rejected'),
+                        stStr.isNotEmpty
+                            ? stStr
+                            : (isAppr ? 'Approved' : 'Rejected'),
                         style: TextStyle(
                           color: fgCol,
                           fontSize: 13,
@@ -2199,7 +2557,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+              border: Border.all(
+                color: color.withValues(alpha: 0.25),
+                width: 1,
+              ),
             ),
             child: Icon(icon, color: color, size: 26),
           ),
@@ -2222,7 +2583,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Leave $status'),
-          backgroundColor: status == 'Approved' ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+          backgroundColor: status == 'Approved'
+              ? const Color(0xFF10B981)
+              : const Color(0xFFEF4444),
         ),
       );
       return;
@@ -2245,7 +2608,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
   // --- Employees Tab ---
   // --- Admin Drawer ---
-  Widget _buildAdminDrawer(BuildContext context, WidgetRef ref, AuthState auth) {
+  Widget _buildAdminDrawer(
+    BuildContext context,
+    WidgetRef ref,
+    AuthState auth,
+  ) {
     final userName = auth.user?['name'] ?? 'Admin User';
     final userEmail = auth.user?['email'] ?? 'admin@ams.com';
 
@@ -2256,7 +2623,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           UserAccountsDrawerHeader(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF4338CA)],
+                colors: [
+                  Color(0xFF1E1B4B),
+                  Color(0xFF312E81),
+                  Color(0xFF4338CA),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -2265,18 +2636,28 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               children: [
                 Text(
                   userName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
                     'ADMIN',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -2292,26 +2673,51 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               padding: EdgeInsets.zero,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Dashboard', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.dashboard_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 0);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.chat_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Messages', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.chat_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Messages',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   trailing: ref.watch(chatProvider).totalUnread > 0
                       ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF6366F1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${ref.watch(chatProvider).totalUnread}',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         )
                       : null,
@@ -2321,76 +2727,169 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF10B981)),
-                  title: Text('Add New Employee', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Text('Onboard staff & assign permissions', style: TextStyle(color: context.txtMuted, fontSize: 11)),
+                  leading: const Icon(
+                    Icons.person_add_alt_1_rounded,
+                    color: Color(0xFF10B981),
+                  ),
+                  title: Text(
+                    'Add New Employee',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Onboard staff & assign permissions',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showAddEmployeeModal(context);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.people_alt_rounded, color: Color(0xFF3B82F6)),
-                  title: Text('Employee Directory', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Text('Manage employees, edit roles', style: TextStyle(color: context.txtMuted, fontSize: 11)),
+                  leading: const Icon(
+                    Icons.people_alt_rounded,
+                    color: Color(0xFF3B82F6),
+                  ),
+                  title: Text(
+                    'Employee Directory',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Manage employees, edit roles',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 1);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.access_time_filled_rounded, color: Color(0xFF8B5CF6)),
-                  title: Text('Admin Mark Attendance', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Text('Manual attendance entry', style: TextStyle(color: context.txtMuted, fontSize: 11)),
+                  leading: const Icon(
+                    Icons.access_time_filled_rounded,
+                    color: Color(0xFF8B5CF6),
+                  ),
+                  title: Text(
+                    'Admin Mark Attendance',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Manual attendance entry',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showAdminMarkAttendanceModal(context);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.event_available_rounded, color: Color(0xFFF59E0B)),
-                  title: Text('Leave Approvals', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Text('Approve or reject leave requests', style: TextStyle(color: context.txtMuted, fontSize: 11)),
+                  leading: const Icon(
+                    Icons.event_available_rounded,
+                    color: Color(0xFFF59E0B),
+                  ),
+                  title: Text(
+                    'Leave Approvals',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Approve or reject leave requests',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 2);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.insert_chart_rounded, color: Color(0xFF06B6D4)),
-                  title: Text('Reports & Analytics', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.insert_chart_rounded,
+                    color: Color(0xFF06B6D4),
+                  ),
+                  title: Text(
+                    'Reports & Analytics',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 3);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.payments_rounded, color: Color(0xFF10B981)),
-                  title: Text('Salary & Payroll', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.payments_rounded,
+                    color: Color(0xFF10B981),
+                  ),
+                  title: Text(
+                    'Salary & Payroll',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/salary');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.assignment_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Projects & Tasks', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.assignment_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Projects & Tasks',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/projects');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.holiday_village_rounded, color: Color(0xFFEC4899)),
-                  title: Text('Holidays Calendar', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.holiday_village_rounded,
+                    color: Color(0xFFEC4899),
+                  ),
+                  title: Text(
+                    'Holidays Calendar',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/holidays');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B)),
-                  title: Text('Notifications Center', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Color(0xFFF59E0B),
+                  ),
+                  title: Text(
+                    'Notifications Center',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/admin/notifications');
@@ -2398,24 +2897,45 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
                 Divider(color: context.dividerCol),
                 ListTile(
-                  leading: const Icon(Icons.badge_rounded, color: Color(0xFF64748B)),
-                  title: Text('Switch to Employee View', style: TextStyle(color: context.txtPrimary)),
+                  leading: const Icon(
+                    Icons.badge_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: Text(
+                    'Switch to Employee View',
+                    style: TextStyle(color: context.txtPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/employee/dashboard');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.settings_rounded, color: Color(0xFF64748B)),
-                  title: Text('Settings & Biometrics', style: TextStyle(color: context.txtPrimary)),
+                  leading: const Icon(
+                    Icons.settings_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: Text(
+                    'Settings & Biometrics',
+                    style: TextStyle(color: context.txtPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                  title: const Text('Logout', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                  leading: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFEF4444),
+                  ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Color(0xFFEF4444),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   onTap: () async {
                     Navigator.pop(context);
                     await ref.read(authProvider.notifier).logout();
@@ -2463,11 +2983,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   backgroundColor: const Color(0xFF6366F1),
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                 ),
                 icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: const Text('Add Employee', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Add Employee',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
                 onPressed: () => _showAddEmployeeModal(context),
               ),
             ],
@@ -2475,34 +3003,50 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         ),
         Expanded(
           child: state.isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
               : state.employees.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.people_outline_rounded, size: 48, color: context.txtMuted),
-                          const SizedBox(height: 12),
-                          Text('No employees found', style: TextStyle(color: context.txtMuted, fontSize: 16)),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add First Employee'),
-                            onPressed: () => _showAddEmployeeModal(context),
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.people_outline_rounded,
+                        size: 48,
+                        color: context.txtMuted,
                       ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () => ref.read(employeeProvider.notifier).loadEmployees(),
-                      color: AppColors.primary,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        itemCount: state.employees.length,
-                        itemBuilder: (ctx, i) => _buildEmployeeCard(state.employees[i]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No employees found',
+                        style: TextStyle(color: context.txtMuted, fontSize: 16),
                       ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                        ),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add First Employee'),
+                        onPressed: () => _showAddEmployeeModal(context),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () =>
+                      ref.read(employeeProvider.notifier).loadEmployees(),
+                  color: AppColors.primary,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
                     ),
+                    itemCount: state.employees.length,
+                    itemBuilder: (ctx, i) =>
+                        _buildEmployeeCard(state.employees[i]),
+                  ),
+                ),
         ),
       ],
     );
@@ -2554,17 +3098,24 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: role == 'ADMIN'
-                                ? const Color(0xFFEC4899).withValues(alpha: 0.15)
+                                ? const Color(
+                                    0xFFEC4899,
+                                  ).withValues(alpha: 0.15)
                                 : AppColors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             role,
                             style: TextStyle(
-                              color: role == 'ADMIN' ? const Color(0xFFEC4899) : AppColors.primary,
+                              color: role == 'ADMIN'
+                                  ? const Color(0xFFEC4899)
+                                  : AppColors.primary,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                             ),
@@ -2575,7 +3126,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     const SizedBox(height: 3),
                     Text(
                       '$designation • $dept',
-                      style: TextStyle(color: context.txtSecondary, fontSize: 12, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: context.txtSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -2596,20 +3151,37 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               TextButton.icon(
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF10B981),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 ),
                 icon: const Icon(Icons.access_time_rounded, size: 16),
-                label: const Text('Mark Attendance', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                onPressed: () => _showAdminMarkAttendanceModal(context, preselectedEmpId: empId),
+                label: const Text(
+                  'Mark Attendance',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () => _showAdminMarkAttendanceModal(
+                  context,
+                  preselectedEmpId: empId,
+                ),
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF6366F1)),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: Color(0xFF6366F1),
+                ),
                 tooltip: 'Edit Employee',
                 onPressed: () => _showEditEmployeeModal(context, emp),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: Color(0xFFEF4444),
+                ),
                 tooltip: 'Delete Employee',
                 onPressed: () => _showDeleteEmployeeConfirmation(context, emp),
               ),
@@ -2647,7 +3219,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
               decoration: BoxDecoration(
                 color: context.cardBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 border: Border.all(color: context.borderCol),
               ),
               child: SingleChildScrollView(
@@ -2673,11 +3247,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                              color: const Color(
+                                0xFF6366F1,
+                              ).withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.person_add_alt_1_rounded,
-                                color: Color(0xFF6366F1), size: 24),
+                            child: const Icon(
+                              Icons.person_add_alt_1_rounded,
+                              color: Color(0xFF6366F1),
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -2711,9 +3290,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         decoration: InputDecoration(
                           labelText: 'Full Name *',
                           prefixIcon: const Icon(Icons.person_outline_rounded),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter employee name' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Enter employee name'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -2723,9 +3306,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         decoration: InputDecoration(
                           labelText: 'Email Address *',
                           prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        validator: (v) => (v == null || !v.contains('@')) ? 'Enter valid email' : null,
+                        validator: (v) => (v == null || !v.contains('@'))
+                            ? 'Enter valid email'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -2735,9 +3322,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         decoration: InputDecoration(
                           labelText: 'Password *',
                           prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        validator: (v) => (v == null || v.length < 4) ? 'Password must be at least 4 chars' : null,
+                        validator: (v) => (v == null || v.length < 4)
+                            ? 'Password must be at least 4 chars'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -2749,12 +3340,29 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                               style: TextStyle(color: context.txtPrimary),
                               decoration: InputDecoration(
                                 labelText: 'Department',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              items: ['IT', 'HR', 'Sales', 'Marketing', 'Finance', 'Engineering', 'Operations']
-                                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                                  .toList(),
-                              onChanged: (val) => setModalState(() => selectedDept = val!),
+                              items:
+                                  [
+                                        'IT',
+                                        'HR',
+                                        'Sales',
+                                        'Marketing',
+                                        'Finance',
+                                        'Engineering',
+                                        'Operations',
+                                      ]
+                                      .map(
+                                        (d) => DropdownMenuItem(
+                                          value: d,
+                                          child: Text(d),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (val) =>
+                                  setModalState(() => selectedDept = val!),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -2765,13 +3373,22 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                               style: TextStyle(color: context.txtPrimary),
                               decoration: InputDecoration(
                                 labelText: 'Role / Permission',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 'employee', child: Text('Employee')),
-                                DropdownMenuItem(value: 'admin', child: Text('Admin (All Access)')),
+                                DropdownMenuItem(
+                                  value: 'employee',
+                                  child: Text('Employee'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'admin',
+                                  child: Text('Admin (All Access)'),
+                                ),
                               ],
-                              onChanged: (val) => setModalState(() => selectedRole = val!),
+                              onChanged: (val) =>
+                                  setModalState(() => selectedRole = val!),
                             ),
                           ),
                         ],
@@ -2784,7 +3401,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           labelText: 'Designation / Title',
                           hintText: 'e.g. Software Engineer',
                           prefixIcon: const Icon(Icons.badge_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2795,7 +3414,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         decoration: InputDecoration(
                           labelText: 'Phone Number',
                           prefixIcon: const Icon(Icons.phone_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -2806,26 +3427,38 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                           icon: const Icon(Icons.check_circle_rounded),
-                          label: const Text('Add Employee', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          label: const Text(
+                            'Add Employee',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           onPressed: () async {
                             if (formKey.currentState?.validate() ?? false) {
                               Navigator.pop(ctx);
-                              final ok = await ref.read(employeeProvider.notifier).addEmployee({
-                                'name': nameCtrl.text.trim(),
-                                'email': emailCtrl.text.trim(),
-                                'password': passwordCtrl.text.trim(),
-                                'department': selectedDept,
-                                'role': selectedRole,
-                                'designation': designationCtrl.text.trim(),
-                                'phone': phoneCtrl.text.trim(),
-                              });
+                              final ok = await ref
+                                  .read(employeeProvider.notifier)
+                                  .addEmployee({
+                                    'name': nameCtrl.text.trim(),
+                                    'email': emailCtrl.text.trim(),
+                                    'password': passwordCtrl.text.trim(),
+                                    'department': selectedDept,
+                                    'role': selectedRole,
+                                    'designation': designationCtrl.text.trim(),
+                                    'phone': phoneCtrl.text.trim(),
+                                  });
                               if (ok && context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Employee ${nameCtrl.text} added successfully!'),
+                                    content: Text(
+                                      'Employee ${nameCtrl.text} added successfully!',
+                                    ),
                                     backgroundColor: const Color(0xFF10B981),
                                   ),
                                 );
@@ -2849,16 +3482,33 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   void _showEditEmployeeModal(BuildContext context, dynamic emp) {
     final empId = emp['_id']?.toString() ?? emp['id']?.toString() ?? '';
     final nameCtrl = TextEditingController(text: emp['name']?.toString() ?? '');
-    final emailCtrl = TextEditingController(text: emp['email']?.toString() ?? '');
-    final phoneCtrl = TextEditingController(text: emp['phone']?.toString() ?? '');
-    final designationCtrl = TextEditingController(text: emp['designation']?.toString() ?? '');
-    String selectedDept = (emp['department'] != null && emp['department'].toString().isNotEmpty)
+    final emailCtrl = TextEditingController(
+      text: emp['email']?.toString() ?? '',
+    );
+    final phoneCtrl = TextEditingController(
+      text: emp['phone']?.toString() ?? '',
+    );
+    final designationCtrl = TextEditingController(
+      text: emp['designation']?.toString() ?? '',
+    );
+    String selectedDept =
+        (emp['department'] != null && emp['department'].toString().isNotEmpty)
         ? emp['department'].toString()
         : 'IT';
-    if (!['IT', 'HR', 'Sales', 'Marketing', 'Finance', 'Engineering', 'Operations'].contains(selectedDept)) {
+    if (![
+      'IT',
+      'HR',
+      'Sales',
+      'Marketing',
+      'Finance',
+      'Engineering',
+      'Operations',
+    ].contains(selectedDept)) {
       selectedDept = 'IT';
     }
-    String selectedRole = (emp['role']?.toString().toLowerCase() == 'admin') ? 'admin' : 'employee';
+    String selectedRole = (emp['role']?.toString().toLowerCase() == 'admin')
+        ? 'admin'
+        : 'employee';
 
     showModalBottomSheet(
       context: context,
@@ -2876,7 +3526,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
               decoration: BoxDecoration(
                 color: context.cardBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 border: Border.all(color: context.borderCol),
               ),
               child: SingleChildScrollView(
@@ -2903,7 +3555,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             color: AppColors.primary.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.edit_rounded, color: AppColors.primary, size: 24),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -2925,7 +3581,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         prefixIcon: const Icon(Icons.person_outline_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -2935,7 +3593,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       decoration: InputDecoration(
                         labelText: 'Email Address',
                         prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -2948,12 +3608,29 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             style: TextStyle(color: context.txtPrimary),
                             decoration: InputDecoration(
                               labelText: 'Department',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            items: ['IT', 'HR', 'Sales', 'Marketing', 'Finance', 'Engineering', 'Operations']
-                                .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                                .toList(),
-                            onChanged: (val) => setModalState(() => selectedDept = val!),
+                            items:
+                                [
+                                      'IT',
+                                      'HR',
+                                      'Sales',
+                                      'Marketing',
+                                      'Finance',
+                                      'Engineering',
+                                      'Operations',
+                                    ]
+                                    .map(
+                                      (d) => DropdownMenuItem(
+                                        value: d,
+                                        child: Text(d),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (val) =>
+                                setModalState(() => selectedDept = val!),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -2964,13 +3641,22 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             style: TextStyle(color: context.txtPrimary),
                             decoration: InputDecoration(
                               labelText: 'Role',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             items: const [
-                              DropdownMenuItem(value: 'employee', child: Text('Employee')),
-                              DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                              DropdownMenuItem(
+                                value: 'employee',
+                                child: Text('Employee'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'admin',
+                                child: Text('Admin'),
+                              ),
                             ],
-                            onChanged: (val) => setModalState(() => selectedRole = val!),
+                            onChanged: (val) =>
+                                setModalState(() => selectedRole = val!),
                           ),
                         ),
                       ],
@@ -2982,7 +3668,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       decoration: InputDecoration(
                         labelText: 'Designation',
                         prefixIcon: const Icon(Icons.badge_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -2992,7 +3680,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       decoration: InputDecoration(
                         labelText: 'Phone',
                         prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -3003,20 +3693,30 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                         icon: const Icon(Icons.save_rounded),
-                        label: const Text('Update Employee', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'Update Employee',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () async {
                           Navigator.pop(ctx);
-                          final ok = await ref.read(employeeProvider.notifier).updateEmployee(empId, {
-                            'name': nameCtrl.text.trim(),
-                            'email': emailCtrl.text.trim(),
-                            'department': selectedDept,
-                            'role': selectedRole,
-                            'designation': designationCtrl.text.trim(),
-                            'phone': phoneCtrl.text.trim(),
-                          });
+                          final ok = await ref
+                              .read(employeeProvider.notifier)
+                              .updateEmployee(empId, {
+                                'name': nameCtrl.text.trim(),
+                                'email': emailCtrl.text.trim(),
+                                'department': selectedDept,
+                                'role': selectedRole,
+                                'designation': designationCtrl.text.trim(),
+                                'phone': phoneCtrl.text.trim(),
+                              });
                           if (ok && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -3047,12 +3747,24 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: context.cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFEF4444),
+                size: 28,
+              ),
               const SizedBox(width: 10),
-              Text('Delete Employee', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.bold)),
+              Text(
+                'Delete Employee',
+                style: TextStyle(
+                  color: context.txtPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           content: Text(
@@ -3068,11 +3780,15 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: () async {
                 Navigator.pop(ctx);
-                final ok = await ref.read(employeeProvider.notifier).deleteEmployee(empId);
+                final ok = await ref
+                    .read(employeeProvider.notifier)
+                    .deleteEmployee(empId);
                 if (ok && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -3090,14 +3806,20 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  void _showAdminMarkAttendanceModal(BuildContext context, {String? preselectedEmpId}) {
+  void _showAdminMarkAttendanceModal(
+    BuildContext context, {
+    String? preselectedEmpId,
+  }) {
     final employees = ref.read(employeeProvider).employees;
     if (employees.isEmpty) {
       ref.read(employeeProvider.notifier).loadEmployees();
     }
-    String selectedEmpId = preselectedEmpId ??
+    String selectedEmpId =
+        preselectedEmpId ??
         (employees.isNotEmpty
-            ? (employees.first['_id']?.toString() ?? employees.first['id']?.toString() ?? '')
+            ? (employees.first['_id']?.toString() ??
+                  employees.first['id']?.toString() ??
+                  '')
             : '');
     String selectedStatus = 'Present';
     final notesCtrl = TextEditingController();
@@ -3111,7 +3833,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           builder: (context, setModalState) {
             final empList = ref.watch(employeeProvider).employees;
             if (selectedEmpId.isEmpty && empList.isNotEmpty) {
-              selectedEmpId = empList.first['_id']?.toString() ?? empList.first['id']?.toString() ?? '';
+              selectedEmpId =
+                  empList.first['_id']?.toString() ??
+                  empList.first['id']?.toString() ??
+                  '';
             }
 
             return Container(
@@ -3123,7 +3848,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
               decoration: BoxDecoration(
                 color: context.cardBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 border: Border.all(color: context.borderCol),
               ),
               child: SingleChildScrollView(
@@ -3147,11 +3874,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF10B981,
+                            ).withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.access_time_filled_rounded,
-                              color: Color(0xFF10B981), size: 24),
+                          child: const Icon(
+                            Icons.access_time_filled_rounded,
+                            color: Color(0xFF10B981),
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -3168,16 +3900,21 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     ),
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
-                      initialValue: selectedEmpId.isNotEmpty ? selectedEmpId : null,
+                      initialValue: selectedEmpId.isNotEmpty
+                          ? selectedEmpId
+                          : null,
                       dropdownColor: context.cardBg,
                       style: TextStyle(color: context.txtPrimary),
                       decoration: InputDecoration(
                         labelText: 'Select Employee',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         prefixIcon: const Icon(Icons.person_search_rounded),
                       ),
                       items: empList.map<DropdownMenuItem<String>>((e) {
-                        final id = e['_id']?.toString() ?? e['id']?.toString() ?? '';
+                        final id =
+                            e['_id']?.toString() ?? e['id']?.toString() ?? '';
                         final name = e['name'] ?? 'Employee';
                         final dept = e['department'] ?? '';
                         return DropdownMenuItem(
@@ -3185,14 +3922,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           child: Text('$name ($dept)'),
                         );
                       }).toList(),
-                      onChanged: (val) => setModalState(() => selectedEmpId = val ?? ''),
+                      onChanged: (val) =>
+                          setModalState(() => selectedEmpId = val ?? ''),
                     ),
                     const SizedBox(height: 16),
-                    Text('Attendance Status', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Attendance Status',
+                      style: TextStyle(
+                        color: context.txtPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: ['Present', 'Late', 'Half Day', 'Absent'].map((st) {
+                      children: ['Present', 'Late', 'Half Day', 'Absent'].map((
+                        st,
+                      ) {
                         final isSel = selectedStatus == st;
                         Color c;
                         if (st == 'Present') {
@@ -3213,7 +3959,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                             color: isSel ? Colors.white : context.txtPrimary,
                             fontWeight: FontWeight.bold,
                           ),
-                          onSelected: (_) => setModalState(() => selectedStatus = st),
+                          onSelected: (_) =>
+                              setModalState(() => selectedStatus = st),
                         );
                       }).toList(),
                     ),
@@ -3224,7 +3971,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       decoration: InputDecoration(
                         labelText: 'Admin Remarks / Reason',
                         hintText: 'e.g. On-site assignment, Approved delay',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -3235,27 +3984,41 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                         icon: const Icon(Icons.check_circle_rounded),
-                        label: const Text('Submit Attendance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'Submit Attendance',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () async {
                           if (selectedEmpId.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please select an employee')),
+                              const SnackBar(
+                                content: Text('Please select an employee'),
+                              ),
                             );
                             return;
                           }
                           Navigator.pop(ctx);
-                          final ok = await ref.read(attendanceProvider.notifier).adminMarkAttendance(
-                            employeeId: selectedEmpId,
-                            status: selectedStatus,
-                            notes: notesCtrl.text.trim(),
-                          );
+                          final ok = await ref
+                              .read(attendanceProvider.notifier)
+                              .adminMarkAttendance(
+                                employeeId: selectedEmpId,
+                                status: selectedStatus,
+                                notes: notesCtrl.text.trim(),
+                              );
                           if (ok && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Attendance marked as $selectedStatus'),
+                                content: Text(
+                                  'Attendance marked as $selectedStatus',
+                                ),
                                 backgroundColor: const Color(0xFF10B981),
                               ),
                             );
@@ -3278,8 +4041,20 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final attendance = ref.watch(attendanceProvider);
     final allLeavesList = attendance.allLeaves;
 
-    final pendingCount = allLeavesList.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'pending')).length;
-    final approvedCount = allLeavesList.where((l) => (l is Map && (l['status'] ?? '').toString().toLowerCase() == 'approved')).length;
+    final pendingCount = allLeavesList
+        .where(
+          (l) =>
+              (l is Map &&
+              (l['status'] ?? '').toString().toLowerCase() == 'pending'),
+        )
+        .length;
+    final approvedCount = allLeavesList
+        .where(
+          (l) =>
+              (l is Map &&
+              (l['status'] ?? '').toString().toLowerCase() == 'approved'),
+        )
+        .length;
     final rejectedCount = allLeavesList.where((l) {
       if (l is! Map) return false;
       final st = (l['status'] ?? '').toString().toLowerCase();
@@ -3291,15 +4066,32 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       final st = (l['status'] ?? '').toString().toLowerCase();
       if (_leaveFilter == 'Approved') return st == 'approved';
       if (_leaveFilter == 'Pending') return st == 'pending';
-      if (_leaveFilter == 'Rejected') return st == 'rejected' || st == 'cancelled';
+      if (_leaveFilter == 'Rejected')
+        return st == 'rejected' || st == 'cancelled';
       return true;
     }).toList();
 
     final filterOptions = [
-      {'label': 'All', 'count': allLeavesList.length, 'color': const Color(0xFF6366F1)},
-      {'label': 'Approved', 'count': approvedCount, 'color': const Color(0xFF10B981)},
-      {'label': 'Pending', 'count': pendingCount, 'color': const Color(0xFFF59E0B)},
-      {'label': 'Rejected', 'count': rejectedCount, 'color': const Color(0xFFEF4444)},
+      {
+        'label': 'All',
+        'count': allLeavesList.length,
+        'color': const Color(0xFF6366F1),
+      },
+      {
+        'label': 'Approved',
+        'count': approvedCount,
+        'color': const Color(0xFF10B981),
+      },
+      {
+        'label': 'Pending',
+        'count': pendingCount,
+        'color': const Color(0xFFF59E0B),
+      },
+      {
+        'label': 'Rejected',
+        'count': rejectedCount,
+        'color': const Color(0xFFEF4444),
+      },
     ];
 
     return Column(
@@ -3321,7 +4113,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -3357,7 +4152,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   borderRadius: BorderRadius.circular(12),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isSel ? color : context.cardBg,
                       borderRadius: BorderRadius.circular(12),
@@ -3371,7 +4169,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                 color: color.withValues(alpha: 0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
-                              )
+                              ),
                             ]
                           : [],
                     ),
@@ -3382,13 +4180,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           label,
                           style: TextStyle(
                             color: isSel ? Colors.white : context.txtPrimary,
-                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                            fontWeight: isSel
+                                ? FontWeight.w700
+                                : FontWeight.w600,
                             fontSize: 13,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: isSel
                                 ? Colors.white.withValues(alpha: 0.25)
@@ -3417,48 +4220,55 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         // List / Empty View
         Expanded(
           child: attendance.isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
               : filteredLeaves.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _leaveFilter == 'Approved'
-                                ? Icons.check_circle_outline_rounded
-                                : _leaveFilter == 'Pending'
-                                    ? Icons.pending_actions_rounded
-                                    : Icons.event_busy_rounded,
-                            size: 48,
-                            color: context.txtMuted.withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _leaveFilter == 'Approved'
-                                ? 'No approved leaves'
-                                : _leaveFilter == 'Pending'
-                                    ? 'No pending leave requests'
-                                    : _leaveFilter == 'Rejected'
-                                        ? 'No rejected leaves'
-                                        : 'No leave records found',
-                            style: TextStyle(
-                              color: context.txtMuted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _leaveFilter == 'Approved'
+                            ? Icons.check_circle_outline_rounded
+                            : _leaveFilter == 'Pending'
+                            ? Icons.pending_actions_rounded
+                            : Icons.event_busy_rounded,
+                        size: 48,
+                        color: context.txtMuted.withValues(alpha: 0.4),
                       ),
-                    )
-                  : RefreshIndicator(
-                      color: AppColors.primary,
-                      onRefresh: () => ref.read(attendanceProvider.notifier).loadAllLeaves(),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                        itemCount: filteredLeaves.length,
-                        itemBuilder: (ctx, i) => _buildPendingLeaveCard(filteredLeaves[i]),
+                      const SizedBox(height: 12),
+                      Text(
+                        _leaveFilter == 'Approved'
+                            ? 'No approved leaves'
+                            : _leaveFilter == 'Pending'
+                            ? 'No pending leave requests'
+                            : _leaveFilter == 'Rejected'
+                            ? 'No rejected leaves'
+                            : 'No leave records found',
+                        style: TextStyle(
+                          color: context.txtMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () =>
+                      ref.read(attendanceProvider.notifier).loadAllLeaves(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 6,
                     ),
+                    itemCount: filteredLeaves.length,
+                    itemBuilder: (ctx, i) =>
+                        _buildPendingLeaveCard(filteredLeaves[i]),
+                  ),
+                ),
         ),
       ],
     );
@@ -3480,14 +4290,26 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildMoreItem(Icons.analytics_outlined, 'Attendance Overview',
-              () => context.go('/admin/analytics')),
-          _buildMoreItem(Icons.folder_outlined, 'Project Progress',
-              () => context.go('/admin/projects')),
-          _buildMoreItem(Icons.payment_outlined, 'Salary Reports',
-              () => context.go('/admin/salary')),
-          _buildMoreItem(Icons.holiday_village_outlined, 'Holiday Calendar',
-              () => context.go('/admin/holidays')),
+          _buildMoreItem(
+            Icons.analytics_outlined,
+            'Attendance Overview',
+            () => context.go('/admin/analytics'),
+          ),
+          _buildMoreItem(
+            Icons.folder_outlined,
+            'Project Progress',
+            () => context.go('/admin/projects'),
+          ),
+          _buildMoreItem(
+            Icons.payment_outlined,
+            'Salary Reports',
+            () => context.go('/admin/salary'),
+          ),
+          _buildMoreItem(
+            Icons.holiday_village_outlined,
+            'Holiday Calendar',
+            () => context.go('/admin/holidays'),
+          ),
         ],
       ),
     );
@@ -3500,21 +4322,39 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       child: Column(
         children: [
           const SizedBox(height: 10),
-          _buildMoreItem(Icons.holiday_village_outlined, 'Holidays',
-              () => context.go('/admin/holidays')),
-          _buildMoreItem(Icons.analytics_outlined, 'Analytics',
-              () => context.go('/admin/analytics')),
-          _buildMoreItem(Icons.folder_outlined, 'Projects',
-              () => context.go('/admin/projects')),
           _buildMoreItem(
-              Icons.payment_outlined, 'Salary', () => context.go('/admin/salary')),
-          _buildMoreItem(Icons.notifications_outlined, 'Notifications',
-              () => context.go('/admin/notifications')),
+            Icons.holiday_village_outlined,
+            'Holidays',
+            () => context.go('/admin/holidays'),
+          ),
+          _buildMoreItem(
+            Icons.analytics_outlined,
+            'Analytics',
+            () => context.go('/admin/analytics'),
+          ),
+          _buildMoreItem(
+            Icons.folder_outlined,
+            'Projects',
+            () => context.go('/admin/projects'),
+          ),
+          _buildMoreItem(
+            Icons.payment_outlined,
+            'Salary',
+            () => context.go('/admin/salary'),
+          ),
+          _buildMoreItem(
+            Icons.notifications_outlined,
+            'Notifications',
+            () => context.go('/admin/notifications'),
+          ),
           // Theme Switch
           Container(
             margin: const EdgeInsets.only(bottom: 10),
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 4,
+              ),
               tileColor: context.cardBg,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -3523,10 +4363,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (ref.watch(themeProvider) == ThemeMode.dark
-                          ? const Color(0xFFFBBF24)
-                          : const Color(0xFF6366F1))
-                      .withValues(alpha: 0.15),
+                  color:
+                      (ref.watch(themeProvider) == ThemeMode.dark
+                              ? const Color(0xFFFBBF24)
+                              : const Color(0xFF6366F1))
+                          .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -3540,9 +4381,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 ),
               ),
               title: Text(
-                ref.watch(themeProvider) == ThemeMode.dark ? 'Light Mode' : 'Dark Mode',
+                ref.watch(themeProvider) == ThemeMode.dark
+                    ? 'Light Mode'
+                    : 'Dark Mode',
                 style: TextStyle(
-                    color: context.txtPrimary, fontWeight: FontWeight.w500),
+                  color: context.txtPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               trailing: Switch.adaptive(
                 value: ref.watch(themeProvider) == ThemeMode.dark,
@@ -3556,10 +4401,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           const SizedBox(height: 12),
           Divider(color: context.dividerCol),
           const SizedBox(height: 12),
-          CustomLogoutButton(onTap: () async {
-            await ref.read(authProvider.notifier).logout();
-            if (mounted) context.go('/welcome');
-          }),
+          CustomLogoutButton(
+            onTap: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (mounted) context.go('/welcome');
+            },
+          ),
         ],
       ),
     );
@@ -3583,11 +4430,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           ),
           child: Icon(icon, color: AppColors.primary, size: 20),
         ),
-        title: Text(label,
-            style: TextStyle(
-                color: context.txtPrimary, fontWeight: FontWeight.w500)),
-        trailing: Icon(Icons.chevron_right,
-            color: context.txtMuted, size: 20),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: context.txtPrimary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Icon(Icons.chevron_right, color: context.txtMuted, size: 20),
         onTap: onTap,
       ),
     );
@@ -3688,12 +4538,7 @@ class _BannerWavePainter extends CustomPainter {
       width * 0.45,
       height * 0.7,
     );
-    path1.quadraticBezierTo(
-      width * 0.7,
-      height * 0.9,
-      width,
-      height,
-    );
+    path1.quadraticBezierTo(width * 0.7, height * 0.9, width, height);
     path1.lineTo(width, 0);
     path1.close();
     canvas.drawPath(path1, paint1);
@@ -3716,12 +4561,7 @@ class _BannerWavePainter extends CustomPainter {
 
     final path2 = Path();
     path2.moveTo(width * 0.5, 0);
-    path2.quadraticBezierTo(
-      width * 0.35,
-      height * 0.5,
-      width * 0.6,
-      height,
-    );
+    path2.quadraticBezierTo(width * 0.35, height * 0.5, width * 0.6, height);
     path2.lineTo(width, height);
     path2.lineTo(width, 0);
     path2.close();
@@ -3761,4 +4601,3 @@ bool isLeaveActiveToday(dynamic leave, [DateTime? targetDate]) {
     return false;
   }
 }
-

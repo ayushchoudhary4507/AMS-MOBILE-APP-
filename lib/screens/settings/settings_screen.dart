@@ -53,7 +53,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           user: auth.user,
           role: auth.role,
         );
-        _showSnackBar('Fingerprint Lock Enabled Successfully! ✓', AppColors.accentGreen);
+        _showSnackBar(
+          'Fingerprint Lock Enabled Successfully! ✓',
+          AppColors.accentGreen,
+        );
       } else if (mounted) {
         _showSnackBar(
           result.errorMessage ?? 'Fingerprint verification failed.',
@@ -93,7 +96,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           user: auth.user,
           role: auth.role,
         );
-        _showSnackBar('Face Lock Enabled Successfully! ✓', AppColors.accentGreen);
+        _showSnackBar(
+          'Face Lock Enabled Successfully! ✓',
+          AppColors.accentGreen,
+        );
       } else if (mounted) {
         _showSnackBar(
           result.errorMessage ?? 'Face verification failed.',
@@ -105,8 +111,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _showSnackBar('Face Lock Disabled', AppColors.accentAmber);
     }
   }
-
-
 
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -129,7 +133,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     final userName = user?['name']?.toString() ?? 'User';
     final userEmail = user?['email']?.toString() ?? 'user@ams.com';
-    final userRole = (auth.role ?? user?['role']?.toString() ?? 'Employee').toUpperCase();
+    final userRole = (auth.role ?? user?['role']?.toString() ?? 'Employee')
+        .toUpperCase();
 
     return Scaffold(
       appBar: AppBar(
@@ -171,12 +176,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             children: [
               // User Card Header
-              _buildUserHeaderCard(context, user, userName, userEmail, userRole),
+              _buildUserHeaderCard(
+                context,
+                user,
+                userName,
+                userEmail,
+                userRole,
+              ),
 
               const SizedBox(height: 24),
 
               // Section Title: Security & Biometrics
-              _buildSectionTitle(context, 'Security & Biometrics', Icons.security_rounded),
+              _buildSectionTitle(
+                context,
+                'Security & Biometrics',
+                Icons.security_rounded,
+              ),
               const SizedBox(height: 12),
 
               // Fingerprint Option Card
@@ -192,7 +207,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 badgeText: caps.hasFingerprint
                     ? 'Fingerprint Ready'
                     : (caps.canCheckBiometrics ? 'Available' : 'Not Detected'),
-                badgeColor: caps.hasFingerprint ? AppColors.accentGreen : AppColors.accentAmber,
+                badgeColor: caps.hasFingerprint
+                    ? AppColors.accentGreen
+                    : AppColors.accentAmber,
               ),
 
               const SizedBox(height: 14),
@@ -210,15 +227,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 badgeText: caps.hasFace
                     ? 'Face ID Ready'
                     : (caps.canCheckBiometrics ? 'Available' : 'Not Detected'),
-                badgeColor: caps.hasFace ? const Color(0xFF06B6D4) : AppColors.accentAmber,
+                badgeColor: caps.hasFace
+                    ? const Color(0xFF06B6D4)
+                    : AppColors.accentAmber,
               ),
-
-
 
               const SizedBox(height: 24),
 
               // Section Title: Preferences
-              _buildSectionTitle(context, 'App Preferences', Icons.tune_rounded),
+              _buildSectionTitle(
+                context,
+                'App Preferences',
+                Icons.tune_rounded,
+              ),
               const SizedBox(height: 12),
 
               // Dark Theme Card
@@ -229,17 +250,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   side: BorderSide(color: context.borderCol),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (isDark ? Colors.amber : Colors.indigo).withValues(alpha: 0.15),
+                          color: (isDark ? Colors.amber : Colors.indigo)
+                              .withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                          isDark
+                              ? Icons.dark_mode_rounded
+                              : Icons.light_mode_rounded,
                           color: isDark ? Colors.amber : Colors.indigo,
                           size: 22,
                         ),
@@ -259,7 +286,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              isDark ? 'Dark theme active' : 'Light theme active',
+                              isDark
+                                  ? 'Dark theme active'
+                                  : 'Light theme active',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: context.txtSecondary,
@@ -271,7 +300,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       Switch(
                         value: isDark,
                         activeThumbColor: AppColors.primary,
-                        onChanged: (_) => ref.read(themeProvider.notifier).toggleTheme(),
+                        onChanged: (_) =>
+                            ref.read(themeProvider.notifier).toggleTheme(),
                       ),
                     ],
                   ),
@@ -289,7 +319,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: AppColors.accentRed.withValues(alpha: 0.4)),
+                    side: BorderSide(
+                      color: AppColors.accentRed.withValues(alpha: 0.4),
+                    ),
                   ),
                 ),
                 icon: const Icon(Icons.logout_rounded, size: 20),
@@ -328,7 +360,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String email,
     String role,
   ) {
-    final phone = user?['phone']?.toString() ?? user?['phoneNumber']?.toString();
+    final phone =
+        user?['phone']?.toString() ?? user?['phoneNumber']?.toString();
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -392,7 +425,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
@@ -437,13 +473,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                side: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.5),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               onPressed: () => _showEditProfileModal(context, user),
-              icon: const Icon(Icons.edit_rounded, size: 18, color: AppColors.primary),
+              icon: const Icon(
+                Icons.edit_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
               label: const Text(
                 'Edit Profile & Photo',
                 style: TextStyle(
@@ -461,7 +503,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showEditProfileModal(BuildContext context, Map<String, dynamic>? user) {
     final currentName = user?['name']?.toString() ?? '';
-    final currentPhone = user?['phone']?.toString() ?? user?['phoneNumber']?.toString() ?? '';
+    final currentPhone =
+        user?['phone']?.toString() ?? user?['phoneNumber']?.toString() ?? '';
     final currentEmail = user?['email']?.toString() ?? '';
     final currentRole = (user?['role']?.toString() ?? 'Employee').toUpperCase();
     String? currentAvatar = extractAvatarUrl(user);
@@ -509,18 +552,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               setModalState(() => isSaving = true);
 
-              final success = await ref.read(authProvider.notifier).updateUserProfile(
-                name: newName,
-                phone: newPhone.isNotEmpty ? newPhone : null,
-                profilePicture: selectedBase64Image,
-              );
+              final success = await ref
+                  .read(authProvider.notifier)
+                  .updateUserProfile(
+                    name: newName,
+                    phone: newPhone.isNotEmpty ? newPhone : null,
+                    profilePicture: selectedBase64Image,
+                  );
 
               if (modalCtx.mounted) {
                 Navigator.of(modalCtx).pop();
               }
 
               if (success) {
-                _showSnackBar('Profile & Photo updated successfully! ✓', AppColors.accentGreen);
+                _showSnackBar(
+                  'Profile & Photo updated successfully! ✓',
+                  AppColors.accentGreen,
+                );
               } else {
                 _showSnackBar('Failed to update profile.', AppColors.accentRed);
               }
@@ -535,7 +583,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               decoration: BoxDecoration(
                 color: modalCtx.cardBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 border: Border.all(color: modalCtx.borderCol),
               ),
               child: SingleChildScrollView(
@@ -576,7 +626,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     Center(
                       child: Stack(
                         children: [
-                          _buildAvatarWidget(selectedBase64Image, nameController.text, 45),
+                          _buildAvatarWidget(
+                            selectedBase64Image,
+                            nameController.text,
+                            45,
+                          ),
                           Positioned(
                             bottom: 0,
                             right: 0,
@@ -588,15 +642,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     child: Wrap(
                                       children: [
                                         ListTile(
-                                          leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
-                                          title: const Text('Choose from Gallery'),
+                                          leading: const Icon(
+                                            Icons.photo_library_rounded,
+                                            color: AppColors.primary,
+                                          ),
+                                          title: const Text(
+                                            'Choose from Gallery',
+                                          ),
                                           onTap: () {
                                             Navigator.pop(pickerCtx);
                                             pickImage(ImageSource.gallery);
                                           },
                                         ),
                                         ListTile(
-                                          leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF06B6D4)),
+                                          leading: const Icon(
+                                            Icons.camera_alt_rounded,
+                                            color: Color(0xFF06B6D4),
+                                          ),
                                           title: const Text('Take a Photo'),
                                           onTap: () {
                                             Navigator.pop(pickerCtx);
@@ -613,7 +675,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: modalCtx.cardBg, width: 2),
+                                  border: Border.all(
+                                    color: modalCtx.cardBg,
+                                    width: 2,
+                                  ),
                                 ),
                                 child: const Icon(
                                   Icons.camera_alt_rounded,
@@ -635,7 +700,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             child: Wrap(
                               children: [
                                 ListTile(
-                                  leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
+                                  leading: const Icon(
+                                    Icons.photo_library_rounded,
+                                    color: AppColors.primary,
+                                  ),
                                   title: const Text('Choose from Gallery'),
                                   onTap: () {
                                     Navigator.pop(pickerCtx);
@@ -643,7 +711,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   },
                                 ),
                                 ListTile(
-                                  leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF06B6D4)),
+                                  leading: const Icon(
+                                    Icons.camera_alt_rounded,
+                                    color: Color(0xFF06B6D4),
+                                  ),
                                   title: const Text('Take a Photo'),
                                   onTap: () {
                                     Navigator.pop(pickerCtx);
@@ -667,7 +738,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         prefixIcon: const Icon(Icons.person_outline_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -680,7 +753,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Phone Number',
                         prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -694,7 +769,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email Address (Read-only)',
                         prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -708,7 +785,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Role (Read-only)',
                         prefixIcon: const Icon(Icons.badge_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -721,18 +800,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                         onPressed: isSaving ? null : saveProfile,
                         child: isSaving
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Text(
                                 'Save Profile Changes',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                       ),
                     ),
@@ -819,7 +906,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: badgeColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
@@ -838,10 +928,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.txtSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: context.txtSecondary),
                   ),
                 ],
               ),
