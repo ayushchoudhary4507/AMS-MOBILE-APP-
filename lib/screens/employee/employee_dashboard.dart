@@ -2392,8 +2392,9 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
       final st = (l['status'] ?? '').toString().toLowerCase();
       if (_leaveFilter == 'Approved') return st == 'approved';
       if (_leaveFilter == 'Pending') return st == 'pending';
-      if (_leaveFilter == 'Rejected')
+      if (_leaveFilter == 'Rejected') {
         return st == 'rejected' || st == 'cancelled';
+      }
       return true;
     }).toList();
 

@@ -102,8 +102,9 @@ class StorageService {
             ?.toString();
 
     if (avatar != null && avatar.isNotEmpty) {
-      if (email != null && email.isNotEmpty)
+      if (email != null && email.isNotEmpty) {
         await saveUserAvatar(email, avatar);
+      }
       if (id != null && id.isNotEmpty) await saveUserAvatar(id, avatar);
       if (name != null && name.isNotEmpty) await saveUserAvatar(name, avatar);
     }
@@ -152,12 +153,15 @@ class StorageService {
           userMap['profileImage'] = currentAvatar;
           userMap['profile_picture'] = currentAvatar;
           userMap['image'] = currentAvatar;
-          if (email != null && email.isNotEmpty)
+          if (email != null && email.isNotEmpty) {
             avatarCache[email.trim().toLowerCase()] = currentAvatar;
-          if (id != null && id.isNotEmpty)
+          }
+          if (id != null && id.isNotEmpty) {
             avatarCache[id.trim().toLowerCase()] = currentAvatar;
-          if (name != null && name.isNotEmpty)
+          }
+          if (name != null && name.isNotEmpty) {
             avatarCache[name.trim().toLowerCase()] = currentAvatar;
+          }
         }
       }
       return userMap;

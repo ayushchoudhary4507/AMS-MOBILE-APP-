@@ -633,7 +633,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 leaveKeys.addAll(keys);
 
                 final empKey =
-                    (id ?? email ?? name)?.toString().toLowerCase() ?? 'emp';
+                    (id ?? email ?? name).toString().toLowerCase() ?? 'emp';
                 if (!addedLeaveEmpKeys.contains(empKey)) {
                   addedLeaveEmpKeys.add(empKey);
                   leaveList.add({
@@ -4068,8 +4068,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       final st = (l['status'] ?? '').toString().toLowerCase();
       if (_leaveFilter == 'Approved') return st == 'approved';
       if (_leaveFilter == 'Pending') return st == 'pending';
-      if (_leaveFilter == 'Rejected')
+      if (_leaveFilter == 'Rejected') {
         return st == 'rejected' || st == 'cancelled';
+      }
       return true;
     }).toList();
 

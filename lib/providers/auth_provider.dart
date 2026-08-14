@@ -55,8 +55,9 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
   if (avatarOrUser == null) return null;
   if (avatarOrUser is String) {
     final clean = avatarOrUser.trim();
-    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined')
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
       return clean;
+    }
     return null;
   }
   if (avatarOrUser is Map) {
