@@ -431,14 +431,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showForgotPasswordModal(BuildContext context) {
-    final resetEmailController = TextEditingController(
-      text: _emailController.text.trim(),
+    bool isPhoneMode = true; // Default to Phone SMS (active on backend)
+    final identifierController = TextEditingController(
+      text: _emailController.text.trim().contains('@') ? '' : _emailController.text.trim(),
     );
     final otpController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
 
-    int currentStep = 1; // 1 = Enter Email & Send OTP, 2 = Enter OTP & Reset Password
+    int currentStep = 1; // 1 = Request OTP, 2 = Enter OTP & Set New Password
     bool isSubmitting = false;
     bool obscureNew = true;
     bool obscureConfirm = true;
@@ -459,11 +460,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: context.cardBg,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(28)),
                   border: Border.all(color: context.borderCol, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: context.isDark ? 0.4 : 0.1),
+                      color: Colors.black
+                          .withValues(alpha: context.isDark ? 0.4 : 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, -4),
                     ),
@@ -493,12 +496,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                              color: const Color(0xFF6366F1)
+                                  .withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               currentStep == 1
-                                  ? Icons.mark_email_read_rounded
+                                  ? (isPhoneMode
+                                      ? Icons.phone_android_rounded
+                                      : Icons.mark_email_read_rounded)
                                   : Icons.lock_reset_rounded,
                               color: const Color(0xFF6366F1),
                               size: 24,
@@ -510,7 +516,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  currentStep == 1 ? 'Forgot Password?' : 'Reset Password',
+                                  currentStep == 1
+                                      ? 'Forgot Password?'
+                                      : 'Reset Password',
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w800,
@@ -520,8 +528,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 const SizedBox(height: 2),
                                 Text(
                                   currentStep == 1
-                                      ? 'Step 1 of 2: Request OTP Code'
-                                      : 'Step 2 of 2: Set New Password',
+                                      ? 'Step 1 of 2: Get OTP on Phone / Email'
+                                      : 'Step 2 of 2: Enter OTP & New Password',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: context.txtMuted,
@@ -532,7 +540,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           IconButton(
-                            icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                            icon: Icon(Icons.close_rounded,
+                                color: context.txtMuted),
                             onPressed: () => Navigator.pop(ctx),
                           ),
                         ],
@@ -544,13 +553,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           padding: const EdgeInsets.all(12),
                           margin: const EdgeInsets.only(bottom: 14),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                            color: const Color(0xFFEF4444)
+                                .withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: const Color(0xFFEF4444)
+                                    .withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 18),
+                              const Icon(Icons.error_outline_rounded,
+                                  color: Color(0xFFEF4444), size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -569,36 +582,174 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                       if (currentStep == 1) ...[
                         Text(
-                          'Enter your registered email address below. We will send you an OTP verification code.',
+                          'Choose where you would like to receive your real-time OTP verification code:',
                           style: TextStyle(
                             color: context.txtSecondary,
                             fontSize: 13,
                             height: 1.4,
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 14),
 
+                        // Channel Toggle: Phone vs Email
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: context.inputFillBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: context.borderCol, width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      isPhoneMode = true;
+                                      errorText = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: isPhoneMode
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.phone_iphone_rounded,
+                                          size: 18,
+                                          color: isPhoneMode
+                                              ? Colors.white
+                                              : context.txtMuted,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Phone SMS',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: isPhoneMode
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: isPhoneMode
+                                                ? Colors.white
+                                                : context.txtSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      isPhoneMode = false;
+                                      errorText = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: !isPhoneMode
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.mail_outline_rounded,
+                                          size: 18,
+                                          color: !isPhoneMode
+                                              ? Colors.white
+                                              : context.txtMuted,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Email',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: !isPhoneMode
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: !isPhoneMode
+                                                ? Colors.white
+                                                : context.txtSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Input field for Phone or Email
                         CustomTextField(
-                          controller: resetEmailController,
-                          label: 'Email Address',
-                          hint: 'e.g. user@domain.com',
-                          prefixIcon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
+                          controller: identifierController,
+                          label: isPhoneMode
+                              ? 'Mobile Phone Number'
+                              : 'Email Address',
+                          hint: isPhoneMode
+                              ? 'e.g. +91 9876543210 or 9876543210'
+                              : 'e.g. user@domain.com',
+                          prefixIcon: isPhoneMode
+                              ? Icons.phone_outlined
+                              : Icons.email_outlined,
+                          keyboardType: isPhoneMode
+                              ? TextInputType.phone
+                              : TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 22),
 
                         CustomButton(
-                          label: isSubmitting ? 'Sending OTP Code...' : 'Send Reset Code',
+                          label: isSubmitting
+                              ? 'Sending OTP to Backend...'
+                              : (isPhoneMode
+                                  ? 'Send OTP to Phone'
+                                  : 'Send OTP to Email'),
                           isLoading: isSubmitting,
                           onPressed: isSubmitting
                               ? null
                               : () async {
-                                  final email = resetEmailController.text.trim();
-                                  if (email.isEmpty || !email.contains('@')) {
-                                    setModalState(() {
-                                      errorText = 'Please enter a valid email address';
-                                    });
-                                    return;
+                                  final idVal =
+                                      identifierController.text.trim();
+                                  if (isPhoneMode) {
+                                    final cleanDigits =
+                                        idVal.replaceAll(RegExp(r'\D'), '');
+                                    if (cleanDigits.length < 8) {
+                                      setModalState(() {
+                                        errorText =
+                                            'Please enter a valid phone number (at least 8 digits)';
+                                      });
+                                      return;
+                                    }
+                                  } else {
+                                    final emailRegex =
+                                        RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
+                                    if (idVal.isEmpty ||
+                                        !emailRegex.hasMatch(idVal)) {
+                                      setModalState(() {
+                                        errorText =
+                                            'Please enter a valid email address (e.g. name@example.com)';
+                                      });
+                                      return;
+                                    }
                                   }
 
                                   setModalState(() {
@@ -608,32 +759,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                                   final ok = await ref
                                       .read(authProvider.notifier)
-                                      .sendForgotPasswordOtp(email);
+                                      .sendForgotPasswordOtp(idVal);
 
                                   if (ok && ctx.mounted) {
+                                    // Empty OTP field - real OTP will be entered by user
+                                    otpController.clear();
                                     setModalState(() {
                                       isSubmitting = false;
                                       currentStep = 2;
                                       errorText = null;
                                     });
                                     ScaffoldMessenger.of(ctx).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('OTP code sent! Please check your email inbox.'),
-                                        backgroundColor: Color(0xFF10B981),
+                                      SnackBar(
+                                        content: Text(
+                                          'OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "email inbox"}.',
+                                        ),
+                                        backgroundColor:
+                                            const Color(0xFF10B981),
+                                        duration: const Duration(seconds: 4),
                                       ),
                                     );
                                   } else {
                                     setModalState(() {
                                       isSubmitting = false;
-                                      errorText = ref.read(authProvider).error ??
-                                          'Failed to send OTP code. Please try again.';
+                                      errorText =
+                                          ref.read(authProvider).error ??
+                                              'Failed to send OTP code. Please check your details.';
                                     });
                                   }
                                 },
                         ),
                       ] else ...[
                         Text(
-                          'Enter the OTP code received on ${resetEmailController.text.trim()} and your new password.',
+                          'Enter the 6-digit OTP code received on ${identifierController.text.trim()} and set your new password.',
                           style: TextStyle(
                             color: context.txtSecondary,
                             fontSize: 13,
@@ -642,11 +800,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // OTP Code Field
+                        // OTP Code Field (Empty for real input)
                         CustomTextField(
                           controller: otpController,
                           label: 'OTP / Verification Code',
-                          hint: 'Enter 6-digit OTP code',
+                          hint: 'Enter 6-digit OTP received',
                           prefixIcon: Icons.pin_outlined,
                           keyboardType: TextInputType.number,
                         ),
@@ -656,16 +814,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         CustomTextField(
                           controller: newPasswordController,
                           label: 'New Password',
-                          hint: 'Enter new password',
+                          hint: 'Enter new password (min 4 chars)',
                           prefixIcon: Icons.lock_outline,
                           obscureText: obscureNew,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              obscureNew
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
                               color: context.txtMuted,
                               size: 20,
                             ),
-                            onPressed: () => setModalState(() => obscureNew = !obscureNew),
+                            onPressed: () => setModalState(
+                                () => obscureNew = !obscureNew),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -679,35 +840,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           obscureText: obscureConfirm,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              obscureConfirm
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
                               color: context.txtMuted,
                               size: 20,
                             ),
-                            onPressed: () => setModalState(() => obscureConfirm = !obscureConfirm),
+                            onPressed: () => setModalState(
+                                () => obscureConfirm = !obscureConfirm),
                           ),
                         ),
                         const SizedBox(height: 22),
 
                         CustomButton(
-                          label: isSubmitting ? 'Resetting Password...' : 'Reset Password',
+                          label: isSubmitting
+                              ? 'Verifying OTP & Resetting...'
+                              : 'Reset Password',
                           isLoading: isSubmitting,
                           onPressed: isSubmitting
                               ? null
                               : () async {
                                   final otp = otpController.text.trim();
                                   final newPass = newPasswordController.text;
-                                  final confirmPass = confirmPasswordController.text;
+                                  final confirmPass =
+                                      confirmPasswordController.text;
 
                                   if (otp.isEmpty) {
-                                    setModalState(() => errorText = 'Please enter OTP code');
+                                    setModalState(() => errorText =
+                                        'Please enter the OTP verification code');
                                     return;
                                   }
                                   if (newPass.length < 4) {
-                                    setModalState(() => errorText = 'Password must be at least 4 characters');
+                                    setModalState(() => errorText =
+                                        'Password must be at least 4 characters');
                                     return;
                                   }
                                   if (newPass != confirmPass) {
-                                    setModalState(() => errorText = 'Passwords do not match');
+                                    setModalState(() => errorText =
+                                        'Passwords do not match');
                                     return;
                                   }
 
@@ -716,22 +886,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     errorText = null;
                                   });
 
+                                  final idVal =
+                                      identifierController.text.trim();
                                   final ok = await ref
                                       .read(authProvider.notifier)
                                       .resetPasswordWithOtp(
-                                        email: resetEmailController.text.trim(),
+                                        identifier: idVal,
                                         otp: otp,
                                         newPassword: newPass,
                                       );
 
                                   if (ok && ctx.mounted) {
                                     Navigator.pop(ctx);
-                                    _emailController.text = resetEmailController.text.trim();
+                                    if (idVal.contains('@')) {
+                                      _emailController.text = idVal;
+                                    }
                                     _passwordController.text = newPass;
                                     if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
                                         const SnackBar(
-                                          content: Text('Password reset successfully! You can now log in.'),
+                                          content: Text(
+                                              'Password reset successfully! You can now log in.'),
                                           backgroundColor: Color(0xFF10B981),
                                           duration: Duration(seconds: 4),
                                         ),
@@ -740,8 +916,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   } else {
                                     setModalState(() {
                                       isSubmitting = false;
-                                      errorText = ref.read(authProvider).error ??
-                                          'Failed to reset password. Invalid OTP or expired code.';
+                                      errorText =
+                                          ref.read(authProvider).error ??
+                                              'Failed to reset password. Invalid OTP or expired code.';
                                     });
                                   }
                                 },
@@ -749,23 +926,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 12),
 
                         // Back to Step 1 or Resend OTP
-                        Center(
-                          child: TextButton(
-                            onPressed: isSubmitting
-                                ? null
-                                : () => setModalState(() {
-                                      currentStep = 1;
-                                      errorText = null;
-                                    }),
-                            child: const Text(
-                              'Change email or resend code',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () => setModalState(() {
+                                        currentStep = 1;
+                                        errorText = null;
+                                      }),
+                              icon: const Icon(Icons.arrow_back_rounded,
+                                  size: 16),
+                              label: const Text(
+                                'Change phone/email',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
+                            TextButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () async {
+                                      final idVal =
+                                          identifierController.text.trim();
+                                      setModalState(() {
+                                        isSubmitting = true;
+                                        errorText = null;
+                                      });
+                                      final ok = await ref
+                                          .read(authProvider.notifier)
+                                          .sendForgotPasswordOtp(idVal);
+                                      setModalState(
+                                          () => isSubmitting = false);
+                                      if (ok && ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                                'New OTP sent to $idVal!'),
+                                            backgroundColor:
+                                                const Color(0xFF10B981),
+                                          ),
+                                        );
+                                      } else {
+                                        setModalState(() {
+                                          errorText = ref
+                                                  .read(authProvider)
+                                                  .error ??
+                                              'Failed to resend OTP.';
+                                        });
+                                      }
+                                    },
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text(
+                                'Resend OTP',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       const SizedBox(height: 12),

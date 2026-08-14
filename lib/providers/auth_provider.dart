@@ -624,25 +624,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  Future<bool> sendForgotPasswordOtp(String email) async {
+  Future<bool> sendForgotPasswordOtp(String identifier) async {
     try {
       state = state.copyWith(status: AuthStatus.loading, error: null);
-      await AuthService.forgotPassword(email);
+      await AuthService.forgotPassword(identifier);
       state = state.copyWith(status: AuthStatus.unauthenticated);
       return true;
     } catch (e) {
-      String msg = 'Failed to send reset code. Please check your email.';
+      String msg = 'Failed to send OTP code. Please check your details.';
       if (e is DioException) {
         final res = e.response?.data;
         if (res is Map) {
-          msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
+          msg = res['message']?.toString() ??
+              res['error']?.toString() ??
+              res['msg']?.toString() ??
+              res['popup']?['message']?.toString() ??
+              msg;
+        } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
+          msg = res;
         }
-        if (e.response?.statusCode == 404 ||
-            msg.toLowerCase().contains('route not found') ||
-            msg.toLowerCase().contains('not found')) {
-          msg =
-              'Password reset is not configured on the server. Please contact your administrator.';
-        }
+      } else if (e is Exception) {
+        msg = e.toString().replaceFirst('Exception: ', '');
       }
       state = state.copyWith(status: AuthStatus.error, error: msg);
       return false;
@@ -650,14 +652,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> resetPasswordWithOtp({
-    required String email,
+    required String identifier,
     required String otp,
     required String newPassword,
   }) async {
     try {
       state = state.copyWith(status: AuthStatus.loading, error: null);
       await AuthService.resetPassword(
-        email: email,
+        identifier: identifier,
         otp: otp,
         newPassword: newPassword,
       );
@@ -668,14 +670,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (e is DioException) {
         final res = e.response?.data;
         if (res is Map) {
-          msg = res['message']?.toString() ?? res['error']?.toString() ?? msg;
+          msg = res['message']?.toString() ??
+              res['error']?.toString() ??
+              res['msg']?.toString() ??
+              res['popup']?['message']?.toString() ??
+              msg;
+        } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
+          msg = res;
         }
-        if (e.response?.statusCode == 404 ||
-            msg.toLowerCase().contains('route not found') ||
-            msg.toLowerCase().contains('not found')) {
-          msg =
-              'Password reset is not configured on the server. Please contact your administrator.';
-        }
+      } else if (e is Exception) {
+        msg = e.toString().replaceFirst('Exception: ', '');
       }
       state = state.copyWith(status: AuthStatus.error, error: msg);
       return false;

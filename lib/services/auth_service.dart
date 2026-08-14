@@ -111,100 +111,131 @@ class AuthService {
     return ApiService.toMap(response.data);
   }
 
-  // Forgot Password: Request OTP / Reset Link
-  static Future<Map<String, dynamic>> forgotPassword(String email) async {
-    final candidateEndpoints = [
-      '/forgot-password',
-      '/auth/forgot-password',
-      '/password/forgot',
-      '/forgotpassword',
-      '/users/forgot-password',
-      '/employees/forgot-password',
-      '/auth/forgot',
-      '/auth/request-otp',
-      '/auth/send-otp',
-      '/user/forgot-password',
-      '/employee/forgot-password',
-    ];
+  // Forgot Password: Request OTP to Phone or Email in Real-Time
+  static Future<Map<String, dynamic>> forgotPassword(String identifier) async {
+    final raw = identifier.trim();
+    final isEmail = raw.contains('@');
 
-    Object? lastError;
-    for (final ep in candidateEndpoints) {
-      try {
-        final response = await ApiService.post(
-          ep,
-          data: {'email': email.trim()},
-        );
-        final map = ApiService.toMap(response.data);
-        if (map.isNotEmpty || (response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300)) {
-          return map.isNotEmpty ? map : {'success': true, 'message': 'Reset code sent successfully'};
-        }
-      } catch (e) {
-        if (e is DioException) {
-          final status = e.response?.statusCode;
-          // If the endpoint actually exists and returned a non-404 error (e.g. 400 Bad Request, 422 Unprocessable Entity),
-          // stop checking candidates and rethrow the actual backend response.
-          if (status != null && status != 404) {
-            rethrow;
-          }
-        }
-        lastError = e;
-      }
+    // Clean phone digits (e.g. 10-digit number without spaces or +91 prefix)
+    String cleanMobile = raw.replaceAll(RegExp(r'\D'), '');
+    if (cleanMobile.length > 10 && cleanMobile.startsWith('91')) {
+      cleanMobile = cleanMobile.substring(2);
     }
 
-    if (lastError != null) throw lastError;
-    return {};
+    final payload = isEmail
+        ? {'email': raw}
+        : {'mobile': cleanMobile, 'phone': cleanMobile};
+
+    try {
+      final response = await ApiService.post(
+        '/auth/send',
+        data: payload,
+      );
+      final map = ApiService.toMap(response.data);
+
+      if (map['success'] == false) {
+        final msg = map['message']?.toString() ?? 'Failed to send OTP code.';
+        if (msg.toLowerCase().contains('user not found')) {
+          throw Exception(
+              'No account found with this ${isEmail ? "email address" : "phone number"}. Please register or check your details.');
+        }
+        if (msg.toLowerCase().contains('failed to send otp email') ||
+            msg.toLowerCase().contains('email configuration') ||
+            msg.toLowerCase().contains('timeout') ||
+            msg.toLowerCase().contains('connection') ||
+            msg.toLowerCase().contains('smtp') ||
+            isEmail) {
+          throw Exception(
+              'Backend email server (SMTP) is not configured. Please use "Phone SMS" option to receive your OTP.');
+        }
+        throw Exception(msg);
+      }
+
+      return map.isNotEmpty
+          ? map
+          : {
+              'success': true,
+              'message':
+                  'OTP sent successfully to ${isEmail ? raw : cleanMobile}',
+            };
+    } catch (e) {
+      if (e is DioException) {
+        final errData = e.response?.data;
+        if (errData is Map && errData['message'] != null) {
+          final msg = errData['message'].toString();
+          if (msg.toLowerCase().contains('user not found')) {
+            throw Exception(
+                'No account found with this ${isEmail ? "email address" : "phone number"}. Please register or check your details.');
+          }
+          if (msg.toLowerCase().contains('failed to send otp email') ||
+              msg.toLowerCase().contains('email configuration') ||
+              msg.toLowerCase().contains('timeout') ||
+              msg.toLowerCase().contains('connection') ||
+              msg.toLowerCase().contains('smtp') ||
+              isEmail) {
+            throw Exception(
+                'Backend email server (SMTP) is not configured. Please use "Phone SMS" option to receive your OTP.');
+          }
+          throw Exception(msg);
+        }
+      }
+      rethrow;
+    }
   }
 
-  // Reset Password: Send OTP/Token and New Password
+  // Reset Password: Send Real OTP and New Password to Backend
   static Future<Map<String, dynamic>> resetPassword({
-    required String email,
+    required String identifier,
     required String otp,
     required String newPassword,
   }) async {
-    final candidateEndpoints = [
-      '/reset-password',
-      '/auth/reset-password',
-      '/password/reset',
-      '/resetpassword',
-      '/users/reset-password',
-      '/employees/reset-password',
-      '/auth/verify-otp',
-      '/auth/reset',
-      '/user/reset-password',
-      '/employee/reset-password',
-    ];
+    final raw = identifier.trim();
+    final isEmail = raw.contains('@');
 
-    Object? lastError;
-    for (final ep in candidateEndpoints) {
-      try {
-        final response = await ApiService.post(
-          ep,
-          data: {
-            'email': email.trim(),
-            'otp': otp.trim(),
-            'token': otp.trim(),
-            'code': otp.trim(),
-            'password': newPassword.trim(),
-            'newPassword': newPassword.trim(),
-          },
-        );
-        final map = ApiService.toMap(response.data);
-        if (map.isNotEmpty || (response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300)) {
-          return map.isNotEmpty ? map : {'success': true, 'message': 'Password reset successfully'};
-        }
-      } catch (e) {
-        if (e is DioException) {
-          final status = e.response?.statusCode;
-          if (status != null && status != 404) {
-            rethrow;
-          }
-        }
-        lastError = e;
-      }
+    String cleanMobile = raw.replaceAll(RegExp(r'\D'), '');
+    if (cleanMobile.length > 10 && cleanMobile.startsWith('91')) {
+      cleanMobile = cleanMobile.substring(2);
     }
 
-    if (lastError != null) throw lastError;
-    return {};
+    final payload = {
+      if (isEmail) 'email': raw,
+      if (!isEmail) ...{
+        'mobile': cleanMobile,
+        'phone': cleanMobile,
+      },
+      'otp': otp.trim(),
+      'password': newPassword.trim(),
+      'newPassword': newPassword.trim(),
+    };
+
+    try {
+      final response = await ApiService.post(
+        '/auth/verify',
+        data: payload,
+      );
+      final map = ApiService.toMap(response.data);
+
+      if (map['success'] == false) {
+        final msg = map['message']?.toString() ?? 'Invalid OTP code.';
+        throw Exception(msg);
+      }
+
+      return map.isNotEmpty
+          ? map
+          : {'success': true, 'message': 'Password reset successfully'};
+    } catch (e) {
+      if (e is DioException) {
+        final errData = e.response?.data;
+        if (errData is Map && errData['message'] != null) {
+          final msg = errData['message'].toString();
+          if (msg.toLowerCase().contains('invalid otp')) {
+            throw Exception('Invalid OTP code. Please enter the 6-digit code received on your phone.');
+          }
+          throw Exception(msg);
+        }
+      }
+      rethrow;
+    }
   }
 
   // Logout
