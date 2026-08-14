@@ -633,7 +633,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 leaveKeys.addAll(keys);
 
                 final empKey =
-                    (id ?? email ?? name).toString().toLowerCase() ?? 'emp';
+                    (id ?? email ?? (name.isNotEmpty ? name : 'emp'))
+                        .toLowerCase();
                 if (!addedLeaveEmpKeys.contains(empKey)) {
                   addedLeaveEmpKeys.add(empKey);
                   leaveList.add({
@@ -4277,46 +4278,6 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  // --- Reports Tab ---
-  Widget _buildReportsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Reports & Analytics',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: context.txtPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildMoreItem(
-            Icons.analytics_outlined,
-            'Attendance Overview',
-            () => context.go('/admin/analytics'),
-          ),
-          _buildMoreItem(
-            Icons.folder_outlined,
-            'Project Progress',
-            () => context.go('/admin/projects'),
-          ),
-          _buildMoreItem(
-            Icons.payment_outlined,
-            'Salary Reports',
-            () => context.go('/admin/salary'),
-          ),
-          _buildMoreItem(
-            Icons.holiday_village_outlined,
-            'Holiday Calendar',
-            () => context.go('/admin/holidays'),
-          ),
-        ],
-      ),
-    );
-  }
 
   // --- More Tab ---
   Widget _buildMoreTab() {

@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:flutter/foundation.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../core/constants/api_constants.dart';
 import '../core/utils/storage_service.dart';
 
@@ -8,7 +9,7 @@ class SocketService {
   factory SocketService() => _instance;
   SocketService._internal();
 
-  IO.Socket? _socket;
+  io.Socket? _socket;
   bool _isConnected = false;
   String? _currentUserId;
 
@@ -52,9 +53,9 @@ class SocketService {
         socketUrl = socketUrl.substring(0, socketUrl.length - 4);
       }
 
-      _socket = IO.io(
+      _socket = io.io(
         socketUrl,
-        IO.OptionBuilder()
+        io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
             .enableReconnection()
@@ -65,7 +66,7 @@ class SocketService {
 
       _socket!.onConnect((_) {
         _isConnected = true;
-        print('⚡ Socket connected to $socketUrl');
+        debugPrint('⚡ Socket connected to $socketUrl');
         if (_currentUserId != null) {
           _socket!.emit('join', _currentUserId);
         }
@@ -73,7 +74,7 @@ class SocketService {
 
       _socket!.onReconnect((_) {
         _isConnected = true;
-        print('⚡ Socket reconnected to $socketUrl');
+        debugPrint('⚡ Socket reconnected to $socketUrl');
         if (_currentUserId != null) {
           _socket!.emit('join', _currentUserId);
         }
@@ -81,7 +82,7 @@ class SocketService {
 
       _socket!.onDisconnect((_) {
         _isConnected = false;
-        print('💤 Socket disconnected');
+        debugPrint('💤 Socket disconnected');
       });
 
       // Receive real-time message
@@ -126,7 +127,7 @@ class SocketService {
       });
 
     } catch (e) {
-      print('Socket init error: $e');
+      debugPrint('Socket init error: $e');
     }
   }
 
