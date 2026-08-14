@@ -2375,18 +2375,20 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final allEmps = ref.read(employeeProvider).employees;
     final (employeeName, empAvatar) = _extractLeaveEmployeeInfo(leave, allEmps);
 
-    final leaveType = leave['leaveType'] ?? 'Leave';
-    final leaveId = leave['_id']?.toString() ?? '';
+    final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
+    final leaveId = leave['_id']?.toString() ?? leave['id']?.toString() ?? '';
 
     // Format dates from ISO strings
     String dateStr;
+    final startRaw = leave['startDate'] ?? leave['from'] ?? leave['fromDate'] ?? leave['start_date'];
+    final endRaw = leave['endDate'] ?? leave['to'] ?? leave['toDate'] ?? leave['end_date'];
     try {
-      final start = DateTime.parse(leave['startDate'].toString());
-      final end = DateTime.parse(leave['endDate'].toString());
+      final start = DateTime.parse(startRaw.toString());
+      final end = DateTime.parse(endRaw.toString());
       final fmt = DateFormat('d MMM');
       dateStr = '${fmt.format(start)} - ${fmt.format(end)}';
     } catch (_) {
-      dateStr = leave['startDate']?.toString() ?? 'N/A';
+      dateStr = startRaw?.toString() ?? 'N/A';
     }
 
     return Container(

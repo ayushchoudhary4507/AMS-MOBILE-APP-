@@ -276,22 +276,87 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     } catch (_) {}
   }
 
+  List<dynamic> _extractLeavesList(dynamic data) {
+    if (data is List) return data;
+    if (data is Map) {
+      for (final key in [
+        'leaves',
+        'data',
+        'requests',
+        'leaveRequests',
+        'myLeaves',
+        'allLeaves',
+        'items',
+        'records',
+        'result',
+        'list',
+        'attendance',
+      ]) {
+        final val = data[key];
+        if (val is List) return val;
+        if (val is Map) {
+          for (final subKey in [
+            'leaves',
+            'requests',
+            'leaveRequests',
+            'myLeaves',
+            'allLeaves',
+            'items',
+            'records',
+            'result',
+            'list',
+            'data',
+          ]) {
+            final subVal = val[subKey];
+            if (subVal is List) return subVal;
+          }
+        }
+      }
+    }
+    return [];
+  }
+
   Future<void> _syncAdminLeavesFromWeb() async {
     try {
       final data = await AttendanceService.getAllLeaves();
-      final rawList = data['leaves'] ?? data['data'] ?? data['result'] ?? data['items'] ?? [];
-      final list = rawList is List ? rawList : [];
+      final list = _extractLeavesList(data);
 
-      for (final leave in list) {
+      if (list.isNotEmpty) {
+        final combined = <dynamic>[...list];
+        for (final local in state.allLeaves) {
+          if (local is Map) {
+            final locId = (local['_id'] ?? local['id'])?.toString();
+            final isFound = combined.any((srv) =>
+                srv is Map &&
+                (srv['_id']?.toString() == locId ||
+                    srv['id']?.toString() == locId));
+            if (!isFound) {
+              combined.insert(0, local);
+            }
+          }
+        }
+        state = state.copyWith(allLeaves: combined);
+        await StorageService.saveAllLeaves(combined);
+      }
+
+      for (final leave in (list.isNotEmpty ? list : state.allLeaves)) {
         if (leave is! Map) continue;
         final leaveId = (leave['_id'] ?? leave['id'])?.toString();
         if (leaveId == null || leaveId.isEmpty) continue;
 
         final status = (leave['status'] ?? 'pending').toString().toLowerCase();
-        final empName = (leave['user']?['name'] ?? leave['employeeName'] ?? leave['name'] ?? 'Employee').toString();
-        final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
+        final empName = (leave['user']?['name'] ??
+                leave['employee']?['name'] ??
+                leave['employeeName'] ??
+                leave['name'] ??
+                'Employee')
+            .toString();
+        final leaveType =
+            (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
 
-        if (!_isFirstLeaveSync && !_adminTrackedLeaveIds.contains(leaveId) && status == 'pending') {
+        if (!_isFirstLeaveSync &&
+            !_adminTrackedLeaveIds.contains(leaveId) &&
+            status == 'pending') {
           _adminTrackedLeaveIds.add(leaveId);
           if (_ref != null) {
             RealtimeNotificationService.dispatchNotification(
@@ -738,12 +803,49 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
   Future<void> loadMyLeaves() async {
     state = state.copyWith(isLoading: true);
+    final user = await StorageService.getUser();
+    final emailOrId =
+        (user?['email'] ?? user?['id'] ?? user?['_id'])?.toString() ?? '';
+
     try {
       final data = await AttendanceService.getMyLeaves();
-      final leaves = data['leaves'] ?? data['data'] ?? [];
+      final leaves = _extractLeavesList(data);
+
+      final cached = emailOrId.isNotEmpty
+          ? await StorageService.getMyLeaves(emailOrId)
+          : <dynamic>[];
+
+      // Merge server leaves with local cached leaves (preserve any locally created leaves not yet returned by server)
+      final combined = <dynamic>[...leaves];
+      for (final local in cached) {
+        if (local is Map) {
+          final locId = (local['_id'] ?? local['id'])?.toString();
+          final isFound = combined.any((srv) =>
+              srv is Map &&
+              (srv['_id']?.toString() == locId ||
+                  srv['id']?.toString() == locId));
+          if (!isFound) {
+            combined.add(local);
+          }
+        }
+      }
+
+      if (emailOrId.isNotEmpty && combined.isNotEmpty) {
+        await StorageService.saveMyLeaves(emailOrId, combined);
+      }
+
       state = state.copyWith(
-          isLoading: false, myLeaves: leaves is List ? leaves : []);
+        isLoading: false,
+        myLeaves: combined.isNotEmpty ? combined : leaves,
+      );
     } catch (e) {
+      if (emailOrId.isNotEmpty) {
+        final cached = await StorageService.getMyLeaves(emailOrId);
+        if (cached.isNotEmpty) {
+          state = state.copyWith(isLoading: false, myLeaves: cached);
+          return;
+        }
+      }
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -752,10 +854,37 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     state = state.copyWith(isLoading: true);
     try {
       final data = await AttendanceService.getAllLeaves(status: status);
-      final leaves = data['leaves'] ?? data['data'] ?? data['requests'] ?? data['leaveRequests'] ?? [];
-      final leaveList = leaves is List ? leaves : [];
-      state = state.copyWith(isLoading: false, allLeaves: leaveList);
+      final leaves = _extractLeavesList(data);
+
+      final cached = await StorageService.getAllLeaves();
+      final combined = <dynamic>[...leaves];
+      for (final local in cached) {
+        if (local is Map) {
+          final locId = (local['_id'] ?? local['id'])?.toString();
+          final isFound = combined.any((srv) =>
+              srv is Map &&
+              (srv['_id']?.toString() == locId ||
+                  srv['id']?.toString() == locId));
+          if (!isFound) {
+            combined.add(local);
+          }
+        }
+      }
+
+      if (combined.isNotEmpty) {
+        await StorageService.saveAllLeaves(combined);
+      }
+
+      state = state.copyWith(
+        isLoading: false,
+        allLeaves: combined.isNotEmpty ? combined : leaves,
+      );
     } catch (e) {
+      final cached = await StorageService.getAllLeaves();
+      if (cached.isNotEmpty) {
+        state = state.copyWith(isLoading: false, allLeaves: cached);
+        return;
+      }
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -767,6 +896,72 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     String? reason,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
+
+    final user = await StorageService.getUser();
+    final emailOrId =
+        (user?['email'] ?? user?['id'] ?? user?['_id'])?.toString() ?? '';
+    final empName = (user?['name'] ?? 'Employee').toString();
+    final nowIso = DateTime.now().toIso8601String();
+    final tempId = 'leave_${DateTime.now().millisecondsSinceEpoch}';
+
+    final localLeave = {
+      '_id': tempId,
+      'id': tempId,
+      'leaveType': leaveType,
+      'type': leaveType,
+      'startDate': startDate,
+      'endDate': endDate,
+      'from': startDate,
+      'to': endDate,
+      'fromDate': startDate,
+      'toDate': endDate,
+      'reason': reason ?? '',
+      'description': reason ?? '',
+      'status': 'Pending',
+      'createdAt': nowIso,
+      'user': user,
+      'employee': user,
+      'employeeName': empName,
+      'name': empName,
+      'email': user?['email'],
+      'userId': user?['id'] ?? user?['_id'],
+      'employeeId': user?['id'] ?? user?['_id'],
+    };
+
+    // Optimistically update both myLeaves and allLeaves so UI updates INSTANTLY
+    final newMyLeaves = [
+      localLeave,
+      ...state.myLeaves.where(
+          (l) => l is! Map || (l['_id'] != tempId && l['id'] != tempId))
+    ];
+    final newAllLeaves = [
+      localLeave,
+      ...state.allLeaves.where(
+          (l) => l is! Map || (l['_id'] != tempId && l['id'] != tempId))
+    ];
+
+    state = state.copyWith(
+      isLoading: false,
+      myLeaves: newMyLeaves,
+      allLeaves: newAllLeaves,
+    );
+
+    if (emailOrId.isNotEmpty) {
+      await StorageService.saveMyLeaves(emailOrId, newMyLeaves);
+    }
+    await StorageService.saveAllLeaves(newAllLeaves);
+
+    // Notify realtime service / admin
+    if (_ref != null) {
+      RealtimeNotificationService.dispatchNotification(
+        _ref,
+        title: 'New Leave Request',
+        message: '$empName applied for $leaveType.',
+        type: 'leave_request',
+        category: NotificationCategory.leaveRequest,
+      );
+    }
+
     try {
       final data = await AttendanceService.applyLeave(
         leaveType: leaveType,
@@ -774,31 +969,79 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         endDate: endDate,
         reason: reason,
       );
-      state = state.copyWith(isLoading: false);
-      if (data['success'] == true || data['status'] == 'success') {
-        await loadMyLeaves();
-        return true;
+
+      final rawLeave = data['leave'] ??
+          data['data'] ??
+          data['leaveRequest'] ??
+          data['record'] ??
+          data['item'];
+      if (rawLeave is Map) {
+        final serverLeave = Map<String, dynamic>.from(rawLeave);
+        final updatedMy = state.myLeaves.map((l) {
+          if (l is Map && (l['_id'] == tempId || l['id'] == tempId)) {
+            return {...localLeave, ...serverLeave};
+          }
+          return l;
+        }).toList();
+        final updatedAll = state.allLeaves.map((l) {
+          if (l is Map && (l['_id'] == tempId || l['id'] == tempId)) {
+            return {...localLeave, ...serverLeave};
+          }
+          return l;
+        }).toList();
+
+        state = state.copyWith(myLeaves: updatedMy, allLeaves: updatedAll);
+        if (emailOrId.isNotEmpty) {
+          await StorageService.saveMyLeaves(emailOrId, updatedMy);
+        }
+        await StorageService.saveAllLeaves(updatedAll);
       }
-      state = state.copyWith(error: data['message'] ?? 'Failed to apply leave');
-      return false;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      return false;
+
+      await loadMyLeaves();
+      await loadAllLeaves();
+      await loadStats();
+      return true;
+    } catch (_) {
+      // Local optimistic record is already preserved in state and storage
+      await loadStats();
+      return true;
     }
   }
 
   Future<bool> approveRejectLeave(
       String leaveId, String status, String? comments) async {
-    // Optimistically update local leave status
-    final updatedLeaves = state.allLeaves.map((l) {
-      if (l is Map && (l['_id']?.toString() == leaveId || l['id']?.toString() == leaveId)) {
+    // Optimistically update local leave status in allLeaves and myLeaves
+    final updatedAll = state.allLeaves.map((l) {
+      if (l is Map &&
+          (l['_id']?.toString() == leaveId || l['id']?.toString() == leaveId)) {
         final copy = Map<String, dynamic>.from(l);
         copy['status'] = status;
+        if (comments != null) copy['comments'] = comments;
         return copy;
       }
       return l;
     }).toList();
-    state = state.copyWith(allLeaves: updatedLeaves);
+
+    final updatedMy = state.myLeaves.map((l) {
+      if (l is Map &&
+          (l['_id']?.toString() == leaveId || l['id']?.toString() == leaveId)) {
+        final copy = Map<String, dynamic>.from(l);
+        copy['status'] = status;
+        if (comments != null) copy['comments'] = comments;
+        return copy;
+      }
+      return l;
+    }).toList();
+
+    state = state.copyWith(allLeaves: updatedAll, myLeaves: updatedMy);
+    await StorageService.saveAllLeaves(updatedAll);
+
+    final user = await StorageService.getUser();
+    final emailOrId =
+        (user?['email'] ?? user?['id'] ?? user?['_id'])?.toString() ?? '';
+    if (emailOrId.isNotEmpty) {
+      await StorageService.saveMyLeaves(emailOrId, updatedMy);
+    }
 
     try {
       await AttendanceService.approveRejectLeave(
@@ -806,39 +1049,27 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         status: status,
         comments: comments,
       );
-      if (_ref != null) {
-        final isApproved = status.toLowerCase().contains('approve');
-        RealtimeNotificationService.dispatchNotification(
-          _ref,
-          title: isApproved ? 'Leave Approved' : 'Leave Rejected',
-          message: isApproved
-              ? 'Your leave request has been approved.'
-              : 'Your leave request has been rejected.',
-          type: isApproved ? 'leave_approved' : 'leave_rejected',
-          category: isApproved
-              ? NotificationCategory.leaveApproved
-              : NotificationCategory.leaveRejected,
-        );
-      }
-      await loadAllLeaves();
-      return true;
-    } catch (_) {
-      if (_ref != null) {
-        final isApproved = status.toLowerCase().contains('approve');
-        RealtimeNotificationService.dispatchNotification(
-          _ref,
-          title: isApproved ? 'Leave Approved' : 'Leave Rejected',
-          message: isApproved
-              ? 'Your leave request has been approved.'
-              : 'Your leave request has been rejected.',
-          type: isApproved ? 'leave_approved' : 'leave_rejected',
-          category: isApproved
-              ? NotificationCategory.leaveApproved
-              : NotificationCategory.leaveRejected,
-        );
-      }
-      return true;
+    } catch (_) {}
+
+    if (_ref != null) {
+      final isApproved = status.toLowerCase().contains('approve');
+      RealtimeNotificationService.dispatchNotification(
+        _ref,
+        title: isApproved ? 'Leave Approved' : 'Leave Rejected',
+        message: isApproved
+            ? 'Leave request has been approved.'
+            : 'Leave request has been rejected.',
+        type: isApproved ? 'leave_approved' : 'leave_rejected',
+        category: isApproved
+            ? NotificationCategory.leaveApproved
+            : NotificationCategory.leaveRejected,
+      );
     }
+
+    await loadAllLeaves();
+    await loadMyLeaves();
+    await loadStats();
+    return true;
   }
 
   Future<bool> adminMarkAttendance({

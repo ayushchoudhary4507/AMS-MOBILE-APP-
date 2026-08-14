@@ -31,28 +31,32 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.init();
 
+  bool isFirebaseReady = false;
   try {
     await Firebase.initializeApp();
+    isFirebaseReady = Firebase.apps.isNotEmpty;
   } catch (e) {
     debugPrint('Firebase initializeApp warning: $e');
   }
 
-  try {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint('Firebase onBackgroundMessage registration warning: $e');
+  if (isFirebaseReady) {
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    } catch (e) {
+      debugPrint('Firebase onBackgroundMessage registration warning: $e');
+    }
+
+    try {
+      await RealtimeNotificationService.initFirebaseMessaging();
+    } catch (e) {
+      debugPrint('Firebase messaging init warning: $e');
+    }
   }
 
   try {
     await RealtimeNotificationService.initNativeNotifications();
   } catch (e) {
     debugPrint('Native notifications init warning: $e');
-  }
-
-  try {
-    await RealtimeNotificationService.initFirebaseMessaging();
-  } catch (e) {
-    debugPrint('Firebase messaging init warning: $e');
   }
 
   runApp(

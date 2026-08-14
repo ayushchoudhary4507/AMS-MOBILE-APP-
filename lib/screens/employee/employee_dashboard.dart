@@ -35,6 +35,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
       ref.read(attendanceProvider.notifier).loadTodayAttendance();
       ref.read(attendanceProvider.notifier).loadStats();
       ref.read(attendanceProvider.notifier).loadCalendar();
+      ref.read(attendanceProvider.notifier).loadMyLeaves();
       ref.read(authProvider.notifier).refreshProfile();
     });
   }
@@ -2548,12 +2549,20 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
   }
 
   Widget _buildLeaveCard(dynamic leave) {
-    final status = leave['status'] ?? 'Pending';
-    final Color statusColor = status == 'Approved'
+    if (leave is! Map) return const SizedBox.shrink();
+
+    final status = (leave['status'] ?? 'Pending').toString();
+    final statusLower = status.toLowerCase();
+    final Color statusColor = statusLower == 'approved'
         ? AppColors.statusPresent
-        : status == 'Rejected'
-        ? AppColors.statusAbsent
-        : AppColors.statusPending;
+        : (statusLower == 'rejected' || statusLower == 'cancelled')
+            ? AppColors.statusAbsent
+            : AppColors.statusPending;
+
+    final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
+    final startRaw = leave['startDate'] ?? leave['from'] ?? leave['fromDate'] ?? leave['start_date'];
+    final endRaw = leave['endDate'] ?? leave['to'] ?? leave['toDate'] ?? leave['end_date'];
+    final reason = (leave['reason'] ?? leave['description'] ?? leave['leaveReason'] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -2569,7 +2578,7 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
           Row(
             children: [
               Text(
-                leave['leaveType'] ?? 'Leave',
+                leaveType,
                 style: TextStyle(
                   color: context.txtPrimary,
                   fontWeight: FontWeight.w600,
@@ -2599,17 +2608,17 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${_formatDate(leave['startDate'])} → ${_formatDate(leave['endDate'])}',
+            '${_formatDate(startRaw)} → ${_formatDate(endRaw)}',
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
           ),
-          if (leave['reason'] != null && leave['reason'].toString().isNotEmpty)
+          if (reason.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                leave['reason'],
+                reason,
                 style: const TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 12,
@@ -2622,10 +2631,16 @@ class _LeaveTabState extends ConsumerState<_LeaveTab> {
   }
 
   String _formatDate(dynamic date) {
+    if (date == null) return 'N/A';
+    if (date is DateTime) {
+      return DateFormat('dd MMM yyyy').format(date);
+    }
     try {
-      return DateFormat('dd MMM yyyy').format(DateTime.parse(date.toString()));
+      String str = date.toString().trim();
+      if (str.isEmpty || str == 'null') return 'N/A';
+      return DateFormat('dd MMM yyyy').format(DateTime.parse(str));
     } catch (_) {
-      return date?.toString() ?? 'N/A';
+      return date.toString();
     }
   }
 

@@ -235,4 +235,50 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('last_route');
   }
+
+  // Save My Leaves cache per user
+  static Future<void> saveMyLeaves(
+    String emailOrId,
+    List<dynamic> leaves,
+  ) async {
+    if (emailOrId.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final keyLower = emailOrId.trim().toLowerCase();
+    await prefs.setString('my_leaves_$keyLower', jsonEncode(leaves));
+  }
+
+  // Get My Leaves cache per user
+  static Future<List<dynamic>> getMyLeaves(String emailOrId) async {
+    if (emailOrId.trim().isEmpty) return [];
+    final prefs = await SharedPreferences.getInstance();
+    final keyLower = emailOrId.trim().toLowerCase();
+    final raw = prefs.getString('my_leaves_$keyLower');
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return [];
+  }
+
+  // Save All Leaves cache (Admin)
+  static Future<void> saveAllLeaves(List<dynamic> leaves) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('all_leaves_cache', jsonEncode(leaves));
+  }
+
+  // Get All Leaves cache (Admin)
+  static Future<List<dynamic>> getAllLeaves() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('all_leaves_cache');
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return [];
+  }
 }
+

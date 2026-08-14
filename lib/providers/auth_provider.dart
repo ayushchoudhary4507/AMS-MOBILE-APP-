@@ -1,5 +1,6 @@
 import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
@@ -181,9 +182,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
       var devToken = await StorageService.getDeviceToken();
       if (devToken == null || devToken.isEmpty) {
         try {
-          final fcmToken = await FirebaseMessaging.instance.getToken();
-          if (fcmToken != null && fcmToken.isNotEmpty) {
-            devToken = fcmToken;
+          if (Firebase.apps.isNotEmpty) {
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+            if (fcmToken != null && fcmToken.isNotEmpty) {
+              devToken = fcmToken;
+            }
           }
         } catch (_) {}
       }
