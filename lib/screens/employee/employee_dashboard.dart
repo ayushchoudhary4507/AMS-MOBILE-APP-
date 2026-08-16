@@ -133,6 +133,17 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               ref.read(themeProvider.notifier).toggleTheme();
             },
           ),
+          // QR Scanner Icon
+          IconButton(
+            icon: const Icon(
+              Icons.qr_code_scanner_rounded,
+              color: Color(0xFF6366F1),
+              size: 24,
+            ),
+            tooltip: 'Scan Attendance QR',
+            onPressed: () => context.push('/employee/scan-qr'),
+          ),
+          const SizedBox(width: 2),
           // Notification Bell with Red Badge Count
           Consumer(
             builder: (ctx, cref, _) {
@@ -436,38 +447,57 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
           ),
           const SizedBox(height: 14),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildQuickActionCard(
-                icon: Icons.person_add_alt_1_rounded,
-                label: 'Apply Leave',
-                iconColor: const Color(0xFF4F46E5),
-                bgColor: const Color(0xFFEEF2FF),
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-              _buildQuickActionCard(
-                icon: Icons.calendar_month_rounded,
-                label: 'My Leaves',
-                iconColor: const Color(0xFF10B981),
-                bgColor: const Color(0xFFECFDF5),
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-              _buildQuickActionCard(
-                icon: Icons.access_time_filled_rounded,
-                label: 'Attendance\nHistory',
-                iconColor: const Color(0xFF3B82F6),
-                bgColor: const Color(0xFFEFF6FF),
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-              _buildQuickActionCard(
-                icon: Icons.insert_chart_rounded,
-                label: 'Reports',
-                iconColor: const Color(0xFFF59E0B),
-                bgColor: const Color(0xFFFFFBEB),
-                onTap: () => setState(() => _selectedIndex = 3),
-              ),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              children: [
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR',
+                  iconColor: const Color(0xFF6366F1),
+                  bgColor: const Color(0xFFEEF2FF),
+                  onTap: () => context.push('/employee/scan-qr'),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.person_add_alt_1_rounded,
+                  label: 'Apply Leave',
+                  iconColor: const Color(0xFF4F46E5),
+                  bgColor: const Color(0xFFEEF2FF),
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.calendar_month_rounded,
+                  label: 'My Leaves',
+                  iconColor: const Color(0xFF10B981),
+                  bgColor: const Color(0xFFECFDF5),
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.access_time_filled_rounded,
+                  label: 'Attendance\nHistory',
+                  iconColor: const Color(0xFF3B82F6),
+                  bgColor: const Color(0xFFEFF6FF),
+                  onTap: () => setState(() => _selectedIndex = 1),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.insert_chart_rounded,
+                  label: 'Reports',
+                  iconColor: const Color(0xFFF59E0B),
+                  bgColor: const Color(0xFFFFFBEB),
+                  onTap: () => setState(() => _selectedIndex = 3),
+                ),
+              ],
+            ),
           ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
         ],
       ),
@@ -818,70 +848,104 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
 
           const SizedBox(height: 16),
 
-          // Primary Check-In Action Button
+          // Attendance Action Buttons
           if (!isCheckedIn)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: attendance.isLoading
-                    ? null
-                    : () async {
-                        final ok = await ref
-                            .read(attendanceProvider.notifier)
-                            .markAttendance();
-                        if (ok && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Checked In Successfully! ✓'),
-                              backgroundColor: AppColors.statusPresent,
-                            ),
-                          );
-                        } else if (mounted) {
-                          final err = ref.read(attendanceProvider).error;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                err ?? 'Failed to mark attendance.',
-                              ),
-                              backgroundColor: AppColors.accentRed,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                icon: attendance.isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.login_rounded,
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.push('/employee/scan-qr'),
+                    icon: const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'Scan Attendance QR',
+                      style: TextStyle(
                         color: Colors.white,
-                        size: 20,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        letterSpacing: 0.1,
                       ),
-                label: Text(
-                  attendance.isLoading ? 'Marking...' : 'Mark Check In',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    letterSpacing: 0.1,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: attendance.isLoading
+                        ? null
+                        : () async {
+                            final ok = await ref
+                                .read(attendanceProvider.notifier)
+                                .markAttendance();
+                            if (ok && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Checked In Successfully! ✓'),
+                                  backgroundColor: AppColors.statusPresent,
+                                ),
+                              );
+                            } else if (mounted) {
+                              final err = ref.read(attendanceProvider).error;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    err ?? 'Failed to mark attendance.',
+                                  ),
+                                  backgroundColor: AppColors.accentRed,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                    icon: attendance.isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF4F46E5),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.touch_app_rounded,
+                            color: Color(0xFF4F46E5),
+                            size: 18,
+                          ),
+                    label: Text(
+                      attendance.isLoading ? 'Marking...' : 'One-Tap Check In',
+                      style: const TextStyle(
+                        color: Color(0xFF4F46E5),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             )
           else if (isCheckedIn && !isCheckedOut)
             SizedBox(
@@ -1069,12 +1133,13 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     required Color iconColor,
     required Color bgColor,
     required VoidCallback onTap,
+    double? width,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: (MediaQuery.of(context).size.width - 36 - 36) / 4,
+        width: width ?? ((MediaQuery.of(context).size.width - 36 - 36) / 4),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         decoration: BoxDecoration(
           color: context.cardBg,
@@ -1214,6 +1279,23 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 0);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Color(0xFF6366F1),
+                  ),
+                  title: Text(
+                    'Scan Attendance QR',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/employee/scan-qr');
                   },
                 ),
                 ListTile(

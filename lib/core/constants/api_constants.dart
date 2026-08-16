@@ -13,6 +13,7 @@ class ApiConstants {
 
   // Attendance
   static const String attendanceMark = '/attendance/mark';
+  static const String attendanceQrCheckin = '/attendance/qr-checkin';
   static const String attendanceCheckout = '/attendance/checkout';
   static const String attendanceMyToday = '/attendance/my-today';
   static const String attendanceToday = '/attendance/today';

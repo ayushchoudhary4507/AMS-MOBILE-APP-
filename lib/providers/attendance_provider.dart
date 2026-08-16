@@ -593,6 +593,134 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     }
   }
 
+  /// QR Code Check In API call
+  Future<Map<String, dynamic>> qrCheckIn({
+    required String qrToken,
+    double? latitude,
+    double? longitude,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final data = await AttendanceService.qrCheckIn(
+        qrToken: qrToken,
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      final bool isSuccess = data['success'] == true ||
+          data['status'] == 'success' ||
+          data['attendance'] != null ||
+          data['data'] != null;
+
+      final user = await StorageService.getUser();
+      final emailOrId = (user?['email'] ?? user?['id'] ?? user?['_id'])?.toString();
+
+      if (isSuccess) {
+        final raw = data['attendance'] ?? data['data'] ?? data['result'];
+        Map<String, dynamic>? map;
+        if (raw is Map<String, dynamic>) {
+          map = raw;
+        } else if (raw is Map) {
+          map = Map<String, dynamic>.from(raw);
+        }
+
+        map ??= {
+          'checkIn': DateTime.now().toIso8601String(),
+          'status': 'present',
+        };
+
+        if (emailOrId != null && emailOrId.isNotEmpty) {
+          await StorageService.saveTodayAttendance(emailOrId, map);
+        }
+
+        final model = AttendanceModel.fromJson(map);
+        state = state.copyWith(
+          isLoading: false,
+          todayAttendance: model,
+          isCheckedIn: true,
+          isCheckedOut: model.isCheckedOut,
+          error: null,
+        );
+
+        await loadStats();
+        await loadTodayAttendance();
+
+        return {
+          'success': true,
+          'message': data['message']?.toString() ?? 'Attendance Marked Successfully',
+          'attendance': map,
+          'model': model,
+          'office': data['office'] ?? data['location'] ?? map['office'] ?? map['location'],
+        };
+      } else {
+        final rawMsg = data['message']?.toString() ?? 'Failed to validate QR attendance.';
+        String cleanMsg = rawMsg;
+        final lower = rawMsg.toLowerCase();
+        if (lower.contains('already') && (lower.contains('check') || lower.contains('marked'))) {
+          cleanMsg = 'You have already checked in.';
+        } else if (lower.contains('expired')) {
+          cleanMsg = 'This QR code has expired. Please scan a new QR code.';
+        } else if (lower.contains('invalid') || lower.contains('not found')) {
+          cleanMsg = 'Invalid QR code. Please scan a valid office QR code.';
+        } else if (lower.contains('geofence') || lower.contains('location') || lower.contains('radius') || lower.contains('outside')) {
+          cleanMsg = 'You are outside the permitted office location geofence.';
+        }
+
+        state = state.copyWith(isLoading: false, error: cleanMsg);
+        return {
+          'success': false,
+          'message': cleanMsg,
+        };
+      }
+    } catch (e) {
+      String cleanMsg = 'Failed to mark QR attendance. Please try again.';
+
+      if (e is DioException) {
+        final statusCode = e.response?.statusCode;
+        final resData = e.response?.data;
+        String? serverMsg;
+        if (resData is Map && resData['message'] != null) {
+          serverMsg = resData['message'].toString();
+        } else if (resData is String && resData.isNotEmpty) {
+          serverMsg = resData;
+        }
+
+        if (serverMsg != null && serverMsg.isNotEmpty) {
+          final lower = serverMsg.toLowerCase();
+          if (lower.contains('already') && (lower.contains('check') || lower.contains('marked'))) {
+            cleanMsg = 'You have already checked in.';
+          } else if (lower.contains('expired')) {
+            cleanMsg = 'This QR code has expired. Please scan a new QR code.';
+          } else if (lower.contains('invalid') || lower.contains('not found')) {
+            cleanMsg = 'Invalid QR code. Please scan a valid office QR code.';
+          } else if (lower.contains('geofence') || lower.contains('location') || lower.contains('radius') || lower.contains('outside')) {
+            cleanMsg = 'You are outside the permitted office location geofence.';
+          } else if (lower.contains('unauthorized') || statusCode == 401 || statusCode == 403) {
+            cleanMsg = 'Unauthorized or session expired. Please log in again.';
+          } else {
+            cleanMsg = serverMsg;
+          }
+        } else if (statusCode == 401 || statusCode == 403) {
+          cleanMsg = 'Unauthorized or session expired. Please log in again.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.connectionError) {
+          cleanMsg = 'Network error. Please check your internet connection and try again.';
+        } else if (statusCode != null && statusCode >= 500) {
+          cleanMsg = 'Server error ($statusCode). Please try again shortly.';
+        }
+      }
+
+      state = state.copyWith(isLoading: false, error: cleanMsg);
+      return {
+        'success': false,
+        'message': cleanMsg,
+      };
+    }
+  }
+
   /// Check Out API call
   Future<bool> checkOut() async {
     state = state.copyWith(isLoading: true, error: null);

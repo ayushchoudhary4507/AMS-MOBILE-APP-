@@ -42,6 +42,74 @@ class AttendanceService {
     }
   }
 
+  // Mark QR attendance (Check-in via QR code)
+  static Future<Map<String, dynamic>> qrCheckIn({
+    required String qrToken,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final Map<String, dynamic> body = {
+      'qrToken': qrToken,
+      'token': qrToken,
+      'code': qrToken,
+    };
+    if (latitude != null) {
+      body['latitude'] = latitude;
+      body['lat'] = latitude;
+    }
+    if (longitude != null) {
+      body['longitude'] = longitude;
+      body['lng'] = longitude;
+      body['long'] = longitude;
+    }
+
+    try {
+      final response = await ApiService.post(
+        ApiConstants.attendanceQrCheckin,
+        data: body,
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      // Fallback 1: Try /attendance/qr/checkin
+      try {
+        final response = await ApiService.post(
+          '/attendance/qr/checkin',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 2: Try /attendance/qr-mark
+      try {
+        final response = await ApiService.post(
+          '/attendance/qr-mark',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 3: Try /attendance/qr
+      try {
+        final response = await ApiService.post(
+          '/attendance/qr',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 4: Try /attendance/mark with QR data
+      try {
+        final response = await ApiService.post(
+          ApiConstants.attendanceMark,
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      rethrow;
+    }
+  }
+
   // Check out
   static Future<Map<String, dynamic>> checkOut() async {
     final Map<String, dynamic> body = {};

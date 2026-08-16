@@ -4,6 +4,12 @@
 <dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate securely using Face ID to log into your AMS account.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan office QR codes to quickly mark your attendance.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Verify your location within the office geofence to mark attendance.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Verify your location within the office geofence to mark attendance.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
