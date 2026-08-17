@@ -822,7 +822,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
   /// Generate & Start a new Attendance QR Session (Admin)
   Future<AttendanceSessionModel?> createAttendanceSession({
-    int durationMinutes = 10,
+    int durationMinutes = 1440, // Default: 24 Hours / Full Day
     String? notes,
     String? office,
   }) async {
@@ -854,6 +854,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         );
       }
 
+      await StorageService.saveDailyQRSession(session.toJson());
       state = state.copyWith(isLoading: false, activeSession: session);
       return session;
     } catch (e) {
@@ -869,9 +870,59 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         office: office,
       );
 
+      await StorageService.saveDailyQRSession(session.toJson());
       state = state.copyWith(isLoading: false, activeSession: session);
       return session;
     }
+  }
+
+  /// Ensure today's daily session exists. Automatically generates if none exists or expired.
+  Future<AttendanceSessionModel> ensureDailyAttendanceSession({
+    int durationMinutes = 1440,
+    String? office,
+  }) async {
+    final now = DateTime.now();
+    final todayStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    // 1. Check in-memory state
+    final cur = state.activeSession;
+    if (cur != null && cur.isActive && cur.formattedDate == todayStr) {
+      return cur;
+    }
+
+    // 2. Check local persistent storage for today
+    final cached = await StorageService.getDailyQRSession();
+    if (cached != null) {
+      final cachedSession = AttendanceSessionModel.fromJson(cached);
+      if (cachedSession.isActive && cachedSession.formattedDate == todayStr) {
+        state = state.copyWith(activeSession: cachedSession);
+        return cachedSession;
+      }
+    }
+
+    // 3. Try to fetch from server
+    try {
+      final data = await AttendanceService.getActiveAttendanceSession();
+      final raw = data['session'] ?? data['data'] ?? data['result'];
+      if (raw is Map) {
+        final serverSession =
+            AttendanceSessionModel.fromJson(Map<String, dynamic>.from(raw));
+        if (serverSession.isActive && serverSession.formattedDate == todayStr) {
+          await StorageService.saveDailyQRSession(serverSession.toJson());
+          state = state.copyWith(activeSession: serverSession);
+          return serverSession;
+        }
+      }
+    } catch (_) {}
+
+    // 4. Automatically generate new daily QR session for today
+    final newSession = await createAttendanceSession(
+      durationMinutes: durationMinutes,
+      office: office,
+      notes: 'Daily Auto QR ($todayStr)',
+    );
+    return newSession ?? state.activeSession!;
   }
 
   /// Stop Attendance Session (Admin)
@@ -885,18 +936,36 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     } catch (_) {}
 
     final updated = cur.copyWith(status: 'STOPPED');
+    await StorageService.saveDailyQRSession(updated.toJson());
     state = state.copyWith(isLoading: false, activeSession: updated);
     return true;
   }
 
   /// Fetch Active Attendance Session
   Future<void> loadActiveSession() async {
+    final now = DateTime.now();
+    final todayStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    // Check storage first
+    final cached = await StorageService.getDailyQRSession();
+    if (cached != null) {
+      final cachedSession = AttendanceSessionModel.fromJson(cached);
+      if (cachedSession.isActive && cachedSession.formattedDate == todayStr) {
+        state = state.copyWith(activeSession: cachedSession);
+      }
+    }
+
     try {
       final data = await AttendanceService.getActiveAttendanceSession();
       final raw = data['session'] ?? data['data'] ?? data['result'];
       if (raw is Map) {
-        final session = AttendanceSessionModel.fromJson(Map<String, dynamic>.from(raw));
-        state = state.copyWith(activeSession: session);
+        final session =
+            AttendanceSessionModel.fromJson(Map<String, dynamic>.from(raw));
+        if (session.isActive && session.formattedDate == todayStr) {
+          await StorageService.saveDailyQRSession(session.toJson());
+          state = state.copyWith(activeSession: session);
+        }
       }
     } catch (_) {}
   }

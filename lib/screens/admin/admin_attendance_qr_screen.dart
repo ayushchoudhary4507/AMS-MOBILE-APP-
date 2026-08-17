@@ -22,7 +22,7 @@ class _AdminAttendanceQRScreenState
     extends ConsumerState<AdminAttendanceQRScreen> {
   Timer? _countdownTimer;
   Timer? _pollingTimer;
-  int _selectedDuration = 10; // in minutes
+  int _selectedDuration = 1440; // Default: 24 hours / Full Day
 
   @override
   void initState() {
@@ -35,12 +35,9 @@ class _AdminAttendanceQRScreenState
   }
 
   void _initSession() {
-    final currentSession = ref.read(attendanceProvider).activeSession;
-    if (currentSession == null || currentSession.isExpired) {
-      ref.read(attendanceProvider.notifier).createAttendanceSession(
-            durationMinutes: _selectedDuration,
-          );
-    }
+    ref.read(attendanceProvider.notifier).ensureDailyAttendanceSession(
+          durationMinutes: _selectedDuration,
+        );
     ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
   }
 
@@ -91,7 +88,7 @@ class _AdminAttendanceQRScreenState
           },
         ),
         title: Text(
-          'Attendance QR Session',
+          'Daily Attendance QR',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -151,7 +148,7 @@ class _AdminAttendanceQRScreenState
     bool isExpired,
   ) {
     final statusText = isActive
-        ? 'ACTIVE'
+        ? 'ACTIVE (DAILY)'
         : (session?.status == 'STOPPED' ? 'STOPPED' : 'EXPIRED');
 
     final statusBgColor = isActive
@@ -168,6 +165,7 @@ class _AdminAttendanceQRScreenState
 
     final qrData = session?.qrPayloadJson ?? '{"error": "no_session"}';
     final remainingTime = session?.formattedRemainingTime ?? '00:00';
+    final todayFormatted = DateFormat('EEE, dd MMM yyyy').format(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -231,7 +229,7 @@ class _AdminAttendanceQRScreenState
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Expires in: $remainingTime',
+                      'Valid: $remainingTime',
                       style: const TextStyle(
                         color: Color(0xFF4F46E5),
                         fontWeight: FontWeight.w700,
@@ -243,7 +241,37 @@ class _AdminAttendanceQRScreenState
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+
+          // Daily Auto badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 15,
+                  color: Color(0xFF4F46E5),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Daily Auto QR • $todayFormatted',
+                  style: const TextStyle(
+                    color: Color(0xFF4F46E5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
 
           // QR Code Display Container
           Container(
@@ -288,7 +316,7 @@ class _AdminAttendanceQRScreenState
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Generate a new QR below',
+                          'Tap below to regenerate today\'s QR',
                           style: TextStyle(
                             color: Color(0xFF94A3B8),
                             fontSize: 12,
@@ -318,8 +346,8 @@ class _AdminAttendanceQRScreenState
           // Instruction Text
           Text(
             isActive
-                ? 'Ask employees to scan this QR code using their AMS Mobile App.'
-                : 'This attendance session is no longer active. Tap below to create a new session.',
+                ? 'Employees can scan this QR code using their AMS Mobile App to mark attendance for today.'
+                : 'This attendance session has ended. Tap below to create a new session.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: context.txtSecondary,
@@ -366,7 +394,7 @@ class _AdminAttendanceQRScreenState
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('New Attendance QR Generated! ✓'),
+                        content: Text('Today\'s Attendance QR Generated! ✓'),
                         backgroundColor: Color(0xFF10B981),
                       ),
                     );
@@ -374,7 +402,7 @@ class _AdminAttendanceQRScreenState
                 },
                 icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
                 label: const Text(
-                  'Generate New QR',
+                  'Regenerate QR',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14.5,
@@ -440,33 +468,39 @@ class _AdminAttendanceQRScreenState
         const SizedBox(height: 12),
 
         // Duration selector chips
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Session Validity: ',
-              style: TextStyle(
-                color: context.txtSecondary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Validity: ',
+                style: TextStyle(
+                  color: context.txtSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _buildDurationChip(5),
-            const SizedBox(width: 6),
-            _buildDurationChip(10),
-            const SizedBox(width: 6),
-            _buildDurationChip(15),
-            const SizedBox(width: 6),
-            _buildDurationChip(30),
-          ],
+              const SizedBox(width: 8),
+              _buildDurationChip(1440, 'Full Day (Auto)'),
+              const SizedBox(width: 6),
+              _buildDurationChip(480, '8 Hours'),
+              const SizedBox(width: 6),
+              _buildDurationChip(60, '1 Hour'),
+              const SizedBox(width: 6),
+              _buildDurationChip(30, '30m'),
+              const SizedBox(width: 6),
+              _buildDurationChip(10, '10m'),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildDurationChip(int minutes) {
+  Widget _buildDurationChip(int minutes, [String? label]) {
     final isSelected = _selectedDuration == minutes;
+    final displayLabel = label ?? '$minutes m';
     return InkWell(
       onTap: () {
         setState(() => _selectedDuration = minutes);
@@ -487,7 +521,7 @@ class _AdminAttendanceQRScreenState
           ),
         ),
         child: Text(
-          '$minutes m',
+          displayLabel,
           style: TextStyle(
             color: isSelected ? Colors.white : context.txtSecondary,
             fontSize: 12,
