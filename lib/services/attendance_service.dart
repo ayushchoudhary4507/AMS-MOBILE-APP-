@@ -42,17 +42,137 @@ class AttendanceService {
     }
   }
 
-  // Mark QR attendance (Check-in via QR code)
-  static Future<Map<String, dynamic>> qrCheckIn({
-    required String qrToken,
+  // Create / Start Attendance Session (Admin)
+  static Future<Map<String, dynamic>> createAttendanceSession({
+    int durationMinutes = 10,
+    String? notes,
+    String? office,
+  }) async {
+    final Map<String, dynamic> body = {
+      'durationMinutes': durationMinutes,
+      'duration': durationMinutes,
+    };
+    if (notes != null && notes.isNotEmpty) {
+      body['notes'] = notes;
+    }
+    if (office != null && office.isNotEmpty) {
+      body['office'] = office;
+      body['location'] = office;
+    }
+
+    try {
+      final response = await ApiService.post(
+        ApiConstants.attendanceSessionCreate,
+        data: body,
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.post(
+          '/attendance/session/start',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      try {
+        final response = await ApiService.post(
+          '/attendance/qr/generate',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  // Stop Attendance Session (Admin)
+  static Future<Map<String, dynamic>> stopAttendanceSession({
+    String? sessionId,
+  }) async {
+    final Map<String, dynamic> body = {
+      'sessionId': ?sessionId,
+      'id': ?sessionId,
+    };
+
+    try {
+      final response = await ApiService.post(
+        ApiConstants.attendanceSessionStop,
+        data: body,
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      if (sessionId != null && sessionId.isNotEmpty) {
+        try {
+          final response = await ApiService.post(
+            '/attendance/session/$sessionId/stop',
+            data: body,
+          );
+          return ApiService.toMap(response.data);
+        } catch (_) {}
+      }
+      try {
+        final response = await ApiService.put(
+          ApiConstants.attendanceSessionStop,
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  // Get Active Attendance Session (Admin / Shared)
+  static Future<Map<String, dynamic>> getActiveAttendanceSession() async {
+    try {
+      final response = await ApiService.get(ApiConstants.attendanceSessionActive);
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.get('/attendance/session/current');
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      try {
+        final response = await ApiService.get('/attendance/qr/active');
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  // Get Scanned Records for a Session (Admin)
+  static Future<Map<String, dynamic>> getSessionRecords(String sessionId) async {
+    try {
+      final response = await ApiService.get(
+        '${ApiConstants.attendanceSessionRecords}/$sessionId/records',
+      );
+      return ApiService.toMap(response.data);
+    } catch (e) {
+      try {
+        final response = await ApiService.get(
+          '/attendance/session/$sessionId',
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  // Mark Attendance by Scan (Employee)
+  static Future<Map<String, dynamic>> scanAttendance({
+    required String attendanceToken,
+    String? sessionId,
     double? latitude,
     double? longitude,
   }) async {
     final Map<String, dynamic> body = {
-      'qrToken': qrToken,
-      'token': qrToken,
-      'code': qrToken,
+      'attendanceToken': attendanceToken,
+      'token': attendanceToken,
+      'qrToken': attendanceToken,
+      'code': attendanceToken,
     };
+    if (sessionId != null && sessionId.isNotEmpty) {
+      body['sessionId'] = sessionId;
+    }
     if (latitude != null) {
       body['latitude'] = latitude;
       body['lat'] = latitude;
@@ -65,12 +185,21 @@ class AttendanceService {
 
     try {
       final response = await ApiService.post(
-        ApiConstants.attendanceQrCheckin,
+        ApiConstants.attendanceScan,
         data: body,
       );
       return ApiService.toMap(response.data);
     } catch (e) {
-      // Fallback 1: Try /attendance/qr/checkin
+      // Fallback 1: Try /attendance/qr-checkin
+      try {
+        final response = await ApiService.post(
+          ApiConstants.attendanceQrCheckin,
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 2: Try /attendance/qr/checkin
       try {
         final response = await ApiService.post(
           '/attendance/qr/checkin',
@@ -79,7 +208,7 @@ class AttendanceService {
         return ApiService.toMap(response.data);
       } catch (_) {}
 
-      // Fallback 2: Try /attendance/qr-mark
+      // Fallback 3: Try /attendance/qr-mark
       try {
         final response = await ApiService.post(
           '/attendance/qr-mark',
@@ -88,16 +217,7 @@ class AttendanceService {
         return ApiService.toMap(response.data);
       } catch (_) {}
 
-      // Fallback 3: Try /attendance/qr
-      try {
-        final response = await ApiService.post(
-          '/attendance/qr',
-          data: body,
-        );
-        return ApiService.toMap(response.data);
-      } catch (_) {}
-
-      // Fallback 4: Try /attendance/mark with QR data
+      // Fallback 4: Try /attendance/mark with scan body
       try {
         final response = await ApiService.post(
           ApiConstants.attendanceMark,
@@ -108,6 +228,21 @@ class AttendanceService {
 
       rethrow;
     }
+  }
+
+  // Mark QR attendance (Check-in via QR code alias)
+  static Future<Map<String, dynamic>> qrCheckIn({
+    required String qrToken,
+    String? sessionId,
+    double? latitude,
+    double? longitude,
+  }) async {
+    return scanAttendance(
+      attendanceToken: qrToken,
+      sessionId: sessionId,
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 
   // Check out

@@ -25,6 +25,7 @@ import 'screens/shared/holidays_screen.dart';
 import 'screens/chat/chat_list_screen.dart';
 import 'screens/chat/chat_room_screen.dart';
 import 'screens/employee/qr_scanner_screen.dart';
+import 'screens/admin/admin_attendance_qr_screen.dart';
 
 import 'services/realtime_notification_service.dart';
 
@@ -154,6 +155,10 @@ final _router = GoRouter(
       builder: (context, state) => const QRScannerScreen(),
     ),
 
+    GoRoute(
+      path: '/admin/attendance-qr',
+      builder: (context, state) => const AdminAttendanceQRScreen(),
+    ),
     GoRoute(
       path: '/admin/analytics',
       builder: (context, state) => const AdminAnalyticsScreen(),

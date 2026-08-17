@@ -104,14 +104,17 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen>
       await _scannerController.stop();
     } catch (_) {}
 
-    // Extract token if rawData is formatted JSON or plain text
+    // Extract token & sessionId if rawData is formatted JSON or plain text
     String qrToken = rawData;
+    String? sessionId;
     try {
       if (rawData.startsWith('{') && rawData.endsWith('}')) {
         final decoded = jsonDecode(rawData);
         if (decoded is Map) {
-          qrToken = (decoded['qrToken'] ??
-                  decoded['token'] ??
+          sessionId = decoded['sessionId']?.toString();
+          qrToken = (decoded['token'] ??
+                  decoded['attendanceToken'] ??
+                  decoded['qrToken'] ??
                   decoded['code'] ??
                   decoded['id'] ??
                   rawData)
@@ -139,6 +142,7 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen>
     // 2. Send to Attendance Provider
     final res = await ref.read(attendanceProvider.notifier).qrCheckIn(
           qrToken: qrToken,
+          sessionId: sessionId,
           latitude: latitude,
           longitude: longitude,
         );

@@ -81,7 +81,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   // --- Top Header Bar ---
   Widget _buildHeader(String name, String today) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
       decoration: BoxDecoration(
         color: context.cardBg.withValues(alpha: 0.85),
         border: Border(
@@ -95,36 +95,46 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         children: [
           // Drawer / Menu Icon
           IconButton(
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: EdgeInsets.zero,
             icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 24),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          const SizedBox(width: 4),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Admin Panel',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: context.txtPrimary,
-                  letterSpacing: -0.4,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Admin Panel',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: context.txtPrimary,
+                    letterSpacing: -0.4,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                today,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: context.txtMuted,
+                const SizedBox(height: 2),
+                Text(
+                  today,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: context.txtMuted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           // Theme Mode Toggle (Light / Dark)
           IconButton(
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: const EdgeInsets.all(6),
             icon: Icon(
               ref.watch(themeProvider) == ThemeMode.dark
                   ? Icons.light_mode_rounded
@@ -132,7 +142,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               color: ref.watch(themeProvider) == ThemeMode.dark
                   ? const Color(0xFFFBBF24)
                   : const Color(0xFF6366F1),
-              size: 22,
+              size: 21,
             ),
             tooltip: ref.watch(themeProvider) == ThemeMode.dark
                 ? 'Switch to Light Mode'
@@ -140,6 +150,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             onPressed: () {
               ref.read(themeProvider.notifier).toggleTheme();
             },
+          ),
+          // QR Attendance Session Generator
+          IconButton(
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: const EdgeInsets.all(6),
+            icon: const Icon(
+              Icons.qr_code_scanner_rounded,
+              color: Color(0xFF6366F1),
+              size: 21,
+            ),
+            tooltip: 'Attendance QR Session',
+            onPressed: () => context.push('/admin/attendance-qr'),
           ),
           // Notification Bell — real unread count from backend
           Consumer(
@@ -158,32 +180,34 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 clipBehavior: Clip.none,
                 children: [
                   IconButton(
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: const EdgeInsets.all(6),
                     icon: Icon(
                       Icons.notifications_none_rounded,
                       color: context.txtPrimary,
-                      size: 24,
+                      size: 22,
                     ),
                     onPressed: () => context.go('/admin/notifications'),
                   ),
                   if (count > 0)
                     Positioned(
-                      right: 6,
-                      top: 6,
+                      right: 2,
+                      top: 2,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(3),
                         decoration: const BoxDecoration(
                           color: Color(0xFFEF4444),
                           shape: BoxShape.circle,
                         ),
                         constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
+                          minWidth: 15,
+                          minHeight: 15,
                         ),
                         child: Text(
                           count > 99 ? '99+' : count.toString(),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 9,
+                            fontSize: 8.5,
                             fontWeight: FontWeight.w800,
                           ),
                           textAlign: TextAlign.center,
@@ -194,13 +218,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               );
             },
           ),
-          const SizedBox(width: 4),
           // Logout Button
           IconButton(
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: const EdgeInsets.all(6),
             icon: const Icon(
               Icons.logout_rounded,
               color: Color(0xFFEF4444),
-              size: 22,
+              size: 21,
             ),
             tooltip: 'Logout',
             onPressed: () async {
@@ -386,9 +411,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           _buildWelcomeBanner(
             authName: ref.watch(authProvider).user?['name'] ?? 'Admin',
           ),
+          const SizedBox(height: 20),
+
+          // 2. Attendance QR Session Generator Hero Card
+          _buildAttendanceQRSessionCard(),
+
           const SizedBox(height: 24),
 
-          // 2. Overview Section Header & Stat Cards
+          // 3. Overview Section Header & Stat Cards
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -497,35 +527,216 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
           ),
           const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              children: [
+                _buildQuickActionButton(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Attendance QR',
+                  color: const Color(0xFF6366F1),
+                  onTap: () => context.push('/admin/attendance-qr'),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionButton(
+                  icon: Icons.person_add_alt_1_rounded,
+                  label: 'Add Employee',
+                  color: const Color(0xFF4F46E5),
+                  onTap: () => _showAddEmployeeModal(context),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionButton(
+                  icon: Icons.access_time_filled_rounded,
+                  label: 'Mark Attendance',
+                  color: const Color(0xFF10B981),
+                  onTap: () => _showAdminMarkAttendanceModal(context),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionButton(
+                  icon: Icons.event_available_rounded,
+                  label: 'Leaves',
+                  color: const Color(0xFFF59E0B),
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionButton(
+                  icon: Icons.insert_chart_rounded,
+                  label: 'Reports',
+                  color: const Color(0xFF06B6D4),
+                  onTap: () => setState(() => _selectedIndex = 3),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceQRSessionCard() {
+    final attendance = ref.watch(attendanceProvider);
+    final session = attendance.activeSession;
+    final isActive = session != null && session.isActive;
+    final scannedCount = session?.scannedCount ?? (session?.scannedEmployees.length ?? 0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isActive
+              ? const Color(0xFF6366F1).withValues(alpha: 0.5)
+              : context.borderCol,
+          width: isActive ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isActive ? const Color(0xFF4F46E5) : Colors.black)
+                .withValues(alpha: context.isDark ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildQuickActionButton(
-                icon: Icons.person_add_alt_1_rounded,
-                label: 'Add Employee',
-                color: const Color(0xFF6366F1),
-                onTap: () => _showAddEmployeeModal(context),
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: Color(0xFF4F46E5),
+                  size: 20,
+                ),
               ),
-              _buildQuickActionButton(
-                icon: Icons.access_time_filled_rounded,
-                label: 'Attendance',
-                color: const Color(0xFF10B981),
-                onTap: () => _showAdminMarkAttendanceModal(context),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Attendance QR Session',
+                      style: TextStyle(
+                        color: context.txtPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isActive
+                          ? 'Expires in: ${session.formattedRemainingTime}'
+                          : 'Status: Inactive',
+                      style: TextStyle(
+                        color: isActive
+                            ? const Color(0xFF4F46E5)
+                            : context.txtMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              _buildQuickActionButton(
-                icon: Icons.event_available_rounded,
-                label: 'Leaves',
-                color: const Color(0xFFF59E0B),
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-              _buildQuickActionButton(
-                icon: Icons.insert_chart_rounded,
-                label: 'Reports',
-                color: const Color(0xFF06B6D4),
-                onTap: () => setState(() => _selectedIndex = 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  isActive ? 'ACTIVE' : 'INACTIVE',
+                  style: TextStyle(
+                    color: isActive
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ],
-          ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: context.isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.borderCol),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.how_to_reg_rounded,
+                        size: 15,
+                        color: Color(0xFF10B981),
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'Scanned: $scannedCount',
+                          style: TextStyle(
+                            color: context.txtPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.push('/admin/attendance-qr'),
+                  icon: Icon(
+                    isActive ? Icons.qr_code_2_rounded : Icons.play_arrow_rounded,
+                    size: 17,
+                  ),
+                  label: Text(
+                    isActive ? 'Display QR' : 'Start Session',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

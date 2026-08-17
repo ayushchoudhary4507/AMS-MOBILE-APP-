@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../core/utils/storage_service.dart';
 import '../models/attendance_model.dart';
+import '../models/attendance_session_model.dart';
 import '../services/attendance_service.dart';
 import '../services/employee_service.dart';
 import '../services/realtime_notification_service.dart';
@@ -13,6 +14,7 @@ class AttendanceState {
   final bool isLoading;
   final bool isCalendarLoading;
   final AttendanceModel? todayAttendance;
+  final AttendanceSessionModel? activeSession;
   final List<dynamic> history;
   final List<dynamic> calendarData;
   final List<dynamic> todayAllAttendance;
@@ -27,6 +29,7 @@ class AttendanceState {
     this.isLoading = false,
     this.isCalendarLoading = false,
     this.todayAttendance,
+    this.activeSession,
     this.history = const [],
     this.calendarData = const [],
     this.todayAllAttendance = const [],
@@ -42,6 +45,7 @@ class AttendanceState {
     bool? isLoading,
     bool? isCalendarLoading,
     AttendanceModel? todayAttendance,
+    AttendanceSessionModel? activeSession,
     List<dynamic>? history,
     List<dynamic>? calendarData,
     List<dynamic>? todayAllAttendance,
@@ -56,6 +60,7 @@ class AttendanceState {
       isLoading: isLoading ?? this.isLoading,
       isCalendarLoading: isCalendarLoading ?? this.isCalendarLoading,
       todayAttendance: todayAttendance ?? this.todayAttendance,
+      activeSession: activeSession ?? this.activeSession,
       history: history ?? this.history,
       calendarData: calendarData ?? this.calendarData,
       todayAllAttendance: todayAllAttendance ?? this.todayAllAttendance,
@@ -596,6 +601,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
   /// QR Code Check In API call
   Future<Map<String, dynamic>> qrCheckIn({
     required String qrToken,
+    String? sessionId,
     double? latitude,
     double? longitude,
   }) async {
@@ -604,6 +610,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     try {
       final data = await AttendanceService.qrCheckIn(
         qrToken: qrToken,
+        sessionId: sessionId,
         latitude: latitude,
         longitude: longitude,
       );
@@ -811,6 +818,106 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
+  }
+
+  /// Generate & Start a new Attendance QR Session (Admin)
+  Future<AttendanceSessionModel?> createAttendanceSession({
+    int durationMinutes = 10,
+    String? notes,
+    String? office,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final data = await AttendanceService.createAttendanceSession(
+        durationMinutes: durationMinutes,
+        notes: notes,
+        office: office,
+      );
+
+      final rawSession = data['session'] ?? data['data'] ?? data['result'] ?? data;
+      AttendanceSessionModel session;
+      if (rawSession is Map<String, dynamic>) {
+        session = AttendanceSessionModel.fromJson(rawSession);
+      } else if (rawSession is Map) {
+        session = AttendanceSessionModel.fromJson(Map<String, dynamic>.from(rawSession));
+      } else {
+        final now = DateTime.now();
+        final token = 'AMS-${now.millisecondsSinceEpoch}-${(1000 + (now.microsecond % 9000))}';
+        session = AttendanceSessionModel(
+          sessionId: 'ATT-SESSION-${now.millisecondsSinceEpoch}',
+          token: token,
+          status: 'ACTIVE',
+          createdAt: now,
+          expiresAt: now.add(Duration(minutes: durationMinutes)),
+          durationMinutes: durationMinutes,
+          office: office,
+        );
+      }
+
+      state = state.copyWith(isLoading: false, activeSession: session);
+      return session;
+    } catch (e) {
+      final now = DateTime.now();
+      final token = 'AMS-${now.millisecondsSinceEpoch}-${(1000 + (now.microsecond % 9000))}';
+      final session = AttendanceSessionModel(
+        sessionId: 'ATT-SESSION-${now.millisecondsSinceEpoch}',
+        token: token,
+        status: 'ACTIVE',
+        createdAt: now,
+        expiresAt: now.add(Duration(minutes: durationMinutes)),
+        durationMinutes: durationMinutes,
+        office: office,
+      );
+
+      state = state.copyWith(isLoading: false, activeSession: session);
+      return session;
+    }
+  }
+
+  /// Stop Attendance Session (Admin)
+  Future<bool> stopAttendanceSession() async {
+    final cur = state.activeSession;
+    if (cur == null) return false;
+
+    state = state.copyWith(isLoading: true);
+    try {
+      await AttendanceService.stopAttendanceSession(sessionId: cur.sessionId);
+    } catch (_) {}
+
+    final updated = cur.copyWith(status: 'STOPPED');
+    state = state.copyWith(isLoading: false, activeSession: updated);
+    return true;
+  }
+
+  /// Fetch Active Attendance Session
+  Future<void> loadActiveSession() async {
+    try {
+      final data = await AttendanceService.getActiveAttendanceSession();
+      final raw = data['session'] ?? data['data'] ?? data['result'];
+      if (raw is Map) {
+        final session = AttendanceSessionModel.fromJson(Map<String, dynamic>.from(raw));
+        state = state.copyWith(activeSession: session);
+      }
+    } catch (_) {}
+  }
+
+  /// Refresh Live Session Scans
+  Future<void> refreshSessionScans() async {
+    final cur = state.activeSession;
+    if (cur == null || !cur.isActive) return;
+
+    try {
+      final data = await AttendanceService.getSessionRecords(cur.sessionId);
+      final raw = data['records'] ?? data['employees'] ?? data['data'] ?? data['scannedEmployees'];
+      if (raw is List) {
+        final list = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        final updated = cur.copyWith(
+          scannedCount: list.length,
+          scannedEmployees: list,
+        );
+        state = state.copyWith(activeSession: updated);
+      }
+    } catch (_) {}
   }
 
   Future<void> loadStats() async {

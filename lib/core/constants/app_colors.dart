@@ -77,6 +77,7 @@ class AppColors {
 extension AppThemeContext on BuildContext {
   bool get isDark => Theme.of(this).brightness == Brightness.dark;
 
+  Color get mainBgColor => isDark ? const Color(0xFF0B0C10) : const Color(0xFFF8FAFC);
   Color get cardBg => isDark ? const Color(0xFF161824) : Colors.white;
   Color get cardLightBg => isDark ? const Color(0xFF1F2235) : const Color(0xFFF8FAFC);
   Color get txtPrimary => isDark ? const Color(0xFFF9FAFB) : const Color(0xFF0F172A);

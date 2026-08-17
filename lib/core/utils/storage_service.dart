@@ -284,5 +284,31 @@ class StorageService {
     }
     return [];
   }
+
+  // Save Daily QR Session (Admin)
+  static Future<void> saveDailyQRSession(Map<String, dynamic> session) async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    await prefs.setString('daily_qr_session_$dateStr', jsonEncode(session));
+    await prefs.setString('daily_qr_latest_date', dateStr);
+  }
+
+  // Get Daily QR Session for Today (Admin)
+  static Future<Map<String, dynamic>?> getDailyQRSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final raw = prefs.getString('daily_qr_session_$dateStr');
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return null;
+  }
 }
 

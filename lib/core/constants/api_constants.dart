@@ -13,7 +13,12 @@ class ApiConstants {
 
   // Attendance
   static const String attendanceMark = '/attendance/mark';
+  static const String attendanceScan = '/attendance/scan';
   static const String attendanceQrCheckin = '/attendance/qr-checkin';
+  static const String attendanceSessionCreate = '/attendance/session/create';
+  static const String attendanceSessionStop = '/attendance/session/stop';
+  static const String attendanceSessionActive = '/attendance/session/active';
+  static const String attendanceSessionRecords = '/attendance/session';
   static const String attendanceCheckout = '/attendance/checkout';
   static const String attendanceMyToday = '/attendance/my-today';
   static const String attendanceToday = '/attendance/today';
@@ -23,6 +28,7 @@ class ApiConstants {
   static const String attendanceHistory = '/attendance/history';
   static const String attendanceByDate = '/attendance/by-date';
   static const String attendanceAdminMark = '/attendance/admin-mark';
+
 
   // Leave
   static const String leaveApply = '/attendance/leave/apply';
