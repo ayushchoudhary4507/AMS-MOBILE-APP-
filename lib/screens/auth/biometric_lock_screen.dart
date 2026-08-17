@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
+import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/app_logo.dart';
 
 class BiometricLockScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,28 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
     });
   }
 
+  Future<void> _triggerFaceCameraAuth() async {
+    if (_isAuthenticating) return;
+
+    final success = await FaceCameraAuthDialog.show(
+      context,
+      title: 'Face Unlock',
+      subtitle: 'Align your face in the front camera to unlock',
+      onFallbackToFingerprint: () =>
+          _triggerBiometricAuth('Scan Fingerprint to Unlock App'),
+      onFallbackToPassword: _fallbackToPassword,
+    );
+
+    if (success && mounted) {
+      final auth = ref.read(authProvider);
+      if (auth.isAdmin) {
+        context.go('/admin/dashboard');
+      } else {
+        context.go('/employee/dashboard');
+      }
+    }
+  }
+
   Future<void> _triggerBiometricAuth(String reason) async {
     if (_isAuthenticating) return;
 
@@ -39,7 +62,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
     try {
       final session = await ref
           .read(biometricProvider.notifier)
-          .authenticateAndGetSession(reason);
+          .authenticateAndGetSession(reason, fingerprintOnly: true);
 
       if (session != null && mounted) {
         final success = await ref
@@ -159,7 +182,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Unlock the app using Fingerprint or Face Unlock',
+                  'Unlock the app using Fingerprint or Face Camera Scanner',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -198,7 +221,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
 
                 const Spacer(),
 
-                // Action Buttons: Fingerprint, Face Unlock, and Password Fallback
+                // Action Buttons: Fingerprint, Face Camera Scan, and Password Fallback
                 Column(
                   children: [
                     // Fingerprint Scan Button
@@ -228,7 +251,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Face Unlock Button
+                    // Face Unlock (Camera) Button
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -241,14 +264,14 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: const Icon(Icons.face_rounded, size: 24),
+                        icon: const Icon(Icons.face_retouching_natural_rounded, size: 24),
                         label: const Text(
-                          'Unlock with Face Unlock',
+                          'Open Camera Face Unlock',
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                         ),
                         onPressed: _isAuthenticating
                             ? null
-                            : () => _triggerBiometricAuth('Scan Face to Unlock App'),
+                            : _triggerFaceCameraAuth,
                       ),
                     ),
 

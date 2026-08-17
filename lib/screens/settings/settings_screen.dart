@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/biometric_service.dart';
+import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/app_avatar.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -73,22 +74,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final bioNotifier = ref.read(biometricProvider.notifier);
 
     if (value) {
-      // Step 1: Check enrollment
-      final enrolled = await BiometricAuthService().isFaceEnrolled();
-      if (!enrolled) {
-        _showSnackBar(
-          'Face Lock is not set up on this device.\nPlease add Face Unlock in your device settings first.',
-          AppColors.accentRed,
-        );
-        return;
-      }
-
-      // Step 2: Authenticate to confirm identity before enabling
-      final result = await BiometricAuthService().authenticateWithResult(
-        localizedReason: 'Scan face to enable Face Lock',
+      // Open Live Front Camera Face Scan Dialog
+      final success = await FaceCameraAuthDialog.show(
+        context,
+        title: 'Set Up Face Lock',
+        subtitle: 'Align your face in the front camera to register Face Lock',
       );
 
-      if (result.authenticated && mounted) {
+      if (success && mounted) {
         await bioNotifier.setFaceLockEnabled(
           true,
           token: auth.token,
@@ -96,12 +89,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           role: auth.role,
         );
         _showSnackBar(
-          'Face Lock Enabled Successfully! ✓',
+          'Face Lock Enabled with Front Camera! ✓',
           AppColors.accentGreen,
         );
       } else if (mounted) {
         _showSnackBar(
-          result.errorMessage ?? 'Face verification failed.',
+          'Face Lock verification cancelled or failed.',
           AppColors.accentRed,
         );
       }

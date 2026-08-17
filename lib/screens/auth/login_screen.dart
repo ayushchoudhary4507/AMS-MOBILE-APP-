@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
 import '../../services/biometric_service.dart';
+import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/app_logo.dart';
@@ -85,8 +86,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   ///
   /// [reason]          — the localized prompt shown in the native biometric dialog.
   /// [fingerprintOnly] — true  = fingerprint button tapped (checks fingerprint enrollment).
-  ///                     false = face button tapped      (checks face enrollment).
+  ///                     false = face button tapped      (opens front camera face scanner).
   Future<void> _handleBiometricLogin(String reason, {required bool fingerprintOnly}) async {
+    if (!fingerprintOnly) {
+      // Open Live Front Camera Face Scanner
+      final success = await FaceCameraAuthDialog.show(
+        context,
+        title: 'Face Unlock',
+        subtitle: 'Align your face in the front camera to log in',
+        onFallbackToFingerprint: () => _handleBiometricLogin(
+          'Authenticate with Fingerprint',
+          fingerprintOnly: true,
+        ),
+      );
+
+      if (success && mounted) {
+        _navigateByRole();
+      }
+      return;
+    }
+
     final session = await ref
         .read(biometricProvider.notifier)
         .authenticateAndGetSession(
