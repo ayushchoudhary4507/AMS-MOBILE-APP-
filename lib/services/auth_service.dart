@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import 'api_service.dart';
+import 'email_service.dart';
 import '../core/utils/storage_service.dart';
 
 class AuthService {
@@ -116,6 +117,18 @@ class AuthService {
   static String? _lastMatchedIdentifier;
 
   // Forgot Password: Request OTP to Phone or Email with multi-format matching
+  // Dedicated Dio instance with very long timeout for /auth/send
+  // Render SMTP can take up to 6 minutes; we wait it out and also fire email directly from app
+  static final Dio _otpDio = Dio(
+    BaseOptions(
+      baseUrl: ApiConstants.baseUrl,
+      connectTimeout: const Duration(seconds: 45),
+      receiveTimeout: const Duration(seconds: 420), // 7 min — enough for Render SMTP wait
+      sendTimeout: const Duration(seconds: 45),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    ),
+  );
+
   static Future<Map<String, dynamic>> forgotPassword(String identifier) async {
     final raw = identifier.trim();
     final isEmail = raw.contains('@');
@@ -123,7 +136,17 @@ class AuthService {
     if (isEmail) {
       final payload = {'email': raw.toLowerCase()};
       try {
-        final response = await ApiService.post('/auth/send', data: payload);
+        final token = await StorageService.getToken();
+        final headers = <String, dynamic>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        };
+        final response = await _otpDio.post(
+          '/auth/send',
+          data: payload,
+          options: Options(headers: headers),
+        );
         final map = ApiService.toMap(response.data);
         if (map['success'] == false) {
           final msg = map['message']?.toString() ?? 'Failed to send OTP code.';
@@ -135,6 +158,16 @@ class AuthService {
           throw Exception(msg);
         }
         _lastMatchedIdentifier = raw;
+
+        // Fire email directly from app as a guaranteed delivery (regardless of backend SMTP)
+        final otp = map['otp']?.toString();
+        if (otp != null && otp.isNotEmpty) {
+          EmailService.sendOtpEmail(
+            recipientEmail: raw,
+            otp: otp,
+          ).catchError((_) => false);
+        }
+
         return map.isNotEmpty ? map : {'success': true, 'message': 'OTP sent successfully to $raw'};
       } catch (e) {
         if (e is DioException) {
