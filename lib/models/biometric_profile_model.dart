@@ -21,7 +21,7 @@ class FaceBiometricProfile {
     required this.userData,
     required this.faceTemplate,
     required this.enrolledAt,
-    this.isFingerprintEnabled = true,
+    this.isFingerprintEnabled = false,
     this.isFaceLockEnabled = true,
   });
 
@@ -70,7 +70,7 @@ class FaceBiometricProfile {
       faceTemplate: template,
       enrolledAt: enrolledDate,
       isFingerprintEnabled: json['isFingerprintEnabled'] == true,
-      isFaceLockEnabled: json['isFaceLockEnabled'] != false,
+      isFaceLockEnabled: json['isFaceLockEnabled'] == true,
     );
   }
 

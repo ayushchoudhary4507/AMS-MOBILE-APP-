@@ -145,6 +145,7 @@ class FaceRecognitionService {
     String? role,
     String? token,
     Map<String, dynamic>? userData,
+    bool isFingerprintEnabled = false,
   }) async {
     try {
       final cleanId = userId.trim();
@@ -160,7 +161,7 @@ class FaceRecognitionService {
         faceTemplate: featureVector,
         enrolledAt: DateTime.now(),
         isFaceLockEnabled: true,
-        isFingerprintEnabled: true,
+        isFingerprintEnabled: isFingerprintEnabled,
       );
 
       return await saveFaceProfile(profile);

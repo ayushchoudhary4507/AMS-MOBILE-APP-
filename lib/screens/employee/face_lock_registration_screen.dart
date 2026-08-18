@@ -210,6 +210,7 @@ class _FaceLockRegistrationScreenState
       final effectiveUserId = rawId.toString();
       final effectiveUser = auth.user ?? {'id': effectiveUserId, 'name': _employeeName, 'email': _employeeEmail};
 
+      final caps = ref.read(biometricProvider).capabilities;
       final profile = FaceBiometricProfile(
         userId: effectiveUserId,
         userName: _employeeName,
@@ -219,7 +220,7 @@ class _FaceLockRegistrationScreenState
         userData: effectiveUser,
         faceTemplate: embedding,
         enrolledAt: DateTime.now(),
-        isFingerprintEnabled: true,
+        isFingerprintEnabled: caps.isFingerprintEnabled,
         isFaceLockEnabled: true,
       );
 

@@ -329,6 +329,9 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
         final role = auth.role ?? _cachedSession?['role']?.toString() ?? rawUser['role']?.toString() ?? 'employee';
         final token = auth.token ?? _cachedSession?['token']?.toString();
 
+        final caps = await BiometricAuthService().getCapabilities();
+        final isFpEnabled = caps.isFingerprintEnabled;
+
         final profile = FaceBiometricProfile(
           userId: userId,
           userName: userName,
@@ -338,7 +341,7 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
           userData: rawUser,
           faceTemplate: liveEmbedding,
           enrolledAt: DateTime.now(),
-          isFingerprintEnabled: true,
+          isFingerprintEnabled: isFpEnabled,
           isFaceLockEnabled: true,
         );
 
@@ -350,7 +353,7 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
               token: token,
               user: rawUser,
               role: role,
-              enableFingerprint: true,
+              enableFingerprint: isFpEnabled,
               enableFaceLock: true,
             );
           } else {
@@ -393,6 +396,15 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
             name: 'FaceAuth',
           );
 
+          if (!matched.isFaceLockEnabled) {
+            setState(() {
+              _isVerifying = false;
+              _isFailed = true;
+              _statusText = 'Face Lock is disabled for ${matched.userName}. Please login with password.';
+            });
+            return;
+          }
+
           // Retrieve session for this identified user
           final userSession = await BiometricAuthService.getSecureSession(userId: matched.userId) ??
               _cachedSession ??
@@ -430,7 +442,17 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
 
           if (enrolledTemplate != null && enrolledTemplate.isNotEmpty) {
             final singleResult = _faceService.verifyFaceVector(liveEmbedding, enrolledTemplate);
+            final currentCaps = await BiometricAuthService().getCapabilities();
             if (singleResult.isSuccess) {
+              if (!currentCaps.isFaceLockEnabled) {
+                setState(() {
+                  _isVerifying = false;
+                  _isFailed = true;
+                  _statusText = 'Face Lock is disabled. Please login with password.';
+                });
+                return;
+              }
+
               if (_cachedSession != null) {
                 await ref.read(authProvider.notifier).restoreBiometricSession(_cachedSession!);
               }

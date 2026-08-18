@@ -129,9 +129,9 @@ class BiometricAuthService {
       final isFingerprintStr = await _secureStorage.read(key: _keyFingerprintEnabled);
       final isFaceLockStr = await _secureStorage.read(key: _keyFaceLockEnabled);
 
-      final isEnabled = isEnabledStr == 'true';
-      final isFingerprintEnabled = isFingerprintStr == 'true' || (isEnabled && isFingerprintStr == null);
-      final isFaceLockEnabled = isFaceLockStr == 'true' || (isEnabled && isFaceLockStr == null);
+      final isFingerprintEnabled = isFingerprintStr == 'true';
+      final isFaceLockEnabled = isFaceLockStr == 'true';
+      final isEnabled = (isEnabledStr == 'true') && (isFingerprintEnabled || isFaceLockEnabled);
 
       String? savedName;
       if (isEnabled || isFingerprintEnabled || isFaceLockEnabled) {
@@ -154,7 +154,7 @@ class BiometricAuthService {
         hasEnrolledBiometrics: available.isNotEmpty,
         hasFingerprint: hasFingerprint,
         hasFace: hasFace,
-        isBiometricEnabled: isEnabled || isFingerprintEnabled || isFaceLockEnabled,
+        isBiometricEnabled: isFingerprintEnabled || isFaceLockEnabled,
         isFingerprintEnabled: isFingerprintEnabled,
         isFaceLockEnabled: isFaceLockEnabled,
         savedUserName: savedName,
@@ -339,7 +339,7 @@ class BiometricAuthService {
   Future<bool> isFaceEnrolled({String? userId}) async {
     try {
       final isFaceEnabled = (await _secureStorage.read(key: _keyFaceLockEnabled)) == 'true';
-      if (isFaceEnabled) return true;
+      if (!isFaceEnabled) return false;
       return await FaceRecognitionService().hasEnrolledFaceTemplate(userId: userId);
     } catch (_) {
       return false;
@@ -351,14 +351,15 @@ class BiometricAuthService {
     required String token,
     required Map<String, dynamic> user,
     required String role,
-    bool enableFingerprint = true,
-    bool enableFaceLock = true,
+    bool enableFingerprint = false,
+    bool enableFaceLock = false,
   }) async {
     try {
       final rawUid = (user['id'] ?? user['_id'] ?? user['email'])?.toString().trim();
       final uid = (rawUid != null && rawUid.isNotEmpty) ? rawUid : 'registered_user';
 
-      await _secureStorage.write(key: _keyBiometricEnabled, value: 'true');
+      final isBioActive = enableFingerprint || enableFaceLock;
+      await _secureStorage.write(key: _keyBiometricEnabled, value: isBioActive ? 'true' : 'false');
       await _secureStorage.write(key: _keyFingerprintEnabled, value: enableFingerprint ? 'true' : 'false');
       await _secureStorage.write(key: _keyFaceLockEnabled, value: enableFaceLock ? 'true' : 'false');
       await _secureStorage.write(key: _keyToken, value: token);

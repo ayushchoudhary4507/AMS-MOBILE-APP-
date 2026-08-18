@@ -59,19 +59,50 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
     state = state.copyWith(isAuthenticating: true, errorMessage: null);
 
     try {
-      // --- Step 1: Check that a session exists (user previously enabled biometric login) ---
-      final session = await BiometricAuthService.getSecureSession();
-      if (session == null) {
+      // --- Step 1: Check capabilities and explicit enablement ---
+      final caps = await _authService.getCapabilities();
+
+      if (fingerprintOnly == true && !caps.isFingerprintEnabled) {
         state = state.copyWith(
           isAuthenticating: false,
           errorMessage:
-              'Biometric lock is disabled. Please login with your password and enable '
+              'Fingerprint Lock is not enabled. Please log in with your password and enable Fingerprint Lock in Settings.',
+        );
+        return null;
+      }
+
+      if (fingerprintOnly == false && !caps.isFaceLockEnabled) {
+        state = state.copyWith(
+          isAuthenticating: false,
+          errorMessage:
+              'Face Lock is not enabled. Please log in with your password and enable Face Lock in Settings.',
+        );
+        return null;
+      }
+
+      if (fingerprintOnly == null && !caps.isBiometricEnabled) {
+        state = state.copyWith(
+          isAuthenticating: false,
+          errorMessage:
+              'Biometric lock is disabled. Please log in with your password and enable '
               'Fingerprint / Face Lock in Settings.',
         );
         return null;
       }
 
-      // --- Step 2: Check whether the requested biometric type is actually enrolled ---
+      // --- Step 2: Check that a session exists ---
+      final session = await BiometricAuthService.getSecureSession();
+      if (session == null) {
+        state = state.copyWith(
+          isAuthenticating: false,
+          errorMessage:
+              'No saved biometric session found. Please log in with your password and enable '
+              'Fingerprint / Face Lock in Settings.',
+        );
+        return null;
+      }
+
+      // --- Step 3: Check whether the requested biometric hardware/enrollment is actually available ---
       if (fingerprintOnly == true) {
         // User tapped "Login with Fingerprint" — check fingerprint specifically
         final enrolled = await _authService.isFingerprintEnrolled();
@@ -99,8 +130,8 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
           state = state.copyWith(
             isAuthenticating: false,
             errorMessage:
-                'Face Unlock is not available on this device. '
-                'Please configure Face Unlock in your device settings or use another supported biometric method.',
+                'Face Unlock is not configured or enabled. '
+                'Please configure Face Lock in Settings or device settings.',
           );
           return null;
         }
@@ -123,12 +154,9 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
         }
       }
 
-      // --- Step 3: Show native biometric prompt and check the ACTUAL result ---
+      // --- Step 4: Show native biometric prompt and check the ACTUAL result ---
       // SECURITY FIX: biometricOnly=true is ALWAYS enforced so the user CANNOT
       // bypass face/fingerprint auth using a PIN, pattern, or device password.
-      // Setting biometricOnly=false (the old behaviour for face unlock) allowed
-      // Android's device-credential fallback, meaning *any* face (or a known PIN)
-      // could unlock the app — a critical security hole.
       final BiometricAuthResult authResult = await _authService.authenticateWithResult(
         localizedReason: reason,
         biometricOnly: true, // ALWAYS true — no PIN/pattern/password fallback allowed
@@ -174,11 +202,15 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
     required String token,
     required Map<String, dynamic> user,
     required String role,
+    bool enableFingerprint = false,
+    bool enableFaceLock = false,
   }) async {
     await BiometricAuthService.enableBiometricLogin(
       token: token,
       user: user,
       role: role,
+      enableFingerprint: enableFingerprint,
+      enableFaceLock: enableFaceLock,
     );
     await checkCapabilities();
   }

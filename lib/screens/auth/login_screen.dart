@@ -59,12 +59,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (success && mounted) {
       final auth = ref.read(authProvider);
 
-      // Silently save session for biometric login without showing any popup dialog
-      if (auth.token != null && auth.user != null) {
+      // Only refresh stored biometric session credentials if the user has ALREADY enabled it explicitly
+      final caps = ref.read(biometricProvider).capabilities;
+      if (caps.isBiometricEnabled && auth.token != null && auth.user != null) {
         await ref.read(biometricProvider.notifier).enableBiometric(
               token: auth.token!,
               user: auth.user!,
               role: auth.role ?? 'employee',
+              enableFingerprint: caps.isFingerprintEnabled,
+              enableFaceLock: caps.isFaceLockEnabled,
             );
       }
 
@@ -89,6 +92,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   ///                     false = face button tapped      (opens Camera Face Unlock directly).
   Future<void> _handleBiometricLogin(String reason, {required bool fingerprintOnly}) async {
     if (!fingerprintOnly) {
+      final caps = ref.read(biometricProvider).capabilities;
+      if (!caps.isFaceLockEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Face Lock is not enabled. Please log in with your password and enable Face Lock in Settings.',
+            ),
+            backgroundColor: AppColors.accentRed,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
       // Direct Camera Face Unlock - No OS Fingerprint Dialog
       final success = await FaceCameraAuthDialog.show(
         context,
