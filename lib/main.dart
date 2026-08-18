@@ -26,6 +26,7 @@ import 'screens/shared/holidays_screen.dart';
 import 'screens/chat/chat_list_screen.dart';
 import 'screens/chat/chat_room_screen.dart';
 import 'screens/employee/qr_scanner_screen.dart';
+import 'screens/employee/face_lock_registration_screen.dart';
 import 'screens/admin/admin_attendance_qr_screen.dart';
 
 import 'services/realtime_notification_service.dart';
@@ -150,6 +151,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/employee/scan-qr',
       builder: (context, state) => const QRScannerScreen(),
+    ),
+    GoRoute(
+      path: '/employee/face-lock',
+      builder: (context, state) => const FaceLockRegistrationScreen(),
     ),
     GoRoute(
       path: '/scan-qr',

@@ -40,6 +40,8 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
 
   bool _isCheckingEnrollment = true;
   bool _isEnrolled = false;
+  bool _isAlreadyMarked = false;
+  String? _alreadyMarkedTime;
   bool _isInitializingCamera = false;
   bool _isCameraInitialized = false;
   bool _isVerifying = false;
@@ -48,7 +50,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
   bool _isPermanentlyDenied = false;
 
   String? _errorMessage;
-  String _statusText = 'Checking face registration...';
+  String _statusText = 'Checking attendance & face registration...';
   Timer? _faceScanTimer;
 
   String? _employeeId;
@@ -80,7 +82,23 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
     final rawId = user?['id'] ?? user?['_id'] ?? user?['email'] ?? 'employee';
     _employeeId = rawId.toString();
 
-    // Check if enrolled face template exists for this employee
+    // 1. Check if Attendance is ALREADY marked for today
+    final attState = ref.read(attendanceProvider);
+    if (attState.isCheckedIn) {
+      final checkInTime = attState.todayAttendance?.formattedCheckInTime ?? 'Today';
+      dev.log('[FaceAttendance] Attendance already marked today at $checkInTime', name: 'FaceAttendance');
+      if (mounted) {
+        setState(() {
+          _isCheckingEnrollment = false;
+          _isAlreadyMarked = true;
+          _alreadyMarkedTime = checkInTime;
+          _statusText = 'Attendance is already marked for today.';
+        });
+      }
+      return;
+    }
+
+    // 2. Check if enrolled face template exists for this employee
     final enrolledUserId = await _faceService.getEnrolledUserId();
     final effectiveId = enrolledUserId ?? _employeeId!;
     final template = await _faceService.getEnrolledFaceTemplate(userId: effectiveId);
@@ -116,7 +134,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       dev.log('[FaceAttendance] App paused: disposing camera', name: 'FaceAttendance');
       _disposeCamera();
-    } else if (state == AppLifecycleState.resumed && _isEnrolled) {
+    } else if (state == AppLifecycleState.resumed && _isEnrolled && !_isAlreadyMarked) {
       dev.log('[FaceAttendance] App resumed: reinitializing camera', name: 'FaceAttendance');
       _initCamera();
     }
@@ -141,7 +159,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
   }
 
   Future<void> _initCamera() async {
-    if (_isInitializingCamera) return;
+    if (_isInitializingCamera || _isAlreadyMarked) return;
     _isInitializingCamera = true;
 
     if (mounted) {
@@ -221,7 +239,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
         _statusText = 'Position face to mark attendance...';
       });
 
-      _startFaceAttendanceScan();
+      _startFaceAttendanceScan(delayMs: 700);
     } catch (e) {
       dev.log('[FaceAttendance] Camera initialization failed: $e', name: 'FaceAttendance');
       if (mounted) {
@@ -235,7 +253,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
     }
   }
 
-  void _startFaceAttendanceScan() {
+  void _startFaceAttendanceScan({int delayMs = 400}) {
     _faceScanTimer?.cancel();
     setState(() {
       _isFailed = false;
@@ -243,7 +261,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
       _statusText = 'Align face with the circle...';
     });
 
-    _faceScanTimer = Timer(const Duration(milliseconds: 300), () async {
+    _faceScanTimer = Timer(Duration(milliseconds: delayMs), () async {
       if (!mounted || !_isCameraInitialized || _cameraController == null) return;
 
       setState(() {
@@ -260,7 +278,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
         final XFile photo = await _cameraController!.takePicture();
         final Uint8List imageBytes = await photo.readAsBytes();
 
-        // 2. Extract genuine 224-dimensional Zero-Mean biometric embedding
+        // 2. Extract genuine 640-dimensional Zero-Mean biometric embedding
         final liveEmbedding = _faceService.extractFaceEmbeddingFromBytes(imageBytes);
 
         if (liveEmbedding == null) {
@@ -339,7 +357,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
             _isSuccess = true;
             _isVerifying = false;
             _isFailed = false;
-            _statusText = 'Attendance Marked Successfully! ✓';
+            _statusText = 'Face verified. Attendance marked successfully. ✓';
           });
 
           try {
@@ -352,9 +370,17 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
           }
         } else {
           final msg = res['message']?.toString() ?? 'Failed to mark attendance.';
+          final lower = msg.toLowerCase();
+          final isAlready = lower.contains('already') || lower.contains('pehle');
+
           setState(() {
             _isVerifying = false;
-            _isFailed = true;
+            if (isAlready) {
+              _isAlreadyMarked = true;
+              _alreadyMarkedTime = 'Today';
+            } else {
+              _isFailed = true;
+            }
             _statusText = msg;
           });
         }
@@ -397,7 +423,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
           color: const Color(0xFF0F172A),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: _isSuccess
+            color: _isSuccess || _isAlreadyMarked
                 ? const Color(0xFF10B981)
                 : (_isFailed
                     ? const Color(0xFFEF4444)
@@ -419,8 +445,103 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
                   child: CircularProgressIndicator(color: Color(0xFF6366F1)),
                 ),
               )
-            : (!_isEnrolled ? _buildUnenrolledView() : _buildCameraScanningView()),
+            : (_isAlreadyMarked
+                ? _buildAlreadyMarkedView()
+                : (!_isEnrolled ? _buildUnenrolledView() : _buildCameraScanningView())),
       ),
+    );
+  }
+
+  // --- View shown when attendance is ALREADY marked for today ---
+  Widget _buildAlreadyMarkedView() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E293B),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Face Lock Attendance',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.task_alt_rounded,
+            color: Color(0xFF10B981),
+            size: 56,
+          ),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'Attendance Already Marked! ✓',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            'Aapki aaj ki attendance pehle hi lag chuki hai.\nCheck-in Time: ${_alreadyMarkedTime ?? "Today"}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 13.5,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('OK, Understood', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          ),
+        ),
+      ],
     );
   }
 
@@ -489,7 +610,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
-            'Please register your face first in Settings before using Face Lock Attendance.',
+            'Please register your face first before using Face Lock Attendance.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Color(0xFF94A3B8),
@@ -517,9 +638,9 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop(false);
-                  context.push('/settings');
+                  context.push('/employee/face-lock');
                 },
-                icon: const Icon(Icons.settings_rounded, size: 16),
+                icon: const Icon(Icons.face_unlock_rounded, size: 16),
                 label: const Text('Register Face', style: TextStyle(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4F46E5),
@@ -746,7 +867,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
               ),
               const SizedBox(width: 10),
               ElevatedButton.icon(
-                onPressed: _startFaceAttendanceScan,
+                onPressed: () => _startFaceAttendanceScan(delayMs: 200),
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Scan Again', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(

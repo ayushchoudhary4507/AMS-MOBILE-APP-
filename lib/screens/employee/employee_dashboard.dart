@@ -455,11 +455,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               children: [
                 _buildQuickActionCard(
                   width: 80,
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
+                  icon: Icons.person_rounded,
+                  label: 'Profile',
                   iconColor: const Color(0xFF6366F1),
                   bgColor: const Color(0xFFEEF2FF),
-                  onTap: () => context.push('/employee/scan-qr'),
+                  onTap: () => context.push('/employee/profile'),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionCard(
@@ -468,7 +468,16 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   label: 'Face Lock',
                   iconColor: const Color(0xFF0284C7),
                   bgColor: const Color(0xFFF0F9FF),
-                  onTap: () => FaceAttendanceDialog.show(context),
+                  onTap: () => context.push('/employee/face-lock'),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR',
+                  iconColor: const Color(0xFF8B5CF6),
+                  bgColor: const Color(0xFFF5F3FF),
+                  onTap: () => context.push('/employee/scan-qr'),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionCard(
@@ -1273,6 +1282,23 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 ),
                 ListTile(
                   leading: const Icon(
+                    Icons.face_retouching_natural_rounded,
+                    color: Color(0xFF0284C7),
+                  ),
+                  title: Text(
+                    'Face Lock Registration',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/employee/face-lock');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
                     Icons.qr_code_scanner_rounded,
                     color: Color(0xFF6366F1),
                   ),
@@ -1291,7 +1317,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 ListTile(
                   leading: const Icon(
                     Icons.face_unlock_rounded,
-                    color: Color(0xFF0284C7),
+                    color: Color(0xFF10B981),
                   ),
                   title: Text(
                     'Face Lock Attendance',

@@ -73,10 +73,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _toggleFaceLock(bool value) async {
+    final auth = ref.read(authProvider);
     final bioNotifier = ref.read(biometricProvider.notifier);
 
     if (value) {
-      // Direct Camera Face Lock Enrollment - NO Fingerprint / OS Biometric Prompt
+      // Direct Camera Face Lock Enrollment
       final success = await FaceCameraAuthDialog.show(
         context,
         title: 'Set Up Face Lock',
@@ -85,12 +86,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
 
       if (success && mounted) {
+        await bioNotifier.setFaceLockEnabled(
+          true,
+          token: auth.token,
+          user: auth.user,
+          role: auth.role,
+        );
         await bioNotifier.checkCapabilities();
         _showSnackBar(
-          'Face Lock Enabled Successfully! ✓',
+          'Face Lock Registered & Enabled Successfully! ✓',
           AppColors.accentGreen,
         );
       } else if (mounted) {
+        await bioNotifier.checkCapabilities();
         _showSnackBar(
           'Face Lock setup was cancelled or failed.',
           AppColors.accentAmber,
@@ -98,7 +106,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } else {
       await bioNotifier.setFaceLockEnabled(false);
-      await FaceRecognitionService().clearEnrolledFaceTemplate();
+      final userId = auth.user?['id'] ?? auth.user?['_id'] ?? auth.user?['email'];
+      await FaceRecognitionService().clearEnrolledFaceTemplate(userId: userId?.toString());
+      await bioNotifier.checkCapabilities();
       _showSnackBar('Face Lock Disabled', AppColors.accentAmber);
     }
   }

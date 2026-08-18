@@ -45,17 +45,17 @@ void main() {
     test('Different employee face vector is rejected with score < security threshold', () {
       final imageA = img.Image(width: 120, height: 120);
       img.fill(imageA, color: img.ColorRgb8(220, 180, 140)); // Employee A
-      for (int y = 20; y < 80; y++) {
-        for (int x = 20; x < 80; x++) {
-          imageA.setPixelRgba(x, y, 200, 100, 80, 255);
+      for (int y = 0; y < 120; y++) {
+        for (int x = 0; x < 120; x++) {
+          if (x % 4 == 0) imageA.setPixelRgba(x, y, 100, 50, 40, 255);
         }
       }
 
       final imageB = img.Image(width: 120, height: 120);
-      img.fill(imageB, color: img.ColorRgb8(80, 60, 50)); // Employee B
-      for (int y = 40; y < 100; y++) {
-        for (int x = 40; x < 100; x++) {
-          imageB.setPixelRgba(x, y, 50, 150, 200, 255);
+      img.fill(imageB, color: img.ColorRgb8(80, 60, 50)); // Employee B (different structure)
+      for (int y = 0; y < 120; y++) {
+        for (int x = 0; x < 120; x++) {
+          if (y % 4 == 0) imageB.setPixelRgba(x, y, 200, 220, 240, 255);
         }
       }
 

@@ -81,7 +81,7 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    dev.log('[FaceLock] Screen opened', name: 'FaceLock');
+    dev.log('[FaceLock] Screen opened (isEnrollment: ${widget.isEnrollment})', name: 'FaceLock');
 
     _animController = AnimationController(
       vsync: this,
@@ -92,7 +92,7 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
 
-    // Pre-warm data & start camera immediately
+    // Pre-warm data & start camera
     _preWarmAuthData();
     _initCamera();
   }
@@ -101,17 +101,19 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
     try {
       final session = await BiometricAuthService.getSecureSession();
       final auth = ref.read(authProvider);
+      final currentUser = auth.user;
       final savedUser = session?['user'] as Map<String, dynamic>?;
-      final enrolledUserId = await _faceService.getEnrolledUserId();
-      final effectiveUser = auth.user ?? savedUser;
+      final effectiveUser = currentUser ?? savedUser;
 
-      _cachedSession = session;
-      _cachedUserId = enrolledUserId ??
-          effectiveUser?['id']?.toString() ??
+      final currentUserId = effectiveUser?['id']?.toString() ??
           effectiveUser?['_id']?.toString() ??
           effectiveUser?['email']?.toString() ??
-          effectiveUser?['name']?.toString() ??
-          'registered_employee';
+          effectiveUser?['name']?.toString();
+
+      final enrolledUserId = await _faceService.getEnrolledUserId();
+
+      _cachedSession = session;
+      _cachedUserId = currentUserId ?? enrolledUserId ?? 'registered_employee';
 
       _cachedEnrolledTemplate = await _faceService.getEnrolledFaceTemplate(userId: _cachedUserId);
     } catch (_) {}
@@ -208,7 +210,6 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
         orElse: () => cameras.first,
       );
 
-      // Low resolution preset allows ultra-fast frame capture (< 50ms)
       final controller = CameraController(
         frontCamera,
         ResolutionPreset.low,
@@ -229,12 +230,21 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
         _isCameraInitialized = true;
         _isInitializing = false;
         _statusText = widget.isEnrollment
-            ? 'Align face to register Face Lock...'
+            ? 'Align your face in the circle & tap Capture'
             : 'Looking for face...';
       });
 
-      // Start fast face processing immediately after auto-exposure stabilization
-      _startFastFaceProcessing();
+      if (!widget.isEnrollment) {
+        _startFastFaceProcessing();
+      } else {
+        // Auto-capture after 1.2 seconds if user is ready, or they can tap Capture button
+        _faceScanTimer?.cancel();
+        _faceScanTimer = Timer(const Duration(milliseconds: 1200), () {
+          if (mounted && _isCameraInitialized && !_isSuccess && !_isVerifying && !_isFailed) {
+            _captureAndProcessFace();
+          }
+        });
+      }
     } catch (e) {
       dev.log('[FaceLock] Camera initialization failed: $e', name: 'FaceLock');
       if (mounted) {
@@ -253,162 +263,164 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
     setState(() {
       _isFailed = false;
       _isVerifying = false;
-      _statusText = widget.isEnrollment ? 'Scanning face...' : 'Verifying face...';
+      _statusText = 'Verifying face...';
     });
 
-    // 250ms initial delay allows camera sensor exposure to balance before instant capture
-    _faceScanTimer = Timer(const Duration(milliseconds: 250), () async {
-      if (!mounted || !_isCameraInitialized || _cameraController == null) return;
+    _faceScanTimer = Timer(const Duration(milliseconds: 250), () {
+      _captureAndProcessFace();
+    });
+  }
 
-      setState(() {
-        _isVerifying = true;
-        _statusText = widget.isEnrollment
-            ? 'Extracting facial features...'
-            : 'Verifying facial identity...';
-      });
+  Future<void> _captureAndProcessFace() async {
+    if (!mounted || !_isCameraInitialized || _cameraController == null || _isVerifying) return;
 
-      try {
-        HapticFeedback.selectionClick();
-      } catch (_) {}
+    setState(() {
+      _isVerifying = true;
+      _statusText = widget.isEnrollment
+          ? 'Scanning and registering face...'
+          : 'Verifying facial identity...';
+    });
 
-      try {
-        // Instant live frame capture
-        final XFile photo = await _cameraController!.takePicture();
-        final Uint8List imageBytes = await photo.readAsBytes();
+    try {
+      HapticFeedback.selectionClick();
+    } catch (_) {}
 
-        // Extract 224-d facial embedding vector
-        final liveEmbedding = _faceService.extractFaceEmbeddingFromBytes(imageBytes);
+    try {
+      // Instant live frame capture
+      final XFile photo = await _cameraController!.takePicture();
+      final Uint8List imageBytes = await photo.readAsBytes();
 
-        if (liveEmbedding == null) {
+      // Extract 224-d facial embedding vector
+      final liveEmbedding = _faceService.extractFaceEmbeddingFromBytes(imageBytes);
+
+      if (liveEmbedding == null) {
+        if (mounted) {
+          setState(() {
+            _isVerifying = false;
+            _isFailed = true;
+            _statusText = 'Face not detected. Please position face clearly.';
+          });
+        }
+        return;
+      }
+
+      // Get current logged-in employee ID
+      final auth = ref.read(authProvider);
+      final currentUser = auth.user;
+      final savedUser = _cachedSession?['user'] as Map<String, dynamic>?;
+      final effectiveUser = currentUser ?? savedUser;
+
+      final userId = effectiveUser?['id']?.toString() ??
+          effectiveUser?['_id']?.toString() ??
+          effectiveUser?['email']?.toString() ??
+          _cachedUserId ??
+          'registered_employee';
+
+      dev.log('[FaceAuth] User ID: $userId', name: 'FaceAuth');
+      dev.log('[FaceAuth] Face detected: true', name: 'FaceAuth');
+      dev.log('[FaceAuth] Live embedding generated: true (dims: ${liveEmbedding.length})', name: 'FaceAuth');
+
+      if (widget.isEnrollment) {
+        // --- ENROLLMENT MODE: Save this employee's genuine face embedding ---
+        final enrolled = await _faceService.enrollFaceTemplate(
+          userId: userId,
+          featureVector: liveEmbedding,
+        );
+
+        if (enrolled && mounted) {
+          await BiometricAuthService.setFaceLockEnabled(
+            true,
+            token: auth.token,
+            user: auth.user ?? savedUser,
+            role: auth.role ?? _cachedSession?['role']?.toString(),
+          );
+
+          setState(() {
+            _isSuccess = true;
+            _isVerifying = false;
+            _isFailed = false;
+            _statusText = 'Face Lock Registered Successfully! ✓';
+          });
+
+          try {
+            HapticFeedback.heavyImpact();
+          } catch (_) {}
+
+          await Future.delayed(const Duration(milliseconds: 600));
+          if (mounted) {
+            Navigator.of(context).pop(true);
+          }
+        } else if (mounted) {
+          setState(() {
+            _isVerifying = false;
+            _isFailed = true;
+            _statusText = 'Failed to register face. Please retry.';
+          });
+        }
+      } else {
+        // --- VERIFICATION MODE ---
+        final enrolledTemplate = _cachedEnrolledTemplate ??
+            await _faceService.getEnrolledFaceTemplate(userId: userId);
+        dev.log('[FaceAuth] Enrolled template found: ${enrolledTemplate != null}', name: 'FaceAuth');
+
+        if (enrolledTemplate == null || enrolledTemplate.isEmpty) {
+          dev.log('[FaceAuth] Authentication result: DENIED (No enrolled template)', name: 'FaceAuth');
           if (mounted) {
             setState(() {
               _isVerifying = false;
               _isFailed = true;
-              _statusText = 'Face not detected. Please position face clearly.';
+              _statusText = 'No registered face found. Please set up in Settings.';
             });
           }
           return;
         }
 
-        // Get user ID
-        final auth = ref.read(authProvider);
-        final currentUser = auth.user;
-        final savedUser = _cachedSession?['user'] as Map<String, dynamic>?;
-        final effectiveUser = currentUser ?? savedUser;
-        final userId = _cachedUserId ??
-            effectiveUser?['id']?.toString() ??
-            effectiveUser?['_id']?.toString() ??
-            effectiveUser?['email']?.toString() ??
-            'registered_employee';
+        final result = _faceService.verifyFaceVector(liveEmbedding, enrolledTemplate);
+        dev.log('[FaceAuth] Similarity score: ${result.similarityScore.toStringAsFixed(4)}', name: 'FaceAuth');
+        dev.log('[FaceAuth] Required threshold: ${FaceRecognitionService.securityThreshold}', name: 'FaceAuth');
+        dev.log('[FaceAuth] Match result: ${result.isSuccess ? "MATCH" : "NO_MATCH"}', name: 'FaceAuth');
+        dev.log('[FaceAuth] Authentication result: ${result.isSuccess ? "ALLOWED" : "DENIED"}', name: 'FaceAuth');
 
-        dev.log('[FaceAuth] User ID: $userId', name: 'FaceAuth');
-        dev.log('[FaceAuth] Face detected: true', name: 'FaceAuth');
-        dev.log('[FaceAuth] Live embedding generated: true (dims: ${liveEmbedding.length})', name: 'FaceAuth');
+        if (!mounted) return;
 
-        if (widget.isEnrollment) {
-          // --- ENROLLMENT MODE ---
-          final enrolled = await _faceService.enrollFaceTemplate(
-            userId: userId,
-            featureVector: liveEmbedding,
-          );
+        if (result.isSuccess) {
+          if (_cachedSession != null) {
+            await ref.read(authProvider.notifier).restoreBiometricSession(_cachedSession!);
+          }
 
-          if (enrolled && mounted) {
-            await BiometricAuthService.setFaceLockEnabled(
-              true,
-              token: auth.token,
-              user: auth.user ?? savedUser,
-              role: auth.role ?? _cachedSession?['role']?.toString(),
-            );
+          setState(() {
+            _isSuccess = true;
+            _isVerifying = false;
+            _isFailed = false;
+            _statusText = 'Face Verified! ✓';
+          });
 
-            setState(() {
-              _isSuccess = true;
-              _isVerifying = false;
-              _isFailed = false;
-              _statusText = 'Face Lock Registered! ✓';
-            });
+          try {
+            HapticFeedback.heavyImpact();
+          } catch (_) {}
 
-            try {
-              HapticFeedback.heavyImpact();
-            } catch (_) {}
-
-            await Future.delayed(const Duration(milliseconds: 200));
-            if (mounted) {
-              Navigator.of(context).pop(true);
-            }
-          } else if (mounted) {
-            setState(() {
-              _isVerifying = false;
-              _isFailed = true;
-              _statusText = 'Failed to register face. Please retry.';
-            });
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (mounted) {
+            Navigator.of(context).pop(true);
           }
         } else {
-          // --- VERIFICATION MODE ---
-          final enrolledTemplate = _cachedEnrolledTemplate ??
-              await _faceService.getEnrolledFaceTemplate(userId: userId);
-          dev.log('[FaceAuth] Enrolled template found: ${enrolledTemplate != null}', name: 'FaceAuth');
-
-          if (enrolledTemplate == null || enrolledTemplate.isEmpty) {
-            dev.log('[FaceAuth] Authentication result: DENIED (No enrolled template)', name: 'FaceAuth');
-            if (mounted) {
-              setState(() {
-                _isVerifying = false;
-                _isFailed = true;
-                _statusText = 'No registered face found. Please set up in Settings.';
-              });
-            }
-            return;
-          }
-
-          final result = _faceService.verifyFaceVector(liveEmbedding, enrolledTemplate);
-          dev.log('[FaceAuth] Similarity score: ${result.similarityScore.toStringAsFixed(4)}', name: 'FaceAuth');
-          dev.log('[FaceAuth] Required threshold: ${FaceRecognitionService.securityThreshold}', name: 'FaceAuth');
-          dev.log('[FaceAuth] Match result: ${result.isSuccess ? "MATCH" : "NO_MATCH"}', name: 'FaceAuth');
-          dev.log('[FaceAuth] Authentication result: ${result.isSuccess ? "ALLOWED" : "DENIED"}', name: 'FaceAuth');
-          dev.log('[FaceAuth] Unlock triggered by: FaceRecognitionService.verifyFaceVector', name: 'FaceAuth');
-
-          if (!mounted) return;
-
-          if (result.isSuccess) {
-            if (_cachedSession != null) {
-              await ref.read(authProvider.notifier).restoreBiometricSession(_cachedSession!);
-            }
-
-            setState(() {
-              _isSuccess = true;
-              _isVerifying = false;
-              _isFailed = false;
-              _statusText = 'Face Verified! ✓';
-            });
-
-            try {
-              HapticFeedback.heavyImpact();
-            } catch (_) {}
-
-            // Immediate fast pop without waiting
-            await Future.delayed(const Duration(milliseconds: 150));
-            if (mounted) {
-              Navigator.of(context).pop(true);
-            }
-          } else {
-            setState(() {
-              _isVerifying = false;
-              _isFailed = true;
-              _statusText = 'Face not recognized. Please try again.';
-            });
-          }
-        }
-      } catch (e) {
-        dev.log('[FaceAuth] Error during face processing: $e', name: 'FaceAuth');
-        if (mounted) {
           setState(() {
             _isVerifying = false;
             _isFailed = true;
-            _statusText = 'Unable to verify face. Tap to retry.';
+            _statusText = 'Face not recognized. Please try again.';
           });
         }
       }
-    });
+    } catch (e) {
+      dev.log('[FaceAuth] Error during face processing: $e', name: 'FaceAuth');
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+          _isFailed = true;
+          _statusText = 'Unable to scan face. Tap to retry.';
+        });
+      }
+    }
   }
 
   @override
@@ -622,16 +634,19 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
                     const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 15),
                     const SizedBox(width: 6),
                   ],
-                  Text(
-                    _errorMessage ?? _statusText,
-                    style: TextStyle(
-                      color: _isSuccess
-                          ? const Color(0xFF10B981)
-                          : (_isFailed
-                              ? const Color(0xFFF59E0B)
-                              : const Color(0xFF06B6D4)),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                  Flexible(
+                    child: Text(
+                      _errorMessage ?? _statusText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _isSuccess
+                            ? const Color(0xFF10B981)
+                            : (_isFailed
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF06B6D4)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -640,10 +655,28 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
 
             const SizedBox(height: 12),
 
-            // Retry Scan Button on Failure
-            if (_isFailed && !_isSuccess) ...[
+            // Prominent Capture / Register Button during Enrollment
+            if (widget.isEnrollment && !_isSuccess && !_isVerifying) ...[
               ElevatedButton.icon(
-                onPressed: _startFastFaceProcessing,
+                onPressed: _captureAndProcessFace,
+                icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                label: const Text(
+                  'Capture & Register Face',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF06B6D4),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ]
+            // Retry Button on Failure
+            else if (_isFailed && !_isSuccess) ...[
+              ElevatedButton.icon(
+                onPressed: _captureAndProcessFace,
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Scan Again', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
