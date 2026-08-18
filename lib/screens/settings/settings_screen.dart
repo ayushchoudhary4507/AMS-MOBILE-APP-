@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/biometric_service.dart';
+import '../../services/face_recognition_service.dart';
 import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/app_avatar.dart';
 
@@ -42,8 +43,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
 
       // Step 2: Authenticate to confirm identity before enabling
+      // SECURITY: biometricOnly=true prevents PIN/pattern/password fallback
       final result = await BiometricAuthService().authenticateWithResult(
         localizedReason: 'Scan fingerprint to enable Fingerprint Lock',
+        biometricOnly: true,
       );
 
       if (result.authenticated && mounted) {
@@ -70,36 +73,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _toggleFaceLock(bool value) async {
-    final auth = ref.read(authProvider);
     final bioNotifier = ref.read(biometricProvider.notifier);
 
     if (value) {
-      // Open Live Front Camera Face Scan Dialog
+      // Direct Camera Face Lock Enrollment - NO Fingerprint / OS Biometric Prompt
       final success = await FaceCameraAuthDialog.show(
         context,
         title: 'Set Up Face Lock',
-        subtitle: 'Align your face in the front camera to register Face Lock',
+        subtitle: 'Position your face inside the circle to register Face Lock',
+        isEnrollment: true,
       );
 
       if (success && mounted) {
-        await bioNotifier.setFaceLockEnabled(
-          true,
-          token: auth.token,
-          user: auth.user,
-          role: auth.role,
-        );
+        await bioNotifier.checkCapabilities();
         _showSnackBar(
-          'Face Lock Enabled with Front Camera! ✓',
+          'Face Lock Enabled Successfully! ✓',
           AppColors.accentGreen,
         );
       } else if (mounted) {
         _showSnackBar(
-          'Face Lock verification cancelled or failed.',
-          AppColors.accentRed,
+          'Face Lock setup was cancelled or failed.',
+          AppColors.accentAmber,
         );
       }
     } else {
       await bioNotifier.setFaceLockEnabled(false);
+      await FaceRecognitionService().clearEnrolledFaceTemplate();
       _showSnackBar('Face Lock Disabled', AppColors.accentAmber);
     }
   }
@@ -211,17 +210,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 context: context,
                 icon: Icons.face_rounded,
                 iconColor: const Color(0xFF06B6D4),
-                title: 'Face Lock (Face ID)',
-                subtitle: 'Unlock AMS app using facial recognition',
+                title: 'Face Lock (Camera)',
+                subtitle: 'Unlock AMS app using front camera facial recognition',
                 isEnabled: caps.isFaceLockEnabled,
-                isAvailable: caps.hasFace || caps.isSupported,
+                isAvailable: true,
                 onChanged: (val) => _toggleFaceLock(val),
-                badgeText: caps.hasFace
-                    ? 'Face ID Ready'
-                    : (caps.canCheckBiometrics ? 'Available' : 'Not Detected'),
-                badgeColor: caps.hasFace
-                    ? const Color(0xFF06B6D4)
-                    : AppColors.accentAmber,
+                badgeText: caps.isFaceLockEnabled
+                    ? 'Face Lock Active'
+                    : 'Camera Ready',
+                badgeColor: caps.isFaceLockEnabled
+                    ? AppColors.accentGreen
+                    : const Color(0xFF06B6D4),
               ),
 
               const SizedBox(height: 24),

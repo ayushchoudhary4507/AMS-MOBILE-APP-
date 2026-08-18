@@ -124,9 +124,14 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
       }
 
       // --- Step 3: Show native biometric prompt and check the ACTUAL result ---
+      // SECURITY FIX: biometricOnly=true is ALWAYS enforced so the user CANNOT
+      // bypass face/fingerprint auth using a PIN, pattern, or device password.
+      // Setting biometricOnly=false (the old behaviour for face unlock) allowed
+      // Android's device-credential fallback, meaning *any* face (or a known PIN)
+      // could unlock the app — a critical security hole.
       final BiometricAuthResult authResult = await _authService.authenticateWithResult(
         localizedReason: reason,
-        biometricOnly: fingerprintOnly == true,
+        biometricOnly: true, // ALWAYS true — no PIN/pattern/password fallback allowed
       );
 
       dev.log(
@@ -140,9 +145,12 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
         return session;
       } else {
         // Authentication failed, was cancelled, or threw an error
+        final defaultErrMsg = fingerprintOnly == false
+            ? 'Face not recognized. Please try again.'
+            : 'Biometric verification failed. Please try again.';
         state = state.copyWith(
           isAuthenticating: false,
-          errorMessage: authResult.errorMessage ?? 'Biometric authentication failed.',
+          errorMessage: authResult.errorMessage ?? defaultErrMsg,
         );
         return null;
       }
@@ -154,7 +162,9 @@ class BiometricNotifier extends StateNotifier<BiometricState> {
       );
       state = state.copyWith(
         isAuthenticating: false,
-        errorMessage: 'Biometric authentication failed. Please try again.',
+        errorMessage: fingerprintOnly == false
+            ? 'Face not recognized. Please try again.'
+            : 'Biometric authentication failed. Please try again.',
       );
       return null;
     }

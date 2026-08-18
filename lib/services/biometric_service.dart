@@ -266,7 +266,7 @@ class BiometricAuthService {
         return BiometricAuthResult.success();
       } else {
         return BiometricAuthResult.failure(
-          'Biometric authentication was cancelled or failed.',
+          'Biometric verification failed. Please try again.',
         );
       }
     } on PlatformException catch (e, st) {
@@ -336,16 +336,8 @@ class BiometricAuthService {
   /// Checks whether face authentication is enrolled specifically.
   Future<bool> isFaceEnrolled() async {
     try {
-      final available = await _auth.getAvailableBiometrics();
-      dev.log(
-        '[BiometricAuthService] isFaceEnrolled -> available: '
-        '${available.map((t) => t.name).join(', ')}',
-        name: 'BiometricAuthService',
-      );
-      if (available.contains(BiometricType.face)) return true;
-      if (available.contains(BiometricType.weak) && !available.contains(BiometricType.fingerprint)) return true;
-      if (available.contains(BiometricType.strong) && !available.contains(BiometricType.fingerprint)) return true;
-      return false;
+      final isFaceEnabled = (await _secureStorage.read(key: _keyFaceLockEnabled)) == 'true';
+      return isFaceEnabled;
     } catch (_) {
       return false;
     }

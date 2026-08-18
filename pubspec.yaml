@@ -29,6 +29,7 @@ dependencies:
   shared_preferences: ^2.3.3
   flutter_secure_storage: ^9.2.2
   local_auth: ^2.3.0
+  crypto: ^3.0.3
 
   # Charts
   fl_chart: ^0.69.0
@@ -39,6 +40,7 @@ dependencies:
   # Image
   cached_network_image: ^3.4.1
   image_picker: ^1.1.2
+  image: ^4.3.0
 
   # Animations
   flutter_animate: ^4.5.0
@@ -60,7 +62,8 @@ dependencies:
   # Loading indicators
   shimmer: ^3.0.0
 
-  # QR Scanner & Hardware
+  # QR Scanner, Camera & Hardware
+  camera: ^0.11.0+2
   mobile_scanner: ^6.0.4
   qr_flutter: ^4.1.0
   geolocator: ^13.0.2

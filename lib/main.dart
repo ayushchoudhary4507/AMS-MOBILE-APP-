@@ -12,6 +12,7 @@ import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/landing_screen.dart';
+import 'screens/auth/biometric_lock_screen.dart';
 import 'screens/employee/employee_dashboard.dart';
 import 'screens/employee/salary_screen.dart';
 import 'screens/employee/tasks_screen.dart';
@@ -80,10 +81,10 @@ final _router = GoRouter(
       builder: (context, state) => const SplashScreen(),
     ),
 
-    // App-Level Biometric Lock Gate (Redirect to Splash)
+    // App-Level Biometric Lock Gate
     GoRoute(
       path: '/biometric-lock',
-      builder: (context, state) => const SplashScreen(),
+      builder: (context, state) => const BiometricLockScreen(),
     ),
 
     // Settings

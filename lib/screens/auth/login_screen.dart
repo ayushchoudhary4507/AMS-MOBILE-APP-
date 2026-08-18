@@ -85,15 +85,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Handles biometric login tap.
   ///
   /// [reason]          — the localized prompt shown in the native biometric dialog.
-  /// [fingerprintOnly] — true  = fingerprint button tapped (checks fingerprint enrollment).
-  ///                     false = face button tapped      (opens front camera face scanner).
+  /// [fingerprintOnly] — true  = fingerprint button tapped (native fingerprint prompt).
+  ///                     false = face button tapped      (opens Camera Face Unlock directly).
   Future<void> _handleBiometricLogin(String reason, {required bool fingerprintOnly}) async {
     if (!fingerprintOnly) {
-      // Open Live Front Camera Face Scanner
+      // Direct Camera Face Unlock - No OS Fingerprint Dialog
       final success = await FaceCameraAuthDialog.show(
         context,
         title: 'Face Unlock',
-        subtitle: 'Align your face in the front camera to log in',
+        subtitle: 'Position your face inside the circle to log in',
+        isEnrollment: false,
         onFallbackToFingerprint: () => _handleBiometricLogin(
           'Authenticate with Fingerprint',
           fingerprintOnly: true,

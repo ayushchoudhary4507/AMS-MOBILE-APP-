@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/biometric_service.dart';
 import '../../widgets/common/app_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -41,6 +42,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final auth = ref.read(authProvider);
 
     if (auth.isAuthenticated) {
+      // Check if Face Lock or Fingerprint Lock is enabled
+      final bioCaps = await BiometricAuthService().getCapabilities();
+      if (!mounted) return;
+
+      if (bioCaps.isFaceLockEnabled || bioCaps.isFingerprintEnabled || bioCaps.isBiometricEnabled) {
+        context.go('/biometric-lock');
+        return;
+      }
+
       final lastRoute = await StorageService.getLastRoute();
       if (!mounted) return;
 

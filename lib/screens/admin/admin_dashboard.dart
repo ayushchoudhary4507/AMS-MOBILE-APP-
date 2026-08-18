@@ -1932,46 +1932,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final auth = ref.watch(authProvider);
     final user = auth.user;
 
-    // Member Since date calculation dynamically from user/employee profile
-    String memberSince = '';
-    final rawDate =
-        user?['createdAt'] ??
-        user?['joiningDate'] ??
-        user?['created_at'] ??
-        user?['dateJoined'] ??
-        user?['date'];
-    if (rawDate != null && rawDate.toString().trim().isNotEmpty) {
-      try {
-        final dt = DateTime.parse(rawDate.toString());
-        memberSince = DateFormat('d MMM yyyy').format(dt);
-      } catch (_) {}
-    }
-    if (memberSince.isEmpty) {
-      final empList = ref.watch(employeeProvider).employees;
-      final uEmail = user?['email']?.toString().toLowerCase();
-      final uName = user?['name']?.toString().toLowerCase();
-      for (var emp in empList) {
-        if (emp is Map) {
-          final eEmail = emp['email']?.toString().toLowerCase();
-          final eName = emp['name']?.toString().toLowerCase();
-          if ((uEmail != null && eEmail == uEmail) ||
-              (uName != null && eName == uName)) {
-            final eDate =
-                emp['joiningDate'] ?? emp['createdAt'] ?? emp['created_at'];
-            if (eDate != null && eDate.toString().trim().isNotEmpty) {
-              try {
-                final dt = DateTime.parse(eDate.toString());
-                memberSince = DateFormat('d MMM yyyy').format(dt);
-                break;
-              } catch (_) {}
-            }
-          }
-        }
-      }
-    }
-    if (memberSince.isEmpty) {
-      memberSince = DateFormat('d MMM yyyy').format(DateTime.now());
-    }
+    // Current Date calculation dynamically
+    final todayDate = DateFormat('d MMM yyyy').format(DateTime.now());
 
     final roleStr = (user?['role'] ?? auth.role ?? 'Admin').toString();
     final roleTitle = roleStr.toLowerCase() == 'admin'
@@ -2294,13 +2256,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         physics: const BouncingScrollPhysics(),
                         child: Row(
                           children: [
-                            // Card 1: Member Since
+                            // Card 1: Today's Current Date
                             _buildBannerMiniCard(
                               icon: Icons.calendar_today_rounded,
                               iconColor: const Color(0xFF6366F1),
                               iconBgColor: const Color(0xFFEEF2FF),
-                              title: memberSince,
-                              subtitle: 'Member Since',
+                              title: todayDate,
+                              subtitle: 'Today\'s Date',
                               isDark: isDark,
                             ),
                             const SizedBox(width: 8),
