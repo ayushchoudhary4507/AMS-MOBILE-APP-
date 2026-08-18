@@ -518,7 +518,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
-            'Aapki aaj ki attendance pehle hi lag chuki hai.\nCheck-in Time: ${_alreadyMarkedTime ?? "Today"}',
+            'You have already marked your attendance for today.\nCheck-in Time: ${_alreadyMarkedTime ?? "Today"}',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Color(0xFF94A3B8),
