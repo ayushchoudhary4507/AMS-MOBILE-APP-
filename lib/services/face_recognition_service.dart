@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image/image.dart' as img;
+import '../models/biometric_profile_model.dart';
 
 /// Status codes returned by face verification operations.
 enum FaceVerificationStatus {
@@ -20,20 +21,28 @@ class FaceVerificationResult {
   final FaceVerificationStatus status;
   final double similarityScore;
   final String message;
+  final FaceBiometricProfile? matchedProfile;
 
   const FaceVerificationResult({
     required this.isSuccess,
     required this.status,
     required this.similarityScore,
     required this.message,
+    this.matchedProfile,
   });
 
-  factory FaceVerificationResult.success({double score = 1.0}) {
+  factory FaceVerificationResult.success({
+    double score = 1.0,
+    FaceBiometricProfile? profile,
+  }) {
     return FaceVerificationResult(
       isSuccess: true,
       status: FaceVerificationStatus.matched,
       similarityScore: score,
-      message: 'Face verified successfully.',
+      message: profile != null
+          ? 'Face verified successfully for ${profile.userName}.'
+          : 'Face verified successfully.',
+      matchedProfile: profile,
     );
   }
 
@@ -42,7 +51,7 @@ class FaceVerificationResult {
       isSuccess: false,
       status: FaceVerificationStatus.notRecognized,
       similarityScore: score,
-      message: 'Face does not match with your registered face.',
+      message: 'Face does not match any registered face.',
     );
   }
 
@@ -65,7 +74,7 @@ class FaceVerificationResult {
   }
 }
 
-/// Biometric Face Recognition Service
+/// Biometric Face Recognition & Multi-User Identification Service
 /// Uses a 640-dimensional Zero-Mean L2-Normalized Facial Embedding Engine:
 /// - 288-d Multi-Zone Uniform Local Binary Patterns (ULBP 6x6 grid)
 /// - 288-d Spatial Histogram of Oriented Gradients (HOG 6x6 grid)
@@ -85,38 +94,233 @@ class FaceRecognitionService {
   static const String _keyFaceTemplate = 'bio_face_template';
   static const String _keyFaceUserId = 'bio_face_user_id';
   static const String _keyFaceEnrollmentDate = 'bio_face_enrollment_date';
+  static const String _keyRegisteredUserIds = 'bio_registered_user_ids';
+  static const String _keyProfilePrefix = 'bio_face_profile_';
 
   /// High-security threshold for 640-dimensional Zero-Mean Biometric Embeddings.
   /// Same person scores 0.78 - 0.96.
   /// Different persons score < 0.38.
   static const double securityThreshold = 0.65;
 
-  /// Saves the mathematical feature vector of the enrolled face for the user.
-  Future<bool> enrollFaceTemplate({
-    required String userId,
-    required List<double> featureVector,
-  }) async {
+  /// Saves a full FaceBiometricProfile into the registry.
+  Future<bool> saveFaceProfile(FaceBiometricProfile profile) async {
     try {
-      final jsonStr = jsonEncode(featureVector);
-      await _secureStorage.write(key: _keyFaceTemplate, value: jsonStr);
-      await _secureStorage.write(key: '${_keyFaceTemplate}_$userId', value: jsonStr);
-      await _secureStorage.write(key: _keyFaceUserId, value: userId);
-      await _secureStorage.write(
-        key: _keyFaceEnrollmentDate,
-        value: DateTime.now().toIso8601String(),
-      );
+      final jsonStr = jsonEncode(profile.toJson());
+      final uid = profile.userId.trim();
+      if (uid.isEmpty) return false;
+
+      // 1. Save profile under user-specific key
+      await _secureStorage.write(key: '$_keyProfilePrefix$uid', value: jsonStr);
+      await _secureStorage.write(key: '${_keyFaceTemplate}_$uid', value: jsonEncode(profile.faceTemplate));
+
+      // 2. Update user IDs registry index
+      final userIds = await getRegisteredUserIds();
+      if (!userIds.contains(uid)) {
+        userIds.add(uid);
+        await _secureStorage.write(key: _keyRegisteredUserIds, value: jsonEncode(userIds));
+      }
+
+      // 3. Update legacy global keys for backwards compatibility
+      await _secureStorage.write(key: _keyFaceTemplate, value: jsonEncode(profile.faceTemplate));
+      await _secureStorage.write(key: _keyFaceUserId, value: uid);
+      await _secureStorage.write(key: _keyFaceEnrollmentDate, value: profile.enrolledAt.toIso8601String());
 
       dev.log(
-        '[FaceBiometric] Enrolled face template saved for employee: $userId (dims: ${featureVector.length})',
+        '[FaceBiometric] Saved face profile for ${profile.userName} (ID: $uid, dims: ${profile.faceTemplate.length})',
         name: 'FaceBiometric',
       );
       return true;
     } catch (e) {
+      dev.log('[FaceBiometric] Error saving face profile: $e', name: 'FaceBiometric');
+      return false;
+    }
+  }
+
+  /// Saves the mathematical feature vector of the enrolled face for the user.
+  Future<bool> enrollFaceTemplate({
+    required String userId,
+    required List<double> featureVector,
+    String? userName,
+    String? email,
+    String? role,
+    String? token,
+    Map<String, dynamic>? userData,
+  }) async {
+    try {
+      final cleanId = userId.trim();
+      final effectiveUser = userData ?? {'id': cleanId, 'name': userName ?? 'Employee', 'email': email ?? ''};
+
+      final profile = FaceBiometricProfile(
+        userId: cleanId,
+        userName: userName ?? effectiveUser['name']?.toString() ?? 'Employee',
+        email: email ?? effectiveUser['email']?.toString() ?? '',
+        role: role ?? effectiveUser['role']?.toString() ?? 'employee',
+        token: token,
+        userData: effectiveUser,
+        faceTemplate: featureVector,
+        enrolledAt: DateTime.now(),
+        isFaceLockEnabled: true,
+        isFingerprintEnabled: true,
+      );
+
+      return await saveFaceProfile(profile);
+    } catch (e) {
+      dev.log('[FaceBiometric] Error enrolling face template: $e', name: 'FaceBiometric');
+      return false;
+    }
+  }
+
+  /// Retrieves list of all registered user IDs in biometric storage.
+  Future<List<String>> getRegisteredUserIds() async {
+    try {
+      final raw = await _secureStorage.read(key: _keyRegisteredUserIds);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Loads all registered FaceBiometricProfiles.
+  Future<List<FaceBiometricProfile>> getAllEnrolledProfiles() async {
+    final List<FaceBiometricProfile> profiles = [];
+    final seenIds = <String>{};
+
+    try {
+      final userIds = await getRegisteredUserIds();
+      for (final uid in userIds) {
+        if (uid.isEmpty || seenIds.contains(uid)) continue;
+        final raw = await _secureStorage.read(key: '$_keyProfilePrefix$uid');
+        if (raw != null && raw.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(raw);
+            if (decoded is Map<String, dynamic>) {
+              final profile = FaceBiometricProfile.fromJson(decoded);
+              if (profile.faceTemplate.isNotEmpty) {
+                profiles.add(profile);
+                seenIds.add(uid);
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Fallback: Check legacy single template if no multi-profiles found
+      if (profiles.isEmpty) {
+        final legacyTemplate = await getEnrolledFaceTemplate();
+        final legacyUid = await getEnrolledUserId();
+        if (legacyTemplate != null && legacyTemplate.isNotEmpty) {
+          final effectiveUid = (legacyUid != null && legacyUid.isNotEmpty) ? legacyUid : 'registered_employee';
+          profiles.add(FaceBiometricProfile(
+            userId: effectiveUid,
+            userName: 'Registered User',
+            email: '',
+            role: 'employee',
+            userData: {'id': effectiveUid, 'name': 'Registered User'},
+            faceTemplate: legacyTemplate,
+            enrolledAt: DateTime.now(),
+          ));
+        }
+      }
+    } catch (e) {
+      dev.log('[FaceBiometric] Error loading enrolled profiles: $e', name: 'FaceBiometric');
+    }
+
+    return profiles;
+  }
+
+  /// Retrieves the enrolled FaceBiometricProfile for a specific user ID.
+  Future<FaceBiometricProfile?> getProfileForUser(String userId) async {
+    final cleanId = userId.trim();
+    if (cleanId.isEmpty) return null;
+
+    try {
+      final raw = await _secureStorage.read(key: '$_keyProfilePrefix$cleanId');
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          return FaceBiometricProfile.fromJson(decoded);
+        }
+      }
+
+      // Check legacy user-specific template
+      final template = await getEnrolledFaceTemplate(userId: cleanId);
+      if (template != null && template.isNotEmpty) {
+        return FaceBiometricProfile(
+          userId: cleanId,
+          userName: 'Employee',
+          email: '',
+          role: 'employee',
+          userData: {'id': cleanId},
+          faceTemplate: template,
+          enrolledAt: DateTime.now(),
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 1:N Facial Identification: Compares live face vector against ALL enrolled
+  /// biometric profiles and finds the matching user with highest similarity score.
+  Future<FaceIdentificationResult> identifyFace(
+    List<double> liveVector, {
+    double threshold = securityThreshold,
+  }) async {
+    if (liveVector.isEmpty) {
+      return FaceIdentificationResult.faceNotDetected();
+    }
+
+    final profiles = await getAllEnrolledProfiles();
+    if (profiles.isEmpty) {
+      dev.log('[FaceBiometric] identifyFace: No enrolled profiles found', name: 'FaceBiometric');
+      return FaceIdentificationResult.noEnrolledProfiles();
+    }
+
+    dev.log(
+      '[FaceBiometric] identifyFace: Comparing live face against ${profiles.length} registered profiles...',
+      name: 'FaceBiometric',
+    );
+
+    FaceBiometricProfile? bestMatchProfile;
+    double maxScore = -1.0;
+
+    for (final profile in profiles) {
+      if (profile.faceTemplate.isEmpty) continue;
+      final score = calculateCosineSimilarity(liveVector, profile.faceTemplate);
       dev.log(
-        '[FaceBiometric] Error saving face template: $e',
+        '[FaceBiometric] Compared against "${profile.userName}" (ID: ${profile.userId}) -> Score: ${score.toStringAsFixed(4)}',
         name: 'FaceBiometric',
       );
-      return false;
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestMatchProfile = profile;
+      }
+    }
+
+    dev.log(
+      '[FaceBiometric] Highest similarity: ${maxScore.toStringAsFixed(4)} (Threshold: $threshold)',
+      name: 'FaceBiometric',
+    );
+
+    if (bestMatchProfile != null && maxScore >= threshold) {
+      dev.log(
+        '[FaceBiometric] MATCH FOUND! Identified user: "${bestMatchProfile.userName}" (${bestMatchProfile.userId})',
+        name: 'FaceBiometric',
+      );
+      return FaceIdentificationResult.success(
+        profile: bestMatchProfile,
+        score: maxScore,
+      );
+    } else {
+      dev.log(
+        '[FaceBiometric] NO MATCH: Highest score ($maxScore) < Threshold ($threshold)',
+        name: 'FaceBiometric',
+      );
+      return FaceIdentificationResult.notRecognized(score: maxScore > 0 ? maxScore : 0.0);
     }
   }
 
@@ -155,19 +359,37 @@ class FaceRecognitionService {
 
   /// Checks if a face template is enrolled.
   Future<bool> hasEnrolledFaceTemplate({String? userId}) async {
-    final template = await getEnrolledFaceTemplate(userId: userId);
-    return template != null && template.isNotEmpty;
+    if (userId != null && userId.isNotEmpty) {
+      final template = await getEnrolledFaceTemplate(userId: userId);
+      if (template != null && template.isNotEmpty) return true;
+    }
+    final all = await getAllEnrolledProfiles();
+    return all.isNotEmpty;
   }
 
   /// Clears the enrolled face template from secure storage.
   Future<void> clearEnrolledFaceTemplate({String? userId}) async {
     try {
-      await _secureStorage.delete(key: _keyFaceTemplate);
       if (userId != null && userId.isNotEmpty) {
-        await _secureStorage.delete(key: '${_keyFaceTemplate}_$userId');
+        final cleanId = userId.trim();
+        await _secureStorage.delete(key: '$_keyProfilePrefix$cleanId');
+        await _secureStorage.delete(key: '${_keyFaceTemplate}_$cleanId');
+        final userIds = await getRegisteredUserIds();
+        userIds.remove(cleanId);
+        await _secureStorage.write(key: _keyRegisteredUserIds, value: jsonEncode(userIds));
+
+        final globalUid = await getEnrolledUserId();
+        if (globalUid == cleanId) {
+          await _secureStorage.delete(key: _keyFaceTemplate);
+          await _secureStorage.delete(key: _keyFaceUserId);
+          await _secureStorage.delete(key: _keyFaceEnrollmentDate);
+        }
+      } else {
+        await _secureStorage.delete(key: _keyFaceTemplate);
+        await _secureStorage.delete(key: _keyFaceUserId);
+        await _secureStorage.delete(key: _keyFaceEnrollmentDate);
+        await _secureStorage.delete(key: _keyRegisteredUserIds);
       }
-      await _secureStorage.delete(key: _keyFaceUserId);
-      await _secureStorage.delete(key: _keyFaceEnrollmentDate);
     } catch (_) {}
   }
 
@@ -371,6 +593,7 @@ class FaceRecognitionService {
     List<double> liveVector,
     List<double> enrolledVector, {
     double threshold = securityThreshold,
+    FaceBiometricProfile? profile,
   }) {
     final similarity = calculateCosineSimilarity(liveVector, enrolledVector);
     final isMatch = similarity >= threshold;
@@ -380,7 +603,7 @@ class FaceRecognitionService {
     dev.log('[FaceBiometric] Authentication result: ${isMatch ? "ALLOWED" : "DENIED"}', name: 'FaceBiometric');
 
     if (isMatch) {
-      return FaceVerificationResult.success(score: similarity);
+      return FaceVerificationResult.success(score: similarity, profile: profile);
     } else {
       return FaceVerificationResult.notRecognized(score: similarity);
     }

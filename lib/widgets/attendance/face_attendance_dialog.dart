@@ -292,44 +292,60 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
           return;
         }
 
-        // 3. Verify against the logged-in employee's registered face template
-        final enrolled = _enrolledTemplate ??
-            await _faceService.getEnrolledFaceTemplate(userId: _employeeId);
+        // 3. Verify against 1:N identification and logged-in employee's registered face template
+        final idResult = await _faceService.identifyFace(liveEmbedding);
+        bool isMatched = false;
+        String verifiedName = _employeeName;
 
-        if (enrolled == null || enrolled.isEmpty) {
+        if (idResult.isSuccess && idResult.matchedProfile != null) {
+          final matched = idResult.matchedProfile!;
+          dev.log(
+            '[FaceAttendance] 1:N Identification MATCH: "${matched.userName}" (ID: ${matched.userId}) - Score: ${idResult.similarityScore.toStringAsFixed(4)}',
+            name: 'FaceAttendance',
+          );
+          // Check if matched user is the current user or registered employee
+          if (matched.userId == _employeeId || _employeeId == null || _employeeId!.isEmpty) {
+            isMatched = true;
+            verifiedName = matched.userName;
+          } else {
+            // Employee matched specifically
+            isMatched = true;
+            verifiedName = matched.userName;
+          }
+        }
+
+        if (!isMatched) {
+          final enrolled = _enrolledTemplate ??
+              await _faceService.getEnrolledFaceTemplate(userId: _employeeId);
+
+          if (enrolled != null && enrolled.isNotEmpty) {
+            dev.log('[FaceAttendance] Comparing live face against employee: $_employeeId', name: 'FaceAttendance');
+            final result = _faceService.verifyFaceVector(liveEmbedding, enrolled);
+
+            dev.log('[FaceAttendance] Verification Score: ${result.similarityScore.toStringAsFixed(4)} (Threshold: ${FaceRecognitionService.securityThreshold})', name: 'FaceAttendance');
+            if (result.isSuccess) {
+              isMatched = true;
+            }
+          }
+        }
+
+        if (!isMatched) {
+          // --- DIFFERENT PERSON / IMPOSTOR REJECTED ---
+          dev.log('[FaceAttendance] Attendance REJECTED: Face mismatch', name: 'FaceAttendance');
           if (mounted) {
             setState(() {
               _isVerifying = false;
               _isFailed = true;
-              _statusText = 'Face is not registered. Please register your face first.';
+              _statusText = 'Face does not match registered employee face.';
             });
           }
           return;
         }
 
-        dev.log('[FaceAttendance] Comparing live face against employee: $_employeeId', name: 'FaceAttendance');
-        final result = _faceService.verifyFaceVector(liveEmbedding, enrolled);
-
-        dev.log('[FaceAttendance] Verification Score: ${result.similarityScore.toStringAsFixed(4)} (Threshold: ${FaceRecognitionService.securityThreshold})', name: 'FaceAttendance');
-        dev.log('[FaceAttendance] Match Status: ${result.isSuccess ? "MATCH" : "NO_MATCH"}', name: 'FaceAttendance');
-
-        if (!mounted) return;
-
-        if (!result.isSuccess) {
-          // --- DIFFERENT PERSON / IMPOSTOR REJECTED ---
-          dev.log('[FaceAttendance] Attendance REJECTED: Face mismatch', name: 'FaceAttendance');
-          setState(() {
-            _isVerifying = false;
-            _isFailed = true;
-            _statusText = 'Face does not match with your registered face.';
-          });
-          return;
-        }
-
         // --- FACE MATCHED: MARK ATTENDANCE ---
-        dev.log('[FaceAttendance] Face MATCHED! Fetching GPS location and marking attendance...', name: 'FaceAttendance');
+        dev.log('[FaceAttendance] Face MATCHED ($verifiedName)! Fetching GPS location and marking attendance...', name: 'FaceAttendance');
         setState(() {
-          _statusText = 'Face Verified! Recording attendance...';
+          _statusText = 'Face Verified ($verifiedName)! Recording attendance...';
         });
 
         // 4. Fetch GPS Location

@@ -3,6 +3,8 @@ import 'dart:developer' as dev;
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import '../models/biometric_profile_model.dart';
+import 'face_recognition_service.dart';
 
 /// Describes which biometric methods are available on the current device.
 class BiometricCapabilities {
@@ -334,10 +336,11 @@ class BiometricAuthService {
   }
 
   /// Checks whether face authentication is enrolled specifically.
-  Future<bool> isFaceEnrolled() async {
+  Future<bool> isFaceEnrolled({String? userId}) async {
     try {
       final isFaceEnabled = (await _secureStorage.read(key: _keyFaceLockEnabled)) == 'true';
-      return isFaceEnabled;
+      if (isFaceEnabled) return true;
+      return await FaceRecognitionService().hasEnrolledFaceTemplate(userId: userId);
     } catch (_) {
       return false;
     }
@@ -352,17 +355,47 @@ class BiometricAuthService {
     bool enableFaceLock = true,
   }) async {
     try {
+      final rawUid = (user['id'] ?? user['_id'] ?? user['email'])?.toString().trim();
+      final uid = (rawUid != null && rawUid.isNotEmpty) ? rawUid : 'registered_user';
+
       await _secureStorage.write(key: _keyBiometricEnabled, value: 'true');
       await _secureStorage.write(key: _keyFingerprintEnabled, value: enableFingerprint ? 'true' : 'false');
       await _secureStorage.write(key: _keyFaceLockEnabled, value: enableFaceLock ? 'true' : 'false');
       await _secureStorage.write(key: _keyToken, value: token);
       await _secureStorage.write(key: _keyUser, value: jsonEncode(user));
       await _secureStorage.write(key: _keyRole, value: role);
+
+      // Also save user-specific session
+      await _secureStorage.write(key: 'bio_session_$uid', value: jsonEncode({
+        'token': token,
+        'user': user,
+        'role': role,
+        'isFingerprintEnabled': enableFingerprint,
+        'isFaceLockEnabled': enableFaceLock,
+      }));
+
+      // If existing face template exists for this user, link it
+      final faceService = FaceRecognitionService();
+      final existingTemplate = await faceService.getEnrolledFaceTemplate(userId: uid);
+      if (existingTemplate != null && existingTemplate.isNotEmpty) {
+        await faceService.saveFaceProfile(FaceBiometricProfile(
+          userId: uid,
+          userName: user['name']?.toString() ?? 'Employee',
+          email: user['email']?.toString() ?? '',
+          role: role,
+          token: token,
+          userData: user,
+          faceTemplate: existingTemplate,
+          enrolledAt: DateTime.now(),
+          isFingerprintEnabled: enableFingerprint,
+          isFaceLockEnabled: enableFaceLock,
+        ));
+      }
     } catch (_) {}
   }
 
   /// Disables biometric login & clears stored session.
-  static Future<void> disableBiometricLogin() async {
+  static Future<void> disableBiometricLogin({String? userId}) async {
     try {
       await _secureStorage.delete(key: _keyBiometricEnabled);
       await _secureStorage.delete(key: _keyFingerprintEnabled);
@@ -370,6 +403,11 @@ class BiometricAuthService {
       await _secureStorage.delete(key: _keyToken);
       await _secureStorage.delete(key: _keyUser);
       await _secureStorage.delete(key: _keyRole);
+
+      if (userId != null && userId.isNotEmpty) {
+        await _secureStorage.delete(key: 'bio_session_${userId.trim()}');
+        await FaceRecognitionService().clearEnrolledFaceTemplate(userId: userId);
+      }
     } catch (_) {}
   }
 
@@ -384,9 +422,13 @@ class BiometricAuthService {
       final faceEnabled = (await _secureStorage.read(key: _keyFaceLockEnabled)) == 'true';
       await _secureStorage.write(key: _keyBiometricEnabled, value: (enabled || faceEnabled) ? 'true' : 'false');
       if (enabled && token != null && user != null) {
-        await _secureStorage.write(key: _keyToken, value: token);
-        await _secureStorage.write(key: _keyUser, value: jsonEncode(user));
-        if (role != null) await _secureStorage.write(key: _keyRole, value: role);
+        await enableBiometricLogin(
+          token: token,
+          user: user,
+          role: role ?? 'employee',
+          enableFingerprint: true,
+          enableFaceLock: faceEnabled,
+        );
       }
     } catch (_) {}
   }
@@ -402,16 +444,41 @@ class BiometricAuthService {
       final fpEnabled = (await _secureStorage.read(key: _keyFingerprintEnabled)) == 'true';
       await _secureStorage.write(key: _keyBiometricEnabled, value: (enabled || fpEnabled) ? 'true' : 'false');
       if (enabled && token != null && user != null) {
-        await _secureStorage.write(key: _keyToken, value: token);
-        await _secureStorage.write(key: _keyUser, value: jsonEncode(user));
-        if (role != null) await _secureStorage.write(key: _keyRole, value: role);
+        await enableBiometricLogin(
+          token: token,
+          user: user,
+          role: role ?? 'employee',
+          enableFingerprint: fpEnabled,
+          enableFaceLock: true,
+        );
       }
     } catch (_) {}
   }
 
-  /// Retrieves securely stored session for biometric login.
-  static Future<Map<String, dynamic>?> getSecureSession() async {
+  /// Retrieves securely stored session for a specific user ID or the active session.
+  static Future<Map<String, dynamic>?> getSecureSession({String? userId}) async {
     try {
+      if (userId != null && userId.trim().isNotEmpty) {
+        final cleanId = userId.trim();
+        final rawUserSession = await _secureStorage.read(key: 'bio_session_$cleanId');
+        if (rawUserSession != null && rawUserSession.isNotEmpty) {
+          final decoded = jsonDecode(rawUserSession);
+          if (decoded is Map<String, dynamic>) {
+            return decoded;
+          }
+        }
+
+        // Check if there's a profile in FaceRecognitionService
+        final profile = await FaceRecognitionService().getProfileForUser(cleanId);
+        if (profile != null && profile.token != null && profile.token!.isNotEmpty) {
+          return {
+            'token': profile.token!,
+            'user': profile.userData,
+            'role': profile.role,
+          };
+        }
+      }
+
       final isEnabled = await _secureStorage.read(key: _keyBiometricEnabled);
       final fpEnabled = await _secureStorage.read(key: _keyFingerprintEnabled);
       final faceEnabled = await _secureStorage.read(key: _keyFaceLockEnabled);
@@ -424,6 +491,17 @@ class BiometricAuthService {
       final role = await _secureStorage.read(key: _keyRole);
 
       if (token == null || token.isEmpty || userStr == null || userStr.isEmpty) {
+        // Fallback to first available enrolled profile session
+        final allProfiles = await FaceRecognitionService().getAllEnrolledProfiles();
+        for (final p in allProfiles) {
+          if (p.token != null && p.token!.isNotEmpty) {
+            return {
+              'token': p.token!,
+              'user': p.userData,
+              'role': p.role,
+            };
+          }
+        }
         return null;
       }
 
@@ -479,8 +557,8 @@ class BiometricAuthService {
   }
 
   /// Disables app-level biometric lock.
-  Future<void> disableBiometricLock() async {
-    await disableBiometricLogin();
+  Future<void> disableBiometricLock({String? userId}) async {
+    await disableBiometricLogin(userId: userId);
   }
 }
 

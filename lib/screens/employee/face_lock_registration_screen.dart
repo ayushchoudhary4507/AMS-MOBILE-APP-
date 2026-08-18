@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../models/biometric_profile_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -207,18 +208,29 @@ class _FaceLockRegistrationScreenState
       final auth = ref.read(authProvider);
       final rawId = auth.user?['id'] ?? auth.user?['_id'] ?? auth.user?['email'] ?? _employeeId;
       final effectiveUserId = rawId.toString();
+      final effectiveUser = auth.user ?? {'id': effectiveUserId, 'name': _employeeName, 'email': _employeeEmail};
 
-      final success = await _faceService.enrollFaceTemplate(
+      final profile = FaceBiometricProfile(
         userId: effectiveUserId,
-        featureVector: embedding,
+        userName: _employeeName,
+        email: _employeeEmail,
+        role: auth.role ?? effectiveUser['role']?.toString() ?? 'employee',
+        token: auth.token,
+        userData: effectiveUser,
+        faceTemplate: embedding,
+        enrolledAt: DateTime.now(),
+        isFingerprintEnabled: true,
+        isFaceLockEnabled: true,
       );
+
+      final success = await _faceService.saveFaceProfile(profile);
 
       if (success && mounted) {
         // Also enable Face Lock capability in BiometricNotifier
         await ref.read(biometricProvider.notifier).setFaceLockEnabled(
               true,
               token: auth.token,
-              user: auth.user,
+              user: effectiveUser,
               role: auth.role,
             );
 

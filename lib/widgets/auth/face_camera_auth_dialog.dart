@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../models/biometric_profile_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/biometric_service.dart';
 import '../../services/face_recognition_service.dart';
@@ -322,24 +323,45 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
 
       if (widget.isEnrollment) {
         // --- ENROLLMENT MODE: Save this employee's genuine face embedding ---
-        final enrolled = await _faceService.enrollFaceTemplate(
+        final rawUser = auth.user ?? savedUser ?? {'id': userId, 'name': 'Employee'};
+        final userName = rawUser['name']?.toString() ?? 'Employee';
+        final email = rawUser['email']?.toString() ?? '';
+        final role = auth.role ?? _cachedSession?['role']?.toString() ?? rawUser['role']?.toString() ?? 'employee';
+        final token = auth.token ?? _cachedSession?['token']?.toString();
+
+        final profile = FaceBiometricProfile(
           userId: userId,
-          featureVector: liveEmbedding,
+          userName: userName,
+          email: email,
+          role: role,
+          token: token,
+          userData: rawUser,
+          faceTemplate: liveEmbedding,
+          enrolledAt: DateTime.now(),
+          isFingerprintEnabled: true,
+          isFaceLockEnabled: true,
         );
 
+        final enrolled = await _faceService.saveFaceProfile(profile);
+
         if (enrolled && mounted) {
-          await BiometricAuthService.setFaceLockEnabled(
-            true,
-            token: auth.token,
-            user: auth.user ?? savedUser,
-            role: auth.role ?? _cachedSession?['role']?.toString(),
-          );
+          if (token != null && token.isNotEmpty) {
+            await BiometricAuthService.enableBiometricLogin(
+              token: token,
+              user: rawUser,
+              role: role,
+              enableFingerprint: true,
+              enableFaceLock: true,
+            );
+          } else {
+            await BiometricAuthService.setFaceLockEnabled(true);
+          }
 
           setState(() {
             _isSuccess = true;
             _isVerifying = false;
             _isFailed = false;
-            _statusText = 'Face Lock Registered Successfully! ✓';
+            _statusText = 'Face Registered Successfully for $userName! ✓';
           });
 
           try {
@@ -358,56 +380,87 @@ class _FaceCameraAuthDialogState extends ConsumerState<FaceCameraAuthDialog>
           });
         }
       } else {
-        // --- VERIFICATION MODE ---
-        final enrolledTemplate = _cachedEnrolledTemplate ??
-            await _faceService.getEnrolledFaceTemplate(userId: userId);
-        dev.log('[FaceAuth] Enrolled template found: ${enrolledTemplate != null}', name: 'FaceAuth');
-
-        if (enrolledTemplate == null || enrolledTemplate.isEmpty) {
-          dev.log('[FaceAuth] Authentication result: DENIED (No enrolled template)', name: 'FaceAuth');
-          if (mounted) {
-            setState(() {
-              _isVerifying = false;
-              _isFailed = true;
-              _statusText = 'No registered face found. Please set up in Settings.';
-            });
-          }
-          return;
-        }
-
-        final result = _faceService.verifyFaceVector(liveEmbedding, enrolledTemplate);
-        dev.log('[FaceAuth] Similarity score: ${result.similarityScore.toStringAsFixed(4)}', name: 'FaceAuth');
-        dev.log('[FaceAuth] Required threshold: ${FaceRecognitionService.securityThreshold}', name: 'FaceAuth');
-        dev.log('[FaceAuth] Match result: ${result.isSuccess ? "MATCH" : "NO_MATCH"}', name: 'FaceAuth');
-        dev.log('[FaceAuth] Authentication result: ${result.isSuccess ? "ALLOWED" : "DENIED"}', name: 'FaceAuth');
+        // --- MULTI-USER 1:N IDENTIFICATION MODE ---
+        dev.log('[FaceAuth] Running 1:N facial identification against registered biometric registry...', name: 'FaceAuth');
+        final idResult = await _faceService.identifyFace(liveEmbedding);
 
         if (!mounted) return;
 
-        if (result.isSuccess) {
-          if (_cachedSession != null) {
-            await ref.read(authProvider.notifier).restoreBiometricSession(_cachedSession!);
+        if (idResult.isSuccess && idResult.matchedProfile != null) {
+          final matched = idResult.matchedProfile!;
+          dev.log(
+            '[FaceAuth] MATCH CONFIRMED: "${matched.userName}" (ID: ${matched.userId}) - Score: ${idResult.similarityScore.toStringAsFixed(4)}',
+            name: 'FaceAuth',
+          );
+
+          // Retrieve session for this identified user
+          final userSession = await BiometricAuthService.getSecureSession(userId: matched.userId) ??
+              _cachedSession ??
+              (matched.token != null && matched.token!.isNotEmpty
+                  ? {
+                      'token': matched.token!,
+                      'user': matched.userData,
+                      'role': matched.role,
+                    }
+                  : null);
+
+          if (userSession != null) {
+            await ref.read(authProvider.notifier).restoreBiometricSession(userSession);
           }
 
           setState(() {
             _isSuccess = true;
             _isVerifying = false;
             _isFailed = false;
-            _statusText = 'Face Verified! ✓';
+            _statusText = 'Face Verified! Welcome, ${matched.userName} ✓';
           });
 
           try {
             HapticFeedback.heavyImpact();
           } catch (_) {}
 
-          await Future.delayed(const Duration(milliseconds: 150));
+          await Future.delayed(const Duration(milliseconds: 400));
           if (mounted) {
             Navigator.of(context).pop(true);
           }
         } else {
+          // If 1:N found no match, check single user template fallback
+          final enrolledTemplate = _cachedEnrolledTemplate ??
+              await _faceService.getEnrolledFaceTemplate(userId: userId);
+
+          if (enrolledTemplate != null && enrolledTemplate.isNotEmpty) {
+            final singleResult = _faceService.verifyFaceVector(liveEmbedding, enrolledTemplate);
+            if (singleResult.isSuccess) {
+              if (_cachedSession != null) {
+                await ref.read(authProvider.notifier).restoreBiometricSession(_cachedSession!);
+              }
+
+              setState(() {
+                _isSuccess = true;
+                _isVerifying = false;
+                _isFailed = false;
+                _statusText = 'Face Verified! ✓';
+              });
+
+              try {
+                HapticFeedback.heavyImpact();
+              } catch (_) {}
+
+              await Future.delayed(const Duration(milliseconds: 300));
+              if (mounted) {
+                Navigator.of(context).pop(true);
+              }
+              return;
+            }
+          }
+
+          dev.log('[FaceAuth] Face not recognized. Score: ${idResult.similarityScore}', name: 'FaceAuth');
           setState(() {
             _isVerifying = false;
             _isFailed = true;
-            _statusText = 'Face not recognized. Please try again.';
+            _statusText = idResult.message.isNotEmpty
+                ? idResult.message
+                : 'Face not recognized. Please try again.';
           });
         }
       }
