@@ -271,7 +271,7 @@ class AuthService {
         if (errData is Map && errData['message'] != null) {
           final msg = errData['message'].toString();
           if (msg.toLowerCase().contains('invalid otp')) {
-            throw Exception('Invalid OTP code. Please enter the 6-digit code received on your phone.');
+            throw Exception('Invalid OTP code. Please enter the 6-digit code received on your ${isEmail ? "Gmail / email" : "phone"}.');
           }
           throw Exception(msg);
         }
