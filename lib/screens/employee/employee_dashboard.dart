@@ -14,6 +14,7 @@ import '../../providers/chat_provider.dart';
 import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../../widgets/common/app_avatar.dart';
+import '../../widgets/attendance/face_attendance_dialog.dart';
 
 class EmployeeDashboard extends ConsumerStatefulWidget {
   const EmployeeDashboard({super.key});
@@ -463,6 +464,15 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 const SizedBox(width: 10),
                 _buildQuickActionCard(
                   width: 80,
+                  icon: Icons.face_unlock_rounded,
+                  label: 'Face Lock',
+                  iconColor: const Color(0xFF0284C7),
+                  bgColor: const Color(0xFFF0F9FF),
+                  onTap: () => FaceAttendanceDialog.show(context),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionCard(
+                  width: 80,
                   icon: Icons.person_add_alt_1_rounded,
                   label: 'Apply Leave',
                   iconColor: const Color(0xFF4F46E5),
@@ -848,10 +858,11 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
 
           const SizedBox(height: 16),
 
-          // Attendance Action Buttons
+          // Attendance Action Buttons (Two Methods: QR Code & Face Lock)
           if (!isCheckedIn)
             Column(
               children: [
+                // 1. Scan QR Code Attendance Button (Existing flow preserved)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -862,7 +873,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                       size: 20,
                     ),
                     label: const Text(
-                      'Scan Attendance QR',
+                      'Scan QR Code',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -882,65 +893,44 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   ),
                 ),
                 const SizedBox(height: 10),
+
+                // 2. Face Lock Attendance Button (New face verification flow)
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: attendance.isLoading
-                        ? null
-                        : () async {
-                            final ok = await ref
-                                .read(attendanceProvider.notifier)
-                                .markAttendance();
-                            if (ok && mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Checked In Successfully! ✓'),
-                                  backgroundColor: AppColors.statusPresent,
-                                ),
-                              );
-                            } else if (mounted) {
-                              final err = ref.read(attendanceProvider).error;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    err ?? 'Failed to mark attendance.',
-                                  ),
-                                  backgroundColor: AppColors.accentRed,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                    icon: attendance.isLoading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF4F46E5),
-                            ),
-                          )
-                        : const Icon(
-                            Icons.touch_app_rounded,
-                            color: Color(0xFF4F46E5),
-                            size: 18,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final success = await FaceAttendanceDialog.show(context);
+                      if (success && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Attendance Marked via Face Lock! ✓'),
+                            backgroundColor: AppColors.statusPresent,
+                            behavior: SnackBarBehavior.floating,
                           ),
-                    label: Text(
-                      attendance.isLoading ? 'Marking...' : 'One-Tap Check In',
-                      style: const TextStyle(
-                        color: Color(0xFF4F46E5),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
+                        );
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.face_unlock_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'Face Lock Attendance',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        letterSpacing: 0.1,
                       ),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
@@ -1296,6 +1286,23 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/employee/scan-qr');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.face_unlock_rounded,
+                    color: Color(0xFF0284C7),
+                  ),
+                  title: Text(
+                    'Face Lock Attendance',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    FaceAttendanceDialog.show(context);
                   },
                 ),
                 ListTile(

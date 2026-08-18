@@ -11,6 +11,7 @@ import '../../models/attendance_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/location_service.dart';
+import '../../widgets/attendance/face_attendance_dialog.dart';
 
 class QRScannerScreen extends ConsumerStatefulWidget {
   const QRScannerScreen({super.key});
@@ -717,6 +718,38 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen>
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6),
                   fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    await _scannerController.stop();
+                  } catch (_) {}
+                  if (!mounted) return;
+                  final success = await FaceAttendanceDialog.show(context);
+                  if (success && mounted) {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/employee/dashboard');
+                    }
+                  } else {
+                    try {
+                      await _scannerController.start();
+                    } catch (_) {}
+                  }
+                },
+                icon: const Icon(Icons.face_unlock_rounded, size: 16, color: Color(0xFF38BDF8)),
+                label: const Text(
+                  'Switch to Face Lock Attendance',
+                  style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF38BDF8), width: 1),
+                  backgroundColor: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
               ),
             ],

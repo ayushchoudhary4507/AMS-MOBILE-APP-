@@ -6,11 +6,29 @@ class AttendanceService {
   static Future<Map<String, dynamic>> markAttendance({
     String status = 'present',
     String? notes,
+    String? attendanceMethod,
+    double? latitude,
+    double? longitude,
   }) async {
-    // Backend mark endpoint expects empty payload {} or minimal notes
-    final Map<String, dynamic> body = {};
+    final Map<String, dynamic> body = {
+      'status': status,
+    };
     if (notes != null && notes.isNotEmpty) {
       body['notes'] = notes;
+    }
+    if (attendanceMethod != null && attendanceMethod.isNotEmpty) {
+      body['attendanceMethod'] = attendanceMethod;
+      body['method'] = attendanceMethod;
+      body['verificationMethod'] = attendanceMethod;
+    }
+    if (latitude != null) {
+      body['latitude'] = latitude;
+      body['lat'] = latitude;
+    }
+    if (longitude != null) {
+      body['longitude'] = longitude;
+      body['lng'] = longitude;
+      body['long'] = longitude;
     }
 
     try {
