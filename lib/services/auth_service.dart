@@ -112,75 +112,121 @@ class AuthService {
   }
 
   // Forgot Password: Request OTP to Phone or Email in Real-Time
+  // Cache last successfully matched identifier format (e.g. +919876543210 vs 9876543210)
+  static String? _lastMatchedIdentifier;
+
+  // Forgot Password: Request OTP to Phone or Email with multi-format matching
   static Future<Map<String, dynamic>> forgotPassword(String identifier) async {
     final raw = identifier.trim();
     final isEmail = raw.contains('@');
 
-    // Clean phone digits (e.g. 10-digit number without spaces or +91 prefix)
-    String cleanMobile = raw.replaceAll(RegExp(r'\D'), '');
-    if (cleanMobile.length > 10 && cleanMobile.startsWith('91')) {
-      cleanMobile = cleanMobile.substring(2);
-    }
-
-    final payload = isEmail
-        ? {'email': raw}
-        : {'mobile': cleanMobile, 'phone': cleanMobile};
-
-    try {
-      final response = await ApiService.post(
-        '/auth/send',
-        data: payload,
-      );
-      final map = ApiService.toMap(response.data);
-
-      if (map['success'] == false) {
-        final msg = map['message']?.toString() ?? 'Failed to send OTP code.';
-        if (msg.toLowerCase().contains('user not found')) {
-          throw Exception(
-              'No account found with this ${isEmail ? "email address" : "phone number"}. Please register or check your details.');
-        }
-        if (msg.toLowerCase().contains('failed to send otp email') ||
-            msg.toLowerCase().contains('email configuration') ||
-            msg.toLowerCase().contains('timeout') ||
-            msg.toLowerCase().contains('connection') ||
-            msg.toLowerCase().contains('smtp') ||
-            isEmail) {
-          throw Exception(
-              'Backend email server (SMTP) is not configured. Please use "Phone SMS" option to receive your OTP.');
-        }
-        throw Exception(msg);
-      }
-
-      return map.isNotEmpty
-          ? map
-          : {
-              'success': true,
-              'message':
-                  'OTP sent successfully to ${isEmail ? raw : cleanMobile}',
-            };
-    } catch (e) {
-      if (e is DioException) {
-        final errData = e.response?.data;
-        if (errData is Map && errData['message'] != null) {
-          final msg = errData['message'].toString();
-          if (msg.toLowerCase().contains('user not found')) {
-            throw Exception(
-                'No account found with this ${isEmail ? "email address" : "phone number"}. Please register or check your details.');
-          }
-          if (msg.toLowerCase().contains('failed to send otp email') ||
-              msg.toLowerCase().contains('email configuration') ||
-              msg.toLowerCase().contains('timeout') ||
-              msg.toLowerCase().contains('connection') ||
-              msg.toLowerCase().contains('smtp') ||
-              isEmail) {
-            throw Exception(
-                'Backend email server (SMTP) is not configured. Please use "Phone SMS" option to receive your OTP.');
+    if (isEmail) {
+      final payload = {'email': raw.toLowerCase()};
+      try {
+        final response = await ApiService.post('/auth/send', data: payload);
+        final map = ApiService.toMap(response.data);
+        if (map['success'] == false) {
+          final msg = map['message']?.toString() ?? 'Failed to send OTP code.';
+          if (msg.toLowerCase().contains('user not found') ||
+              msg.toLowerCase().contains('no account found') ||
+              msg.toLowerCase().contains('not found')) {
+            throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
           }
           throw Exception(msg);
         }
+        _lastMatchedIdentifier = raw;
+        return map.isNotEmpty ? map : {'success': true, 'message': 'OTP sent successfully to $raw'};
+      } catch (e) {
+        if (e is DioException) {
+          final errData = e.response?.data;
+          if (errData is Map && errData['message'] != null) {
+            final msg = errData['message'].toString();
+            if (msg.toLowerCase().contains('user not found') ||
+                msg.toLowerCase().contains('no account found') ||
+                msg.toLowerCase().contains('not found')) {
+              throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
+            }
+            throw Exception(msg);
+          }
+        }
+        rethrow;
       }
-      rethrow;
     }
+
+    // Phone / Mobile Mode: Build candidates to match however the phone number was stored in MongoDB (+91, 10-digit, etc.)
+    final allDigits = raw.replaceAll(RegExp(r'\D'), '');
+    String clean10 = allDigits;
+    if (clean10.length > 10 && clean10.startsWith('91')) {
+      clean10 = clean10.substring(2);
+    }
+    if (clean10.length > 10) {
+      clean10 = clean10.substring(clean10.length - 10);
+    }
+
+    final candidates = <String>{};
+    if (raw.isNotEmpty) candidates.add(raw);
+    if (clean10.isNotEmpty) {
+      candidates.add(clean10);
+      candidates.add('+91$clean10');
+      candidates.add('91$clean10');
+    }
+
+    Exception? lastError;
+
+    for (final candidate in candidates) {
+      try {
+        final payload = {'mobile': candidate, 'phone': candidate};
+        final response = await ApiService.post('/auth/send', data: payload);
+        final map = ApiService.toMap(response.data);
+
+        if (map['success'] == true || (map['status'] == 'success') || (response.statusCode == 200)) {
+          _lastMatchedIdentifier = candidate;
+          return map.isNotEmpty
+              ? map
+              : {
+                  'success': true,
+                  'message': 'OTP sent successfully to $candidate',
+                };
+        }
+
+        final msg = map['message']?.toString() ?? '';
+        if (!msg.toLowerCase().contains('user not found')) {
+          throw Exception(msg.isNotEmpty ? msg : 'Failed to send OTP to $candidate');
+        }
+      } catch (e) {
+        if (e is DioException) {
+          final errData = e.response?.data;
+          final status = e.response?.statusCode;
+          final msg = errData is Map ? (errData['message']?.toString() ?? '') : '';
+
+          // If 404 (User not found), try next candidate format
+          if (status == 404 ||
+              msg.toLowerCase().contains('user not found') ||
+              msg.toLowerCase().contains('no account found') ||
+              msg.toLowerCase().contains('not found')) {
+            lastError = Exception('No account found for "$raw". Please check your registered number or contact Admin.');
+            continue;
+          }
+
+          if (msg.isNotEmpty) {
+            throw Exception(msg);
+          }
+        } else if (e is Exception) {
+          final str = e.toString();
+          if (str.toLowerCase().contains('user not found') ||
+              str.toLowerCase().contains('no account found') ||
+              str.toLowerCase().contains('not found')) {
+            lastError = Exception('No account found for "$raw". Please check your registered number or contact Admin.');
+            continue;
+          }
+          rethrow;
+        }
+        lastError = e is Exception ? e : Exception(e.toString());
+      }
+    }
+
+    throw lastError ??
+        Exception('No account found with phone number ($raw). Please check your registered number or contact Admin.');
   }
 
   // Reset Password: Send Real OTP and New Password to Backend
@@ -191,17 +237,13 @@ class AuthService {
   }) async {
     final raw = identifier.trim();
     final isEmail = raw.contains('@');
-
-    String cleanMobile = raw.replaceAll(RegExp(r'\D'), '');
-    if (cleanMobile.length > 10 && cleanMobile.startsWith('91')) {
-      cleanMobile = cleanMobile.substring(2);
-    }
+    final effectivePhone = _lastMatchedIdentifier ?? raw;
 
     final payload = {
       if (isEmail) 'email': raw,
       if (!isEmail) ...{
-        'mobile': cleanMobile,
-        'phone': cleanMobile,
+        'mobile': effectivePhone,
+        'phone': effectivePhone,
       },
       'otp': otp.trim(),
       'password': newPassword.trim(),

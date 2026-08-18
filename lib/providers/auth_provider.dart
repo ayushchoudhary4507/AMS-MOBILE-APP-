@@ -624,30 +624,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  Future<bool> sendForgotPasswordOtp(String identifier) async {
+  Future<Map<String, dynamic>?> sendForgotPasswordOtp(String identifier) async {
     try {
       state = state.copyWith(status: AuthStatus.loading, error: null);
-      await AuthService.forgotPassword(identifier);
+      final res = await AuthService.forgotPassword(identifier);
       state = state.copyWith(status: AuthStatus.unauthenticated);
-      return true;
+      return res;
     } catch (e) {
       String msg = 'Failed to send OTP code. Please check your details.';
       if (e is DioException) {
-        final res = e.response?.data;
-        if (res is Map) {
-          msg = res['message']?.toString() ??
-              res['error']?.toString() ??
-              res['msg']?.toString() ??
-              res['popup']?['message']?.toString() ??
-              msg;
-        } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
-          msg = res;
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout) {
+          msg = 'Server took too long to respond. Please check your network and try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          msg = 'Unable to connect to server. Please check your internet connection.';
+        } else {
+          final res = e.response?.data;
+          if (res is Map) {
+            msg = res['message']?.toString() ??
+                res['error']?.toString() ??
+                res['msg']?.toString() ??
+                res['popup']?['message']?.toString() ??
+                msg;
+          } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
+            msg = res;
+          }
         }
       } else if (e is Exception) {
         msg = e.toString().replaceFirst('Exception: ', '');
       }
       state = state.copyWith(status: AuthStatus.error, error: msg);
-      return false;
+      return null;
     }
   }
 
@@ -668,15 +676,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       String msg = 'Failed to reset password. Invalid OTP or expired code.';
       if (e is DioException) {
-        final res = e.response?.data;
-        if (res is Map) {
-          msg = res['message']?.toString() ??
-              res['error']?.toString() ??
-              res['msg']?.toString() ??
-              res['popup']?['message']?.toString() ??
-              msg;
-        } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
-          msg = res;
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout) {
+          msg = 'Server took too long to respond. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          msg = 'Unable to connect to server. Please check your internet connection.';
+        } else {
+          final res = e.response?.data;
+          if (res is Map) {
+            msg = res['message']?.toString() ??
+                res['error']?.toString() ??
+                res['msg']?.toString() ??
+                res['popup']?['message']?.toString() ??
+                msg;
+          } else if (res is String && res.isNotEmpty && !res.contains('<!DOCTYPE html>')) {
+            msg = res;
+          }
         }
       } else if (e is Exception) {
         msg = e.toString().replaceFirst('Exception: ', '');

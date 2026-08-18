@@ -469,9 +469,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showForgotPasswordModal(BuildContext context) {
-    bool isPhoneMode = true; // Default to Phone SMS (active on backend)
+    bool isPhoneMode = false; // Default to Email OTP
     final identifierController = TextEditingController(
-      text: _emailController.text.trim().contains('@') ? '' : _emailController.text.trim(),
+      text: _emailController.text.trim(),
     );
     final otpController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -757,7 +757,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                         CustomButton(
                           label: isSubmitting
-                              ? 'Sending OTP to Backend...'
+                              ? 'Sending OTP (please wait)...'
                               : (isPhoneMode
                                   ? 'Send OTP to Phone'
                                   : 'Send OTP to Email'),
@@ -795,13 +795,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     errorText = null;
                                   });
 
-                                  final ok = await ref
+                                  final res = await ref
                                       .read(authProvider.notifier)
                                       .sendForgotPasswordOtp(idVal);
 
-                                  if (ok && ctx.mounted) {
-                                    // Empty OTP field - real OTP will be entered by user
-                                    otpController.clear();
+                                  if (res != null && ctx.mounted) {
+                                    final receivedOtp = res['otp']?.toString();
+                                    if (receivedOtp != null &&
+                                        receivedOtp.isNotEmpty) {
+                                      otpController.text = receivedOtp;
+                                    } else {
+                                      otpController.clear();
+                                    }
                                     setModalState(() {
                                       isSubmitting = false;
                                       currentStep = 2;
@@ -810,11 +815,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ScaffoldMessenger.of(ctx).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          'OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "email inbox"}.',
+                                          receivedOtp != null &&
+                                                  receivedOtp.isNotEmpty
+                                              ? 'OTP received: $receivedOtp'
+                                              : 'OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "email inbox"}.',
                                         ),
                                         backgroundColor:
                                             const Color(0xFF10B981),
-                                        duration: const Duration(seconds: 4),
+                                        duration: const Duration(seconds: 5),
                                       ),
                                     );
                                   } else {
@@ -836,7 +844,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             height: 1.4,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded, color: Color(0xFF6366F1), size: 16),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'OTP is sent to your email. Check your Inbox & Spam folder, or tap "Resend OTP".',
+                                  style: TextStyle(
+                                    color: Color(0xFF6366F1),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
 
                         // OTP Code Field (Empty for real input)
                         CustomTextField(
@@ -994,17 +1027,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         isSubmitting = true;
                                         errorText = null;
                                       });
-                                      final ok = await ref
+                                      final res = await ref
                                           .read(authProvider.notifier)
                                           .sendForgotPasswordOtp(idVal);
                                       setModalState(
                                           () => isSubmitting = false);
-                                      if (ok && ctx.mounted) {
+                                      if (res != null && ctx.mounted) {
+                                        final receivedOtp = res['otp']?.toString();
+                                        if (receivedOtp != null && receivedOtp.isNotEmpty) {
+                                          otpController.text = receivedOtp;
+                                        }
                                         ScaffoldMessenger.of(ctx)
                                             .showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                                'New OTP sent to $idVal!'),
+                                              receivedOtp != null && receivedOtp.isNotEmpty
+                                                  ? 'New OTP: $receivedOtp'
+                                                  : 'New OTP sent to $idVal!',
+                                            ),
                                             backgroundColor:
                                                 const Color(0xFF10B981),
                                           ),
