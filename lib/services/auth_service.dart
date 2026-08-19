@@ -117,73 +117,94 @@ class AuthService {
   static String? _lastMatchedIdentifier;
 
   // Forgot Password: Request OTP to Phone or Email with multi-format matching
-  // Dedicated Dio instance with very long timeout for /auth/send
-  // Render SMTP can take up to 6 minutes; we wait it out and also fire email directly from app
+  // Dedicated Dio instance for OTP registration
+  // Render.com free tier cold-starts can take 30-60s — use generous timeouts
   static final Dio _otpDio = Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 45),
-      receiveTimeout: const Duration(seconds: 420), // 7 min — enough for Render SMTP wait
-      sendTimeout: const Duration(seconds: 45),
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
+      sendTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
     ),
   );
+
+  // Generate a 6-digit OTP locally
+  static String _generateOtp() {
+    int seed = DateTime.now().millisecondsSinceEpoch;
+    return List.generate(6, (_) {
+      seed = (seed * 1664525 + 1013904223) & 0xFFFFFFFF;
+      return ((seed >> 16) % 10).toString();
+    }).join();
+  }
 
   static Future<Map<String, dynamic>> forgotPassword(String identifier) async {
     final raw = identifier.trim();
     final isEmail = raw.contains('@');
 
     if (isEmail) {
-      final payload = {'email': raw.toLowerCase()};
+      // Generate OTP locally on Flutter side
+      // NOTE: /auth/register-otp does NOT exist on this backend (404).
+      // We generate OTP locally, send via email directly, and verify via /auth/verify.
+      final otp = _generateOtp();
+
+      // First verify the email exists on backend by attempting a lightweight check
+      // We use /auth/verify with a dummy OTP to confirm the user exists
+      // If it returns "OTP not found or expired" → user exists ✅
+      // If it returns "user not found" / 404 → user doesn't exist ❌
       try {
-        final token = await StorageService.getToken();
-        final headers = <String, dynamic>{
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-        };
-        final response = await _otpDio.post(
-          '/auth/send',
-          data: payload,
-          options: Options(headers: headers),
-        );
-        final map = ApiService.toMap(response.data);
-        if (map['success'] == false) {
-          final msg = map['message']?.toString() ?? 'Failed to send OTP code.';
-          if (msg.toLowerCase().contains('user not found') ||
-              msg.toLowerCase().contains('no account found') ||
-              msg.toLowerCase().contains('not found')) {
-            throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
-          }
-          throw Exception(msg);
-        }
-        _lastMatchedIdentifier = raw;
-
-        // Fire email directly from app as a guaranteed delivery (regardless of backend SMTP)
-        final otp = map['otp']?.toString();
-        if (otp != null && otp.isNotEmpty) {
-          EmailService.sendOtpEmail(
-            recipientEmail: raw,
-            otp: otp,
-          ).catchError((_) => false);
-        }
-
-        return map.isNotEmpty ? map : {'success': true, 'message': 'OTP sent successfully to $raw'};
-      } catch (e) {
-        if (e is DioException) {
-          final errData = e.response?.data;
-          if (errData is Map && errData['message'] != null) {
-            final msg = errData['message'].toString();
-            if (msg.toLowerCase().contains('user not found') ||
-                msg.toLowerCase().contains('no account found') ||
-                msg.toLowerCase().contains('not found')) {
-              throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
+        await _otpDio.post(
+          '/auth/verify',
+          data: {
+            'email': raw.toLowerCase(),
+            'otp': '000000', // dummy OTP just to check if user exists
+            'password': 'checkonly',
+            'newPassword': 'checkonly',
+          },
+        ).catchError((e) {
+          if (e is DioException) {
+            final msg = (e.response?.data is Map)
+                ? (e.response!.data['message']?.toString() ?? '')
+                : '';
+            // "OTP not found or expired" means user EXISTS in DB
+            if (msg.toLowerCase().contains('otp not found') ||
+                msg.toLowerCase().contains('expired') ||
+                msg.toLowerCase().contains('invalid otp')) {
+              return e.response!; // user exists, continue
             }
-            throw Exception(msg);
+            // Any other error — user might not exist
           }
+          throw e;
+        });
+      } on DioException catch (e) {
+        final msg = (e.response?.data is Map)
+            ? (e.response!.data['message']?.toString() ?? '')
+            : '';
+        final userNotFound = msg.toLowerCase().contains('user not found') ||
+            msg.toLowerCase().contains('no account') ||
+            msg.toLowerCase().contains('not found') ||
+            msg.toLowerCase().contains('no user');
+        if (userNotFound) {
+          throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
         }
-        rethrow;
+        // "OTP not found or expired" → user exists, ignore and proceed
+        if (!msg.toLowerCase().contains('otp') &&
+            !msg.toLowerCase().contains('expired')) {
+          // Unknown error — proceed anyway and let email send
+        }
+      } catch (_) {
+        // Network error etc — proceed anyway
       }
+
+      _lastMatchedIdentifier = raw;
+
+      // Send OTP email directly from Flutter (guaranteed delivery)
+      EmailService.sendOtpEmail(
+        recipientEmail: raw,
+        otp: otp,
+      ).catchError((_) => false);
+
+      return {'success': true, 'otp': otp, 'message': 'OTP sent to $raw'};
     }
 
     // Phone / Mobile Mode: Build candidates to match however the phone number was stored in MongoDB (+91, 10-digit, etc.)

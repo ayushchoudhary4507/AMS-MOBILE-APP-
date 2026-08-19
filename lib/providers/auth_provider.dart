@@ -636,7 +636,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.sendTimeout) {
-          msg = 'Server took too long to respond. Please check your network and try again.';
+          msg = 'Server is starting up, please wait 30-60 seconds and try again...';
         } else if (e.type == DioExceptionType.connectionError) {
           msg = 'Unable to connect to server. Please check your internet connection.';
         } else {
