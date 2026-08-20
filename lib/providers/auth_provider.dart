@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:developer' as dev;
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -489,6 +491,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Updates user profile details (Name, Phone, Profile Picture) in DB and local state.
+  /// Always preserves previous/old photo if employee does not upload a new one.
   Future<bool> updateUserProfile({
     required String name,
     String? phone,
@@ -496,32 +499,58 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     // Create updated local user map
     final currentMap = Map<String, dynamic>.from(state.user ?? {});
+    final userEmail =
+        (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])
+            ?.toString();
+    final userId = (currentMap['id'] ?? currentMap['_id'])?.toString();
+    final userName = currentMap['name']?.toString();
+
+    // 1. Retrieve old photo fallback from state and persistent storage
+    String? oldAvatar = extractAvatarUrl(currentMap);
+    if ((oldAvatar == null || oldAvatar.isEmpty) && userEmail != null && userEmail.isNotEmpty) {
+      oldAvatar = await StorageService.getUserAvatar(userEmail);
+    }
+    if ((oldAvatar == null || oldAvatar.isEmpty) && userId != null && userId.isNotEmpty) {
+      oldAvatar = await StorageService.getUserAvatar(userId);
+    }
+
+    String? effectiveAvatar = (profilePicture != null && profilePicture.isNotEmpty)
+        ? profilePicture
+        : oldAvatar;
+
+    // 2. If it's a local file path, convert to Base64 Data URI for permanent persistence
+    if (effectiveAvatar != null && effectiveAvatar.isNotEmpty) {
+      final cleanPath = effectiveAvatar.replaceFirst('file://', '');
+      final file = File(cleanPath);
+      if (file.existsSync()) {
+        try {
+          final bytes = await file.readAsBytes();
+          if (bytes.isNotEmpty) {
+            effectiveAvatar = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+          }
+        } catch (_) {}
+      }
+    }
 
     currentMap['name'] = name;
     if (phone != null) currentMap['phone'] = phone;
-    if (profilePicture != null && profilePicture.isNotEmpty) {
-      currentMap['avatar'] = profilePicture;
-      currentMap['profilePicture'] = profilePicture;
-      currentMap['profileImage'] = profilePicture;
-      currentMap['profile_picture'] = profilePicture;
-      currentMap['image'] = profilePicture;
-      currentMap['avatarUrl'] = profilePicture;
-      currentMap['photo'] = profilePicture;
-
-      final userEmail =
-          (currentMap['email'] ?? currentMap['id'] ?? currentMap['_id'])
-              ?.toString();
-      final userId = (currentMap['id'] ?? currentMap['_id'])?.toString();
-      final userName = currentMap['name']?.toString();
+    if (effectiveAvatar != null && effectiveAvatar.isNotEmpty) {
+      currentMap['avatar'] = effectiveAvatar;
+      currentMap['profilePicture'] = effectiveAvatar;
+      currentMap['profileImage'] = effectiveAvatar;
+      currentMap['profile_picture'] = effectiveAvatar;
+      currentMap['image'] = effectiveAvatar;
+      currentMap['avatarUrl'] = effectiveAvatar;
+      currentMap['photo'] = effectiveAvatar;
 
       if (userEmail != null && userEmail.isNotEmpty) {
-        await StorageService.saveUserAvatar(userEmail, profilePicture);
+        await StorageService.saveUserAvatar(userEmail, effectiveAvatar);
       }
       if (userId != null && userId.isNotEmpty) {
-        await StorageService.saveUserAvatar(userId, profilePicture);
+        await StorageService.saveUserAvatar(userId, effectiveAvatar);
       }
       if (userName != null && userName.isNotEmpty) {
-        await StorageService.saveUserAvatar(userName, profilePicture);
+        await StorageService.saveUserAvatar(userName, effectiveAvatar);
       }
     }
 
@@ -532,28 +561,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final res = await AuthService.updateProfile(
         name: name,
         phone: phone,
-        profilePicture: profilePicture,
+        profilePicture: effectiveAvatar,
+        userId: userId,
       );
 
       // If backend returned raw user object, merge non-null fields
       if (res['data'] is Map<String, dynamic>) {
         final serverMap = Map<String, dynamic>.from(res['data']);
-        final existingAvatar = extractAvatarUrl(currentMap);
+        final existingAvatar = extractAvatarUrl(currentMap) ?? effectiveAvatar;
         if (extractAvatarUrl(serverMap) == null && existingAvatar != null) {
           serverMap['avatar'] = existingAvatar;
           serverMap['profilePicture'] = existingAvatar;
           serverMap['profileImage'] = existingAvatar;
           serverMap['profile_picture'] = existingAvatar;
+          serverMap['photo'] = existingAvatar;
+          serverMap['image'] = existingAvatar;
         }
         currentMap.addAll(serverMap);
       } else if (res['user'] is Map<String, dynamic>) {
         final serverMap = Map<String, dynamic>.from(res['user']);
-        final existingAvatar = extractAvatarUrl(currentMap);
+        final existingAvatar = extractAvatarUrl(currentMap) ?? effectiveAvatar;
         if (extractAvatarUrl(serverMap) == null && existingAvatar != null) {
           serverMap['avatar'] = existingAvatar;
           serverMap['profilePicture'] = existingAvatar;
           serverMap['profileImage'] = existingAvatar;
           serverMap['profile_picture'] = existingAvatar;
+          serverMap['photo'] = existingAvatar;
+          serverMap['image'] = existingAvatar;
         }
         currentMap.addAll(serverMap);
       }
@@ -561,23 +595,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveUser(currentMap);
       state = state.copyWith(user: currentMap);
 
-      // Save the avatar we just uploaded so refreshProfile() doesn't wipe it
-      final uploadedAvatar = profilePicture;
-
       await refreshProfile();
 
-      // If refreshProfile() lost our avatar (server didn't return it), restore it
-      if (uploadedAvatar != null && uploadedAvatar.isNotEmpty) {
+      // Ensure that if refreshProfile() didn't get an avatar from server, old/effective avatar is preserved!
+      if (effectiveAvatar != null && effectiveAvatar.isNotEmpty) {
         final afterRefreshAvatar = extractAvatarUrl(state.user);
         if (afterRefreshAvatar == null || afterRefreshAvatar.isEmpty) {
           final restoredMap = Map<String, dynamic>.from(state.user ?? {});
-          restoredMap['avatar'] = uploadedAvatar;
-          restoredMap['profilePicture'] = uploadedAvatar;
-          restoredMap['profileImage'] = uploadedAvatar;
-          restoredMap['profile_picture'] = uploadedAvatar;
-          restoredMap['image'] = uploadedAvatar;
-          restoredMap['avatarUrl'] = uploadedAvatar;
-          restoredMap['photo'] = uploadedAvatar;
+          restoredMap['avatar'] = effectiveAvatar;
+          restoredMap['profilePicture'] = effectiveAvatar;
+          restoredMap['profileImage'] = effectiveAvatar;
+          restoredMap['profile_picture'] = effectiveAvatar;
+          restoredMap['image'] = effectiveAvatar;
+          restoredMap['avatarUrl'] = effectiveAvatar;
+          restoredMap['photo'] = effectiveAvatar;
           await StorageService.saveUser(restoredMap);
           state = state.copyWith(user: restoredMap);
         }

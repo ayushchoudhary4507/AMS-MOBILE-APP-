@@ -139,11 +139,43 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
   Future<bool> updateEmployee(String id, Map<String, dynamic> data) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final avatar = extractAvatarUrl(data);
-      final email = data['email']?.toString();
+      dynamic existingEmp;
+      for (final e in state.employees) {
+        if (e is Map && (e['_id']?.toString() == id || e['id']?.toString() == id)) {
+          existingEmp = e;
+          break;
+        }
+      }
+
+      var avatar = extractAvatarUrl(data);
+      final email = (data['email'] ?? existingEmp?['email'])?.toString();
+      final name = (data['name'] ?? existingEmp?['name'])?.toString();
+
+      // If no new avatar in data, PRESERVE old photo!
+      if (avatar == null || avatar.isEmpty) {
+        avatar = extractAvatarUrl(existingEmp);
+        if ((avatar == null || avatar.isEmpty) && email != null && email.isNotEmpty) {
+          avatar = await StorageService.getUserAvatar(email);
+        }
+        if ((avatar == null || avatar.isEmpty) && id.isNotEmpty) {
+          avatar = await StorageService.getUserAvatar(id);
+        }
+        if ((avatar == null || avatar.isEmpty) && name != null && name.isNotEmpty) {
+          avatar = await StorageService.getUserAvatar(name);
+        }
+      }
+
       if (avatar != null && avatar.isNotEmpty) {
+        data['avatar'] = avatar;
+        data['profilePicture'] = avatar;
+        data['profileImage'] = avatar;
+        data['profile_picture'] = avatar;
+        data['photo'] = avatar;
+        data['image'] = avatar;
+
         if (email != null && email.isNotEmpty) await StorageService.saveUserAvatar(email, avatar);
         await StorageService.saveUserAvatar(id, avatar);
+        if (name != null && name.isNotEmpty) await StorageService.saveUserAvatar(name, avatar);
       }
       await EmployeeService.update(id, data);
       await loadEmployees();

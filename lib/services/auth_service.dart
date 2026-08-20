@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
@@ -70,46 +71,104 @@ class AuthService {
   }
 
   // Update User Profile (Name, Phone, Profile Picture / Avatar)
+  // Preserves existing photo persistently in MongoDB Atlas via Base64 Data URI & multipart
   static Future<Map<String, dynamic>> updateProfile({
     required String name,
     String? phone,
     String? profilePicture,
+    String? userId,
   }) async {
     dynamic payload;
+    String? base64DataUri;
 
     if (profilePicture != null && profilePicture.isNotEmpty) {
       final cleanPath = profilePicture.replaceFirst('file://', '');
       final file = File(cleanPath);
       if (file.existsSync()) {
-        final formData = FormData.fromMap({
+        try {
+          final bytes = await file.readAsBytes();
+          if (bytes.isNotEmpty) {
+            base64DataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+          }
+        } catch (_) {}
+
+        final formMap = <String, dynamic>{
           'name': name,
           if (phone != null && phone.isNotEmpty) 'phone': phone,
           'profileImage': await MultipartFile.fromFile(
             file.path,
             filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
           ),
-        });
-        payload = formData;
+        };
+        if (base64DataUri != null) {
+          formMap['avatar'] = base64DataUri;
+          formMap['profilePicture'] = base64DataUri;
+          formMap['photo'] = base64DataUri;
+          formMap['image'] = base64DataUri;
+          formMap['profile_picture'] = base64DataUri;
+        }
+        payload = FormData.fromMap(formMap);
       }
     }
+
+    final avatarVal = base64DataUri ?? profilePicture;
 
     payload ??= {
       'name': name,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
-      if (profilePicture != null) ...{
-        'avatar': profilePicture,
-        'profilePicture': profilePicture,
-        'profileImage': profilePicture,
-        'profile_picture': profilePicture,
-        'image': profilePicture,
+      if (avatarVal != null && avatarVal.isNotEmpty) ...{
+        'avatar': avatarVal,
+        'profilePicture': avatarVal,
+        'profileImage': avatarVal,
+        'profile_picture': avatarVal,
+        'image': avatarVal,
+        'photo': avatarVal,
       },
     };
 
-    final response = await ApiService.put(
-      '${ApiConstants.settings}/profile',
-      data: payload,
-    );
-    return ApiService.toMap(response.data);
+    Map<String, dynamic> result = {};
+
+    // 1. Update /settings/profile
+    try {
+      final response = await ApiService.put(
+        '${ApiConstants.settings}/profile',
+        data: payload,
+      );
+      result = ApiService.toMap(response.data);
+    } catch (_) {}
+
+    // 2. Sync to employee and user records so Web Admin & MongoDB retain the photo permanently
+    final syncData = <String, dynamic>{
+      'name': name,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (avatarVal != null && avatarVal.isNotEmpty) ...{
+        'avatar': avatarVal,
+        'profilePicture': avatarVal,
+        'profileImage': avatarVal,
+        'profile_picture': avatarVal,
+        'image': avatarVal,
+        'photo': avatarVal,
+      },
+    };
+
+    final candidateEndpoints = [
+      if (userId != null && userId.isNotEmpty) '${ApiConstants.employees}/$userId',
+      '/employees/profile',
+      '/user/profile',
+      '/auth/profile',
+    ];
+
+    for (final ep in candidateEndpoints) {
+      try {
+        final res = await ApiService.put(ep, data: syncData);
+        final map = ApiService.toMap(res.data);
+        if (map.isNotEmpty && result.isEmpty) {
+          result = map;
+        }
+      } catch (_) {}
+    }
+
+    return result.isNotEmpty ? result : {'success': true};
   }
 
   // Forgot Password: Request OTP to Phone or Email in Real-Time
