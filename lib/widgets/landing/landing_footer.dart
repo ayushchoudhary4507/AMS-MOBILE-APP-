@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../common/attendance_pro_icon.dart';
 
 class LandingFooter extends StatelessWidget {
   final VoidCallback onNavigateLogin;
@@ -20,9 +21,8 @@ class LandingFooter extends StatelessWidget {
         border: Border(
           top: BorderSide(
             color: isDark
-                ? const Color(0xFF1E2238)
-                : const Color(0xFFCBD5E1),
-            width: 1,
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
           ),
         ),
       ),
@@ -32,19 +32,7 @@ class LandingFooter extends StatelessWidget {
           // Brand Header
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Center(
-                  child: Text('📋', style: TextStyle(fontSize: 18)),
-                ),
-              ),
+              const AttendanceProIcon(size: 34),
               const SizedBox(width: 10),
               Text(
                 'AttendancePro',

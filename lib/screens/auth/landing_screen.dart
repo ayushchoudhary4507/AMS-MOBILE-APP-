@@ -7,6 +7,7 @@ import '../../widgets/landing/landing_hero_slider.dart';
 import '../../widgets/landing/landing_dashboard_preview.dart';
 import '../../widgets/landing/landing_features_section.dart';
 import '../../widgets/landing/landing_footer.dart';
+import '../../widgets/common/attendance_pro_icon.dart';
 
 class LandingScreen extends ConsumerStatefulWidget {
   const LandingScreen({super.key});
@@ -368,20 +369,8 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Center(
-                                  child: Text('📋', style: TextStyle(fontSize: 14)),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
+                              const AttendanceProIcon(size: 30),
+                              const SizedBox(width: 7),
                               Flexible(
                                 child: Text(
                                   'AttendancePro',
