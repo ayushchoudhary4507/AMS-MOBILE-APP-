@@ -51,7 +51,7 @@ class FaceVerificationResult {
       isSuccess: false,
       status: FaceVerificationStatus.notRecognized,
       similarityScore: score,
-      message: 'Face does not match any registered face.',
+      message: 'Face does not match with your registered face.',
     );
   }
 

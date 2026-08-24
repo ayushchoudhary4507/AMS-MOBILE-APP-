@@ -96,11 +96,13 @@ extension AppThemeContext on BuildContext {
       ? const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF0B0C10), Color(0xFF12131F)],
+          colors: [Color(0xFF1E1B4B), Color(0xFF0F172A), Color(0xFF090D16)],
+          stops: [0.0, 0.40, 1.0],
         )
       : const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          colors: [Color(0xFFE0E7FF), Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          stops: [0.0, 0.40, 1.0],
         );
 }
