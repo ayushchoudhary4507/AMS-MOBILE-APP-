@@ -122,14 +122,12 @@ class AppAvatar extends StatelessWidget {
               width: targetSize,
               height: targetSize,
               fit: BoxFit.cover,
-              cacheWidth: (radius * 4).toInt().clamp(48, 500),
-              cacheHeight: (radius * 4).toInt().clamp(48, 500),
+              gaplessPlayback: true,
               errorBuilder: (ctx, err, st) => _fallbackInitials(bgColor),
             ),
           );
         }
       } catch (_) {}
-      // If base64 decoding failed or invalid image bytes, return fallback immediately
       if (!cleanAvatar.startsWith('http://') &&
           !cleanAvatar.startsWith('https://') &&
           !cleanAvatar.startsWith('/') &&

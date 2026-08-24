@@ -353,7 +353,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF0A0F1E).withValues(alpha: 0.75)
+                        ? Colors.transparent
                         : Colors.white.withValues(alpha: 0.82),
                   ),
                   child: Row(
@@ -669,57 +669,148 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
   }
 
   Widget _buildStatBadge(BuildContext context, String title, String subtitle, Color accentColor) {
+    return _InteractiveStatBadge(
+      title: title,
+      subtitle: subtitle,
+      accentColor: accentColor,
+      onTap: () => context.go('/login'),
+    );
+  }
+}
+
+class _InteractiveStatBadge extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _InteractiveStatBadge({
+    required this.title,
+    required this.subtitle,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_InteractiveStatBadge> createState() => _InteractiveStatBadgeState();
+}
+
+class _InteractiveStatBadgeState extends State<_InteractiveStatBadge> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = context.isDark;
+
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF131728).withValues(alpha: 0.8)
-              : Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: accentColor.withValues(alpha: 0.35),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: accentColor.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        onHover: (_) {
+          if (!_isHovered) setState(() => _isHovered = true);
+        },
+        cursor: SystemMouseCursors.click,
+        child: AnimatedScale(
+          scale: _isHovered ? 1.08 : 1.0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutBack,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutBack,
+            decoration: BoxDecoration(
+              color: _isHovered
+                  ? (isDark
+                      ? widget.accentColor.withValues(alpha: 0.25)
+                      : widget.accentColor.withValues(alpha: 0.10))
+                  : (isDark
+                      ? const Color(0xFF131728).withValues(alpha: 0.85)
+                      : Colors.white),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _isHovered
+                    ? widget.accentColor
+                    : (isDark
+                        ? widget.accentColor.withValues(alpha: 0.35)
+                        : widget.accentColor.withValues(alpha: 0.25)),
+                width: _isHovered ? 1.8 : 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? widget.accentColor.withValues(alpha: _isHovered ? 0.45 : 0.08)
+                      : (widget.accentColor.withValues(alpha: _isHovered ? 0.25 : 0.06)),
+                  blurRadius: _isHovered ? 16 : 8,
+                  spreadRadius: _isHovered ? 1.5 : 0.0,
+                  offset: Offset(0, _isHovered ? 5 : 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  color: accentColor,
-                  letterSpacing: -0.2,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                onHover: (hovering) => setState(() => _isHovered = hovering),
+                onHighlightChanged: (highlighted) => setState(() => _isHovered = highlighted),
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          children: [
+                            Text(
+                              widget.title,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: widget.accentColor,
+                                letterSpacing: -0.2,
+                                shadows: _isHovered
+                                    ? [
+                                        Shadow(
+                                          color: widget.accentColor.withValues(alpha: 0.5),
+                                          blurRadius: 6,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            if (_isHovered) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 12,
+                                color: widget.accentColor,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        widget.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          height: 1.15,
+                          fontWeight: FontWeight.w700,
+                          color: _isHovered
+                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                              : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9.5,
-                height: 1.15,
-                fontWeight: FontWeight.w600,
-                color: context.txtSecondary,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

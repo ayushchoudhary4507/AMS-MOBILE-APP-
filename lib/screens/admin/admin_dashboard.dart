@@ -9,7 +9,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../providers/chat_provider.dart';
+import '../../providers/dashboard_config_provider.dart';
+import '../../models/dashboard_card_config.dart';
 import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../employee/employee_dashboard.dart';
@@ -38,6 +39,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
       ref.read(employeeProvider.notifier).loadEmployees();
       ref.read(attendanceProvider.notifier).loadAllLeaves();
+      ref.read(dashboardConfigProvider.notifier).loadConfig();
     });
   }
 
@@ -45,31 +47,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   Widget build(BuildContext context) {
     ref.watch(notifScreenProvider);
     final auth = ref.watch(authProvider);
+    final rawUser = auth.user;
+    final Map<String, dynamic>? userMap =
+        rawUser is Map ? Map<String, dynamic>.from(rawUser as Map) : null;
+    final adminName = userMap?['name']?.toString() ??
+        userMap?['fullName']?.toString() ??
+        'Admin';
     final today = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
 
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildAdminDrawer(context, ref, auth),
-      floatingActionButton: _selectedIndex == 1
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddEmployeeModal(context),
-              icon: const Icon(Icons.person_add_rounded, color: Colors.white),
-              label: const Text(
-                'Add Employee',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              backgroundColor: const Color(0xFF6366F1),
-            )
-          : null,
       body: Container(
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(auth.user?['name'] ?? 'Admin', today),
+              _buildHeader(adminName, today),
               Expanded(child: _buildBody()),
             ],
           ),
@@ -84,22 +78,34 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
       decoration: BoxDecoration(
-        color: context.cardBg.withValues(alpha: 0.85),
-        border: Border(
-          bottom: BorderSide(
-            color: context.borderCol.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
+        color: context.isDark
+            ? Colors.transparent
+            : context.cardBg.withValues(alpha: 0.85),
+        border: context.isDark
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: context.borderCol.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
       ),
       child: Row(
         children: [
           // Drawer / Menu Icon
-          IconButton(
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero,
-            icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 24),
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          Builder(
+            builder: (ctx) => IconButton(
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: EdgeInsets.zero,
+              icon: Icon(Icons.menu_rounded, color: context.txtPrimary, size: 24),
+              onPressed: () {
+                try {
+                  Scaffold.of(ctx).openDrawer();
+                } catch (_) {
+                  _scaffoldKey.currentState?.openDrawer();
+                }
+              },
+            ),
           ),
           const SizedBox(width: 6),
           Expanded(
@@ -240,16 +246,22 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   }
 
   Widget _buildBody() {
-    switch (_selectedIndex) {
-      case 0:
+    final activeNav = ref.watch(dashboardConfigProvider).enabledBottomNav;
+    final currentIndex = _selectedIndex < activeNav.length ? _selectedIndex : 0;
+    final currentTabId = activeNav[currentIndex].id.toLowerCase();
+
+    switch (currentTabId) {
+      case 'dashboard':
         return _buildDashboardTab();
-      case 1:
+      case 'employees':
         return _buildEmployeesTab();
-      case 2:
+      case 'leaves':
+      case 'pending_leaves':
         return _buildLeaveApprovalTab();
-      case 3:
-        return const ChatListScreen();
-      case 4:
+      case 'messages':
+      case 'chat':
+        return const ChatListScreen(showAppBar: false);
+      case 'more':
         return _buildMoreTab();
       default:
         return _buildDashboardTab();
@@ -415,14 +427,32 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final leaveCount = realLeave.toString();
     final absentCount = realAbsent.toString();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
-      child: Column(
+    final activeDashboardCards = ref.watch(dashboardConfigProvider).enabledCards;
+
+    return RefreshIndicator(
+      color: const Color(0xFF6366F1),
+      onRefresh: () async {
+        await Future.wait([
+          ref.read(attendanceProvider.notifier).loadStats(),
+          ref.read(attendanceProvider.notifier).loadTodayAllAttendance(),
+          ref.read(employeeProvider.notifier).loadEmployees(),
+          ref.read(attendanceProvider.notifier).loadAllLeaves(),
+          ref.read(dashboardConfigProvider.notifier).loadConfig(),
+        ]);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. Welcome Banner Hero Card
           _buildWelcomeBanner(
-            authName: ref.watch(authProvider).user?['name'] ?? 'Admin',
+            authName: (ref.watch(authProvider).user is Map
+                    ? (ref.watch(authProvider).user as Map)['name']
+                    : null)
+                ?.toString() ??
+                'Admin',
           ),
           const SizedBox(height: 20),
 
@@ -453,74 +483,79 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 onPressed: () {
                   ref.read(attendanceProvider.notifier).loadStats();
                   ref.read(employeeProvider.notifier).loadEmployees();
+                  ref.read(dashboardConfigProvider.notifier).loadConfig();
                 },
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // 4 Stat Cards Row / Grid
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _buildOverviewCard(
-                title: 'Total Employees',
-                value: totalEmp,
-                icon: Icons.groups_rounded,
-                color: const Color(0xFF6366F1),
-                bgColor: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-              _buildOverviewCard(
-                title: 'Present Today',
-                value: presentCount,
-                icon: Icons.check_circle_rounded,
-                color: const Color(0xFF10B981),
-                bgColor: const Color(0xFF10B981).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(
-                  context,
-                  ref,
-                  title: 'Present Employees Today',
-                  statusType: 'present',
+          // Dynamic Overview Stat Cards Grid / List (Powered by Dashboard Config)
+          if (activeDashboardCards.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: context.cardBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: context.borderCol.withValues(alpha: 0.6),
                 ),
               ),
-              _buildOverviewCard(
-                title: 'On Leave Today',
-                value: leaveCount,
-                icon: Icons.calendar_month_rounded,
-                color: const Color(0xFFF59E0B),
-                bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(
-                  context,
-                  ref,
-                  title: 'Employees On Leave Today',
-                  statusType: 'leave',
-                ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.visibility_off_rounded,
+                    size: 28,
+                    color: context.txtMuted,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No overview cards enabled',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: context.txtPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Enable cards from Admin Panel > App Dashboard Settings',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.txtMuted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              _buildOverviewCard(
-                title: 'Absent Today',
-                value: absentCount,
-                icon: Icons.cancel_rounded,
-                color: const Color(0xFFEF4444),
-                bgColor: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                onTap: () => _showAttendanceModal(
-                  context,
-                  ref,
-                  title: 'Absent Employees Today',
-                  statusType: 'absent',
-                ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 1.4,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
-            ],
-          ).animate().slideY(
-            begin: 0.15,
-            end: 0,
-            duration: const Duration(milliseconds: 350),
-          ),
+              itemCount: activeDashboardCards.length,
+              itemBuilder: (context, index) {
+                final card = activeDashboardCards[index];
+                return _buildDynamicOverviewCardItem(
+                  card: card,
+                  totalEmp: totalEmp,
+                  presentCount: presentCount,
+                  leaveCount: leaveCount,
+                  absentCount: absentCount,
+                );
+              },
+            ).animate().slideY(
+              begin: 0.15,
+              end: 0,
+              duration: const Duration(milliseconds: 350),
+            ),
 
           const SizedBox(height: 24),
 
@@ -590,6 +625,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
           ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
         ],
+      ),
       ),
     );
   }
@@ -2490,6 +2526,249 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   }
 
   // --- Overview Stat Card Component ---
+  
+  Widget _buildDynamicOverviewCardItem({
+    required DashboardCardConfig card,
+    required String totalEmp,
+    required String presentCount,
+    required String leaveCount,
+    required String absentCount,
+  }) {
+    Color cardColor = card.parsedColor;
+    final cardTitle = card.title.isNotEmpty ? card.title : 'Overview Box';
+    
+    final rawType = card.dataType.toLowerCase().trim();
+    final rawId = card.id.toLowerCase().trim();
+    final titleLower = cardTitle.toLowerCase().trim();
+
+    String cardValue = '0';
+    IconData cardIcon = card.parsedIcon;
+    VoidCallback? onTapAction;
+
+    // 1. Total Employees
+    if (rawType == 'total_employees' ||
+        rawId == 'total_employees' ||
+        rawType == 'employees' ||
+        rawId == 'employees' ||
+        rawId.contains('employee') ||
+        titleLower.contains('total employee') ||
+        titleLower.contains('total staff') ||
+        titleLower.contains('employee count') ||
+        titleLower == 'employees' ||
+        titleLower == 'staff' ||
+        titleLower == 'workforce') {
+      cardValue = totalEmp;
+      cardIcon = Icons.groups_rounded;
+      if (cardColor == const Color(0xFF6366F1)) {
+        cardColor = const Color(0xFF6366F1);
+      }
+      onTapAction = () => setState(() => _selectedIndex = 1);
+    }
+    // 2. Present Today
+    else if (rawType == 'present_today' ||
+        rawId == 'present_today' ||
+        rawType == 'present' ||
+        rawId == 'present' ||
+        rawId.contains('present') ||
+        titleLower.contains('present today') ||
+        titleLower == 'present' ||
+        titleLower.contains('present staff') ||
+        titleLower.contains('present count')) {
+      cardValue = presentCount;
+      cardIcon = Icons.check_circle_rounded;
+      onTapAction = () => _showAttendanceModal(
+        context,
+        ref,
+        title: cardTitle,
+        statusType: 'present',
+      );
+    }
+    // 3. On Leave Today
+    else if (rawType == 'on_leave_today' ||
+        rawId == 'on_leave_today' ||
+        rawType == 'leave' ||
+        rawId == 'leave' ||
+        rawType == 'on_leave' ||
+        rawId.contains('leave') ||
+        titleLower.contains('leave today') ||
+        titleLower.contains('on leave') ||
+        titleLower == 'leave' ||
+        titleLower == 'leaves') {
+      cardValue = leaveCount;
+      cardIcon = Icons.calendar_month_rounded;
+      onTapAction = () => _showAttendanceModal(
+        context,
+        ref,
+        title: cardTitle,
+        statusType: 'leave',
+      );
+    }
+    // 4. Absent Today
+    else if (rawType == 'absent_today' ||
+        rawId == 'absent_today' ||
+        rawType == 'absent' ||
+        rawId == 'absent' ||
+        rawId.contains('absent') ||
+        titleLower.contains('absent today') ||
+        titleLower.contains('absent') ||
+        titleLower == 'absent') {
+      cardValue = absentCount;
+      cardIcon = Icons.cancel_rounded;
+      onTapAction = () => _showAttendanceModal(
+        context,
+        ref,
+        title: cardTitle,
+        statusType: 'absent',
+      );
+    }
+    // 5. Projects
+    else if (rawType == 'total_projects' ||
+        rawId == 'total_projects' ||
+        rawType == 'projects' ||
+        rawId == 'projects' ||
+        rawId.contains('project') ||
+        titleLower.contains('project')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['totalProjects']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '12');
+      cardIcon = Icons.folder_rounded;
+      onTapAction = () => context.push('/admin/projects');
+    }
+    // 6. Shifts
+    else if (rawType == 'total_shifts' ||
+        rawId == 'total_shifts' ||
+        rawType == 'shifts' ||
+        rawId == 'shifts' ||
+        rawId.contains('shift') ||
+        titleLower.contains('shift')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['totalShifts']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '4');
+      cardIcon = Icons.schedule_rounded;
+      onTapAction = () => context.push('/admin/shifts');
+    }
+    // 7. Holidays
+    else if (rawType == 'total_holidays' ||
+        rawId == 'total_holidays' ||
+        rawType == 'holidays' ||
+        rawId == 'holidays' ||
+        rawId.contains('holiday') ||
+        titleLower.contains('holiday')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['totalHolidays']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '2');
+      cardIcon = Icons.beach_access_rounded;
+      onTapAction = () => context.push('/admin/holidays');
+    }
+    // 8. Salary & Payroll
+    else if (rawType == 'salary' ||
+        rawId == 'salary' ||
+        rawType == 'payroll' ||
+        rawId == 'payroll' ||
+        rawId.contains('salary') ||
+        titleLower.contains('salary') ||
+        titleLower.contains('payroll')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['salary']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '₹4.8L');
+      cardIcon = Icons.payments_rounded;
+      onTapAction = () => context.push('/admin/salary');
+    }
+    // 9. Tasks
+    else if (rawType == 'pending_tasks' ||
+        rawId == 'pending_tasks' ||
+        rawType == 'tasks' ||
+        rawId == 'tasks' ||
+        rawId.contains('task') ||
+        titleLower.contains('task')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['pendingTasks']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '9');
+      cardIcon = Icons.task_alt_rounded;
+      onTapAction = () => context.push('/admin/tasks');
+    }
+    // 10. Pending Leaves
+    else if (rawType == 'pending_leaves' ||
+        rawId == 'pending_leaves' ||
+        titleLower.contains('pending leave')) {
+      cardValue = leaveCount.isNotEmpty ? leaveCount : '0';
+      cardIcon = Icons.pending_actions_rounded;
+      onTapAction = () => _showAttendanceModal(
+        context,
+        ref,
+        title: cardTitle,
+        statusType: 'leave',
+      );
+    }
+    // 11. Reports
+    else if (rawType == 'reports' ||
+        rawId == 'reports' ||
+        titleLower.contains('report')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['reports']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '98%');
+      cardIcon = Icons.analytics_rounded;
+      onTapAction = () => context.push('/admin/reports');
+    }
+    // 12. Work Hours
+    else if (rawType == 'workhours' ||
+        rawId == 'workhours' ||
+        titleLower.contains('work hour') ||
+        titleLower.contains('workhour')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['workhours']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : '8.5h');
+      cardIcon = Icons.timer_rounded;
+      onTapAction = () => context.push('/admin/workhours');
+    }
+    // 13. AI Assistant
+    else if (rawType == 'ai_insights' ||
+        rawId == 'ai_insights' ||
+        titleLower.contains('ai')) {
+      final statsVal = ref.watch(attendanceProvider).stats?['ai']?.toString();
+      cardValue = (statsVal != null && statsVal.isNotEmpty)
+          ? statsVal
+          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : 'AI On');
+      cardIcon = Icons.psychology_rounded;
+      onTapAction = () => context.push('/admin/ai-insights');
+    }
+    // 14. Custom or fallback
+    else {
+      cardValue = (card.customValue != null && card.customValue!.isNotEmpty)
+          ? card.customValue!
+          : '0';
+      cardIcon = card.parsedIcon;
+      if (card.route != null && card.route!.isNotEmpty) {
+        onTapAction = () => context.push(card.route!);
+      }
+    }
+
+    // If card has an explicitly specified icon other than default, use it
+    if (card.icon != null &&
+        card.icon!.isNotEmpty &&
+        card.parsedIcon != Icons.dashboard_customize_rounded) {
+      cardIcon = card.parsedIcon;
+    }
+
+    final cardBgColor = cardColor.withValues(alpha: 0.12);
+
+    return _buildOverviewCard(
+      title: cardTitle,
+      value: cardValue,
+      icon: cardIcon,
+      color: cardColor,
+      bgColor: cardBgColor,
+      onTap: onTapAction,
+    );
+  }
+
   Widget _buildOverviewCard({
     required String title,
     required String value,
@@ -2661,7 +2940,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  // --- Pending Leave Card Matching Screenshot ---
+  // --- Modern Sleek Leave Card Component ---
   Widget _buildPendingLeaveCard(dynamic leave) {
     if (leave is! Map) return const SizedBox.shrink();
 
@@ -2670,167 +2949,429 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
     final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
     final leaveId = leave['_id']?.toString() ?? leave['id']?.toString() ?? '';
+    final reason = (leave['reason'] ?? '').toString().trim();
+    final statusStr = (leave['status'] ?? 'Pending').toString();
+    final statusLower = statusStr.toLowerCase();
+    final isPending = statusLower == 'pending';
+    final isApproved = statusLower == 'approved';
 
     // Format dates from ISO strings
     String dateStr;
+    int dayCount = 1;
     final startRaw = leave['startDate'] ?? leave['from'] ?? leave['fromDate'] ?? leave['start_date'];
     final endRaw = leave['endDate'] ?? leave['to'] ?? leave['toDate'] ?? leave['end_date'];
     try {
       final start = DateTime.parse(startRaw.toString());
       final end = DateTime.parse(endRaw.toString());
       final fmt = DateFormat('d MMM');
-      dateStr = '${fmt.format(start)} - ${fmt.format(end)}';
+      dateStr = (start.day == end.day && start.month == end.month && start.year == end.year)
+          ? fmt.format(start)
+          : '${fmt.format(start)} - ${fmt.format(end)}';
+      dayCount = end.difference(start).inDays + 1;
+      if (dayCount < 1) dayCount = 1;
     } catch (_) {
       dateStr = startRaw?.toString() ?? 'N/A';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.borderCol),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _buildAvatarWidget(empAvatar, employeeName, 21),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
+    final (badgeBg, badgeFg, badgeBorder, badgeIcon, displayStatus) = isApproved
+        ? (
+            const Color(0xFF10B981).withValues(alpha: 0.12),
+            const Color(0xFF10B981),
+            const Color(0xFF10B981).withValues(alpha: 0.3),
+            Icons.check_circle_rounded,
+            'Approved',
+          )
+        : isPending
+            ? (
+                const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                const Color(0xFFF59E0B),
+                const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                Icons.schedule_rounded,
+                'Pending',
+              )
+            : (
+                const Color(0xFFEF4444).withValues(alpha: 0.12),
+                const Color(0xFFEF4444),
+                const Color(0xFFEF4444).withValues(alpha: 0.3),
+                Icons.cancel_rounded,
+                statusStr.isNotEmpty ? statusStr : 'Rejected',
+              );
+
+    return InkWell(
+      onTap: () => _showLeaveDetailsBottomSheet(leave, employeeName, empAvatar, dateStr, dayCount),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.borderCol),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Avatar + Employee Name & Date + Top-Right Status Badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildAvatarWidget(empAvatar, employeeName, 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        employeeName,
+                        style: TextStyle(
+                          color: context.txtPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '$leaveType • $dateStr',
+                              style: TextStyle(
+                                color: context.txtMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              dayCount == 1 ? '1d' : '${dayCount}d',
+                              style: const TextStyle(
+                                color: Color(0xFF6366F1),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Sleek Top-Right Status Pill Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: badgeBorder, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(badgeIcon, size: 13, color: badgeFg),
+                      const SizedBox(width: 4),
+                      Text(
+                        displayStatus,
+                        style: TextStyle(
+                          color: badgeFg,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Optional Reason Preview Box
+            if (reason.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: context.isDark
+                      ? const Color(0xFF1E293B).withValues(alpha: 0.5)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: context.borderCol.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      employeeName,
-                      style: TextStyle(
-                        color: context.txtPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+                    Icon(
+                      Icons.format_quote_rounded,
+                      size: 14,
+                      color: context.txtMuted,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '$leaveType  •  $dateStr',
-                      style: TextStyle(
-                        color: context.txtMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        reason,
+                        style: TextStyle(
+                          color: context.txtSecondary,
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
               ),
             ],
+
+            // Action Buttons Row ONLY for PENDING leaves
+            if (isPending) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _approveLeave(leaveId, 'Rejected'),
+                      icon: const Icon(Icons.close_rounded, size: 15),
+                      label: const Text('Reject'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: BorderSide(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                          width: 1.2,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _approveLeave(leaveId, 'Approved'),
+                      icon: const Icon(Icons.check_rounded, size: 16),
+                      label: const Text('Approve'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLeaveDetailsBottomSheet(
+    dynamic leave,
+    String employeeName,
+    String? empAvatar,
+    String dateStr,
+    int dayCount,
+  ) {
+    if (leave is! Map) return;
+    final leaveType = (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
+    final reason = (leave['reason'] ?? 'No reason provided').toString().trim();
+    final statusStr = (leave['status'] ?? 'Pending').toString();
+    final leaveId = leave['_id']?.toString() ?? leave['id']?.toString() ?? '';
+    final isPending = statusStr.toLowerCase() == 'pending';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: context.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: context.isDark ? 0.3 : 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, -6),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          if ((leave['status'] ?? 'Pending').toString().toLowerCase() ==
-              'pending') ...[
-            // Reject and Approve Buttons Side-by-Side
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _approveLeave(leaveId, 'Rejected'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFEF4444),
-                      side: const BorderSide(
-                        color: Color(0xFFEF4444),
-                        width: 1.2,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                    child: const Text(
-                      'Reject',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.txtMuted.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _approveLeave(leaveId, 'Approved'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                    child: const Text(
-                      'Approve',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  _buildAvatarWidget(empAvatar, employeeName, 24),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          employeeName,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: context.txtPrimary,
+                          ),
+                        ),
+                        Text(
+                          '$leaveType Application',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.txtMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: context.txtMuted),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.cardLightBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: context.borderCol),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Duration:', style: TextStyle(color: context.txtMuted, fontSize: 13)),
+                        Text('$dateStr ($dayCount ${dayCount == 1 ? "Day" : "Days"})',
+                            style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w700, fontSize: 13)),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Status:', style: TextStyle(color: context.txtMuted, fontSize: 13)),
+                        Text(statusStr,
+                            style: TextStyle(
+                              color: statusStr.toLowerCase() == 'approved'
+                                  ? const Color(0xFF10B981)
+                                  : statusStr.toLowerCase() == 'pending'
+                                      ? const Color(0xFFF59E0B)
+                                      : const Color(0xFFEF4444),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            )),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text('Reason for Leave:',
+                  style: TextStyle(color: context.txtMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: context.isDark
+                      ? const Color(0xFF1E293B).withValues(alpha: 0.5)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.borderCol),
+                ),
+                child: Text(
+                  reason,
+                  style: TextStyle(color: context.txtPrimary, fontSize: 13.5, height: 1.4),
+                ),
+              ),
+              if (isPending) ...[
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _approveLeave(leaveId, 'Rejected');
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFEF4444),
+                          side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Reject Leave', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _approveLeave(leaveId, 'Approved');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Approve Leave', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ] else ...[
-            // Approved or Rejected Badge
-            Builder(
-              builder: (context) {
-                final stStr = (leave['status'] ?? '').toString();
-                final isAppr = stStr.toLowerCase() == 'approved';
-                final bgCol = isAppr
-                    ? const Color(0xFFDCFCE7)
-                    : const Color(0xFFFEE2E2);
-                final fgCol = isAppr
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFEF4444);
-                final iconData = isAppr
-                    ? Icons.check_circle_rounded
-                    : Icons.cancel_rounded;
-
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: bgCol,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: fgCol.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(iconData, size: 16, color: fgCol),
-                      const SizedBox(width: 6),
-                      Text(
-                        stStr.isNotEmpty
-                            ? stStr
-                            : (isAppr ? 'Approved' : 'Rejected'),
-                        style: TextStyle(
-                          color: fgCol,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ],
-      ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -2908,85 +3449,93 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     WidgetRef ref,
     AuthState auth,
   ) {
-    final userName = auth.user?['name'] ?? 'Admin User';
-    final userEmail = auth.user?['email'] ?? 'admin@ams.com';
+    final rawUser = auth.user;
+    final Map<String, dynamic>? userMap =
+        rawUser is Map ? Map<String, dynamic>.from(rawUser as Map) : null;
+    final userName = userMap?['name']?.toString() ??
+        userMap?['fullName']?.toString() ??
+        'Admin User';
+    final userEmail = userMap?['email']?.toString() ?? 'admin@ams.com';
 
     return Drawer(
       backgroundColor: context.drawerBg,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              20,
-              MediaQuery.of(context).padding.top + 20,
-              20,
-              20,
-            ),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF1E1B4B),
-                  Color(0xFF312E81),
-                  Color(0xFF4338CA),
+      child: SafeArea(
+        top: false,
+        bottom: true,
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                MediaQuery.of(context).padding.top + 20,
+                20,
+                20,
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF1E1B4B),
+                    Color(0xFF312E81),
+                    Color(0xFF4338CA),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildAvatarWidget(rawUser, userName, 30),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          userName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'ADMIN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userEmail,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildAvatarWidget(auth.user, userName, 30),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        userName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'ADMIN',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  userEmail,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
+            Expanded(
+              child: ListView(
               padding: EdgeInsets.zero,
               children: [
                 ListTile(
@@ -3018,26 +3567,6 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  trailing: ref.watch(chatProvider).totalUnread > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${ref.watch(chatProvider).totalUnread}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : null,
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/chat');
@@ -3160,9 +3689,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  subtitle: Text(
+                    'Attendance metrics & statistics',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    setState(() => _selectedIndex = 3);
+                    context.push('/admin/analytics');
                   },
                 ),
                 ListTile(
@@ -3177,9 +3710,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  subtitle: Text(
+                    'Calculate and manage monthly salary',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/admin/salary');
+                    context.push('/admin/salary');
                   },
                 ),
                 ListTile(
@@ -3194,9 +3731,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  subtitle: Text(
+                    'Track project deadlines and team progress',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/admin/projects');
+                    context.push('/admin/projects');
                   },
                 ),
                 ListTile(
@@ -3211,9 +3752,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  subtitle: Text(
+                    'View upcoming public and company holidays',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/admin/holidays');
+                    context.push('/admin/holidays');
                   },
                 ),
                 ListTile(
@@ -3230,7 +3775,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/admin/notifications');
+                    context.push('/admin/notifications');
                   },
                 ),
                 Divider(color: context.dividerCol),
@@ -3245,7 +3790,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/employee/dashboard');
+                    context.push('/employee/dashboard');
                   },
                 ),
                 ListTile(
@@ -3285,8 +3830,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // --- Employees Tab ---
   Widget _buildEmployeesTab() {
@@ -4742,8 +5288,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  // --- Bottom Navigation Bar with 5 Items ---
+  // --- Dynamic Bottom Navigation Bar (Configured via Website Dashboard Settings) ---
   Widget _buildBottomNav() {
+    final activeNav = ref.watch(dashboardConfigProvider).enabledBottomNav;
+    final safeIndex = _selectedIndex < activeNav.length ? _selectedIndex : 0;
+
     return Container(
       decoration: BoxDecoration(
         color: context.bottomNavBg,
@@ -4755,7 +5304,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         ),
       ),
       child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
+        currentIndex: safeIndex,
         backgroundColor: Colors.transparent,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
@@ -4765,39 +5314,54 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         unselectedFontSize: 11,
         onTap: (i) {
           setState(() => _selectedIndex = i);
-          if (i == 2) {
-            ref.read(attendanceProvider.notifier).loadAllLeaves();
+          if (i < activeNav.length) {
+            final tabId = activeNav[i].id.toLowerCase();
+            if (tabId == 'leaves' || tabId == 'pending_leaves') {
+              ref.read(attendanceProvider.notifier).loadAllLeaves();
+            }
           }
         },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home_rounded),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline_rounded),
-            activeIcon: Icon(Icons.people_rounded),
-            label: 'Employees',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.business_center_outlined),
-            activeIcon: Icon(Icons.business_center_rounded),
-            label: 'Leaves',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_outlined),
-            activeIcon: Icon(Icons.chat_rounded),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz_rounded),
-            activeIcon: Icon(Icons.more_horiz_rounded),
-            label: 'More',
-          ),
-        ],
+        items: activeNav.map((item) {
+          final icons = _getNavIcons(item.icon, item.id);
+          return BottomNavigationBarItem(
+            icon: Icon(icons.$1),
+            activeIcon: Icon(icons.$2),
+            label: item.label,
+          );
+        }).toList(),
       ),
     );
+  }
+
+  (IconData, IconData) _getNavIcons(String iconType, String id) {
+    switch (id.toLowerCase()) {
+      case 'dashboard':
+        return (Icons.home_outlined, Icons.home_rounded);
+      case 'employees':
+        return (Icons.people_outline_rounded, Icons.people_rounded);
+      case 'leaves':
+      case 'pending_leaves':
+        return (Icons.business_center_outlined, Icons.business_center_rounded);
+      case 'messages':
+      case 'chat':
+        return (Icons.chat_outlined, Icons.chat_rounded);
+      case 'more':
+        return (Icons.more_horiz_rounded, Icons.more_horiz_rounded);
+      case 'projects':
+        return (Icons.folder_outlined, Icons.folder_rounded);
+      case 'shifts':
+        return (Icons.schedule_outlined, Icons.schedule_rounded);
+      case 'salary':
+        return (Icons.payments_outlined, Icons.payments_rounded);
+      case 'analytics':
+        return (Icons.analytics_outlined, Icons.analytics_rounded);
+      case 'holidays':
+        return (Icons.beach_access_outlined, Icons.beach_access_rounded);
+      case 'tasks':
+        return (Icons.task_alt_outlined, Icons.task_alt_rounded);
+      default:
+        return (Icons.dashboard_outlined, Icons.dashboard_rounded);
+    }
   }
 }
 
@@ -4899,4 +5463,11 @@ bool isLeaveActiveToday(dynamic leave, [DateTime? targetDate]) {
   } catch (_) {
     return false;
   }
+}
+
+
+class _NavIconPair {
+  final IconData item1;
+  final IconData item2;
+  const _NavIconPair(this.item1, this.item2);
 }

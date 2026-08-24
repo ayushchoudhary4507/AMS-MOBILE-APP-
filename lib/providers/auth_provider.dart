@@ -58,9 +58,19 @@ bool isLikelyValidAvatarString(String clean) {
   if (clean.startsWith('/') || clean.startsWith('uploads') || clean.startsWith('public')) return true;
   if (clean.startsWith('file://') || clean.contains(':\\') || clean.startsWith('/data/')) return true;
   if (clean.startsWith('data:image/')) return true;
-  // ICC color profile junk starts with AAAB, xtbHVj, etc.
-  if (clean.startsWith('AAAB') || clean.startsWith('xtbHVj')) return false;
-  return clean.length > 50;
+
+  // Strict check for valid base64 image magic signatures:
+  // JPEG (/9j/), PNG (iVBORw0KGgo), GIF (R0lGOD), WebP (UklGR), SVG (PHN2Zw / PD94b)
+  if (clean.startsWith('/9j/') ||
+      clean.startsWith('iVBORw0KGgo') ||
+      clean.startsWith('R0lGOD') ||
+      clean.startsWith('UklGR') ||
+      clean.startsWith('PHN2Zw') ||
+      clean.startsWith('PD94b')) {
+    return clean.length > 50;
+  }
+
+  return false;
 }
 
 /// Helper to extract valid avatar string (URL, relative path, or base64) from user object or string

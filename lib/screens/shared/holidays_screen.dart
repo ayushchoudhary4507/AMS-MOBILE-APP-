@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/employee_provider.dart';
-import '../../providers/theme_provider.dart';
 
 class HolidaysScreen extends ConsumerWidget {
   const HolidaysScreen({super.key});
@@ -12,18 +11,31 @@ class HolidaysScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final holidaysAsync = ref.watch(holidaysProvider);
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
     final now = DateTime.now();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Holidays Calendar',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -34,20 +46,15 @@ class HolidaysScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: context.txtMuted),
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
             onPressed: () => ref.refresh(holidaysProvider),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: holidaysAsync.when(
@@ -102,18 +109,18 @@ class HolidaysScreen extends ConsumerWidget {
                     children: [
                       // Year Header
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+                            colors: [Color(0xFF6366F1), Color(0xFF4338CA)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(22),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFEC4899).withValues(alpha: 0.35),
-                              blurRadius: 16,
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                              blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
                           ],
@@ -231,22 +238,22 @@ class HolidaysScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isToday
-            ? const Color(0xFFEC4899).withValues(alpha: 0.08)
+            ? const Color(0xFF6366F1).withValues(alpha: 0.08)
             : context.cardBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isToday
-              ? const Color(0xFFEC4899).withValues(alpha: 0.4)
+              ? const Color(0xFF6366F1).withValues(alpha: 0.5)
               : isUpcoming
-                  ? context.borderCol
-                  : context.borderCol.withValues(alpha: 0.5),
+                  ? context.borderCol.withValues(alpha: 0.8)
+                  : context.borderCol.withValues(alpha: 0.4),
           width: isToday ? 1.5 : 1,
         ),
         boxShadow: isUpcoming
             ? [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.04),
-                  blurRadius: 10,
+                  color: Colors.black.withValues(alpha: context.isDark ? 0.16 : 0.04),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ]
@@ -259,10 +266,21 @@ class HolidaysScreen extends ConsumerWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: isUpcoming
-                  ? const Color(0xFFEC4899).withValues(alpha: 0.12)
-                  : context.cardLightBg,
+              gradient: isUpcoming
+                  ? LinearGradient(
+                      colors: [
+                        const Color(0xFF6366F1).withValues(alpha: 0.22),
+                        const Color(0xFF818CF8).withValues(alpha: 0.12),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isUpcoming ? null : context.cardLightBg,
               borderRadius: BorderRadius.circular(14),
+              border: isUpcoming
+                  ? Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3))
+                  : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -270,19 +288,20 @@ class HolidaysScreen extends ConsumerWidget {
                 Text(
                   date != null ? date.day.toString() : '--',
                   style: TextStyle(
-                    color: isUpcoming ? const Color(0xFFEC4899) : context.txtMuted,
+                    color: isUpcoming ? const Color(0xFF818CF8) : context.txtMuted,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
-                  date != null ? DateFormat('MMM').format(date) : '',
+                  date != null ? DateFormat('MMM').format(date).toUpperCase() : '',
                   style: TextStyle(
                     color: isUpcoming
-                        ? const Color(0xFFEC4899).withValues(alpha: 0.7)
+                        ? const Color(0xFF6366F1)
                         : context.txtMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -309,7 +328,7 @@ class HolidaysScreen extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEC4899),
+                          color: const Color(0xFF6366F1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
@@ -337,17 +356,18 @@ class HolidaysScreen extends ConsumerWidget {
                       ),
                     ],
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: typeColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+                        color: typeColor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: typeColor.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         type,
                         style: TextStyle(
                           color: typeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -379,10 +399,10 @@ class HolidaysScreen extends ConsumerWidget {
             width: 90,
             height: 90,
             decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withValues(alpha: 0.1),
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.holiday_village_outlined, size: 44, color: Color(0xFFEC4899)),
+            child: const Icon(Icons.holiday_village_outlined, size: 44, color: Color(0xFF6366F1)),
           ),
           const SizedBox(height: 20),
           Text(
@@ -402,7 +422,7 @@ class HolidaysScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEC4899),
+              backgroundColor: const Color(0xFF6366F1),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -418,16 +438,19 @@ class HolidaysScreen extends ConsumerWidget {
 
   Color _getTypeColor(String type) {
     switch (type.toLowerCase()) {
+      case 'public':
       case 'national':
-        return const Color(0xFFEC4899);
+        return const Color(0xFF6366F1); // Brand Indigo
+      case 'company':
+        return const Color(0xFF10B981); // Emerald Green
       case 'optional':
-        return const Color(0xFFF59E0B);
+        return const Color(0xFFF59E0B); // Amber
       case 'regional':
-        return const Color(0xFF06B6D4);
+        return const Color(0xFF06B6D4); // Cyan
       case 'festival':
-        return const Color(0xFF8B5CF6);
+        return const Color(0xFF8B5CF6); // Purple
       default:
-        return const Color(0xFFEC4899);
+        return const Color(0xFF6366F1);
     }
   }
 }

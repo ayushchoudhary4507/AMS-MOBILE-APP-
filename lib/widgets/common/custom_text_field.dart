@@ -55,10 +55,12 @@ class CustomTextField extends StatelessWidget {
         fontSize: 15,
       ),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: context.txtSecondary),
-        hintText: hint,
-        hintStyle: TextStyle(color: context.txtMuted),
+        floatingLabelBehavior: FloatingLabelBehavior.never,
+        hintText: hint.isNotEmpty ? hint : label,
+        hintStyle: TextStyle(
+          color: context.txtMuted.withValues(alpha: 0.7),
+          fontSize: 14,
+        ),
         prefixIcon: Icon(prefixIcon, color: context.txtMuted, size: 20),
         suffixIcon: suffixIcon,
         counter: counter,

@@ -60,6 +60,9 @@ class ApiConstants {
   // Settings
   static const String settings = '/settings';
 
+  // Dashboard Overview Configuration
+  static const String dashboardConfig = '/dashboard-config';
+
   // Shifts
   static const String shifts = '/shifts';
 }

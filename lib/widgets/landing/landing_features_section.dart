@@ -47,8 +47,6 @@ class LandingFeaturesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.isDark;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Column(
@@ -129,90 +127,133 @@ class LandingFeaturesSection extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _features.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final feature = _features[index];
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF131728).withValues(alpha: 0.75)
-                      : Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDark
-                        ? const Color(0xFF2D334D).withValues(alpha: 0.6)
-                        : const Color(0xFFE2E8F0),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: feature.gradientColors[0].withValues(alpha: isDark ? 0.12 : 0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: feature.gradientColors,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: feature.gradientColors[0].withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          feature.icon,
-                          style: const TextStyle(fontSize: 22),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            feature.title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: context.txtPrimary,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            feature.desc,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.4,
-                              color: context.txtSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              return _InteractiveFeatureCard(feature: _features[index]);
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InteractiveFeatureCard extends StatefulWidget {
+  final FeatureItem feature;
+
+  const _InteractiveFeatureCard({required this.feature});
+
+  @override
+  State<_InteractiveFeatureCard> createState() => _InteractiveFeatureCardState();
+}
+
+class _InteractiveFeatureCardState extends State<_InteractiveFeatureCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.isDark;
+    final primaryColor = widget.feature.gradientColors[0];
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      onHover: (_) {
+        if (!_isHovered) setState(() => _isHovered = true);
+      },
+      cursor: SystemMouseCursors.click,
+      child: AnimatedScale(
+        scale: _isHovered ? 1.025 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? primaryColor.withValues(alpha: isDark ? 0.18 : 0.08)
+                : (isDark
+                    ? const Color(0xFF131728).withValues(alpha: 0.75)
+                    : Colors.white.withValues(alpha: 0.9)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _isHovered
+                  ? primaryColor.withValues(alpha: 0.8)
+                  : (isDark
+                      ? const Color(0xFF2D334D).withValues(alpha: 0.6)
+                      : const Color(0xFFE2E8F0)),
+              width: _isHovered ? 1.6 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: _isHovered ? 0.28 : (isDark ? 0.12 : 0.06)),
+                blurRadius: _isHovered ? 20 : 16,
+                offset: Offset(0, _isHovered ? 8 : 6),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedScale(
+                scale: _isHovered ? 1.1 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: widget.feature.gradientColors,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: _isHovered ? 0.55 : 0.35),
+                        blurRadius: _isHovered ? 14 : 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.feature.icon,
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.feature.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _isHovered ? primaryColor : context.txtPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.feature.desc,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: context.txtSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

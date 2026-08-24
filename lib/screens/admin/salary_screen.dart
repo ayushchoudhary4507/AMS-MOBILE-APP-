@@ -3,27 +3,55 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/employee_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../widgets/common/app_avatar.dart';
 
-class AdminSalaryScreen extends ConsumerWidget {
+class AdminSalaryScreen extends ConsumerStatefulWidget {
   const AdminSalaryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminSalaryScreen> createState() => _AdminSalaryScreenState();
+}
+
+class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(allSalaryProvider);
+      ref.read(employeeProvider.notifier).loadEmployees();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final salaryAsync = ref.watch(allSalaryProvider);
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
+    final employeeState = ref.watch(employeeProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Salary Management',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -34,28 +62,26 @@ class AdminSalaryScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
+            onPressed: () {
+              ref.invalidate(allSalaryProvider);
+              ref.read(employeeProvider.notifier).loadEmployees();
+            },
           ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: context.txtMuted),
-            onPressed: () => ref.refresh(allSalaryProvider),
-          ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: salaryAsync.when(
             loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-            error: (e, _) => _buildEmptyState(context, ref),
+            error: (e, _) => _buildEmptyState(context),
             data: (salaries) {
-              if (salaries.isEmpty) return _buildEmptyState(context, ref);
-              return _buildContent(context, ref, salaries);
+              if (salaries.isEmpty) return _buildEmptyState(context);
+              return _buildContent(context, salaries, employeeState.employees);
             },
           ),
         ),
@@ -63,23 +89,25 @@ class AdminSalaryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, List<dynamic> salaries) {
+  Widget _buildContent(BuildContext context, List<dynamic> salaries, List<dynamic> allEmployees) {
     // Summary stats
     double totalPayroll = 0;
     int processedCount = 0;
     for (final s in salaries) {
       if (s is Map) {
-        final net = double.tryParse(s['netSalary']?.toString() ?? s['netPay']?.toString() ?? s['net']?.toString() ?? s['amount']?.toString() ?? '0') ?? 0;
+        final net = _resolveNetPay(s);
         totalPayroll += net;
-        if ((s['status']?.toString() ?? '').toLowerCase() == 'processed' ||
-            (s['status']?.toString() ?? '').toLowerCase() == 'paid') {
+        if (_resolveStatus(s) == 'Paid') {
           processedCount++;
         }
       }
     }
 
     return RefreshIndicator(
-      onRefresh: () async => ref.refresh(allSalaryProvider),
+      onRefresh: () async {
+        ref.invalidate(allSalaryProvider);
+        ref.read(employeeProvider.notifier).loadEmployees();
+      },
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -111,19 +139,19 @@ class AdminSalaryScreen extends ConsumerWidget {
                 children: [
                   const Text(
                     'Total Payroll',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '₹${_formatAmount(totalPayroll)}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: -1,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       _heroStat('Total Staff', salaries.length.toString()),
@@ -159,7 +187,7 @@ class AdminSalaryScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            ...salaries.map((s) => _buildSalaryCard(context, s)),
+            ...salaries.map((s) => _buildSalaryCard(context, s, allEmployees)),
             const SizedBox(height: 24),
           ],
         ),
@@ -177,39 +205,30 @@ class AdminSalaryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSalaryCard(BuildContext context, dynamic salary) {
+  Widget _buildSalaryCard(BuildContext context, dynamic salary, List<dynamic> allEmployees) {
     if (salary is! Map) return const SizedBox.shrink();
-    final emp = salary['employee'];
-    final empName = (emp is Map ? emp['name'] : null) ??
-        salary['employeeName']?.toString() ??
-        salary['name']?.toString() ??
-        'Employee';
-    final empEmail = (emp is Map ? emp['email'] : null) ??
-        salary['employeeEmail']?.toString() ??
-        salary['email']?.toString() ??
-        '';
-    final dept = (emp is Map ? emp['department'] : null) ??
-        salary['department']?.toString() ??
-        '';
+    
+    final empName = _resolveEmployeeName(salary, allEmployees);
+    final empEmail = _resolveEmployeeEmail(salary, allEmployees);
+    final dept = _resolveEmployeeDept(salary, allEmployees);
+    final netPay = _resolveNetPay(salary);
+    final status = _resolveStatus(salary);
+    final monthYear = _resolveMonthYear(salary);
+    final avatarData = _resolveAvatar(salary, allEmployees);
 
-    final netPay = double.tryParse(salary['netSalary']?.toString() ?? salary['netPay']?.toString() ?? salary['net']?.toString() ?? salary['amount']?.toString() ?? '0') ?? 0;
-    final status = salary['status']?.toString() ?? 'Pending';
-    final month = salary['month']?.toString() ?? salary['salaryMonth']?.toString() ?? DateFormat('MMM yyyy').format(DateTime.now());
-
-    final statusColor = status.toLowerCase() == 'processed' || status.toLowerCase() == 'paid'
-        ? const Color(0xFF10B981)
-        : const Color(0xFFF59E0B);
+    final isPaid = status.toLowerCase() == 'paid' || status.toLowerCase() == 'processed';
+    final statusColor = isPaid ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.borderCol),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.borderCol.withValues(alpha: 0.7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.04),
+            color: Colors.black.withValues(alpha: context.isDark ? 0.14 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -218,7 +237,7 @@ class AdminSalaryScreen extends ConsumerWidget {
       child: Row(
         children: [
           AppAvatar(
-            avatarOrUser: emp ?? salary,
+            avatarOrUser: avatarData ?? salary,
             fallbackText: empName,
             radius: 22,
             backgroundColor: AppColors.primary,
@@ -228,14 +247,25 @@ class AdminSalaryScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(empName, style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(
+                  empName,
+                  style: TextStyle(
+                    color: context.txtPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  dept.isNotEmpty ? '$dept • $month' : month,
-                  style: TextStyle(color: context.txtMuted, fontSize: 12),
+                  dept.isNotEmpty ? '$dept • $monthYear' : monthYear,
+                  style: TextStyle(color: context.txtSecondary, fontSize: 12),
                 ),
                 if (empEmail.isNotEmpty)
-                  Text(empEmail, style: TextStyle(color: context.txtMuted, fontSize: 11), overflow: TextOverflow.ellipsis),
+                  Text(
+                    empEmail,
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
@@ -246,20 +276,21 @@ class AdminSalaryScreen extends ConsumerWidget {
                 '₹${_formatAmount(netPay)}',
                 style: TextStyle(
                   color: context.txtPrimary,
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   status,
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: statusColor, fontSize: 10.5, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -269,7 +300,164 @@ class AdminSalaryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+  String _resolveEmployeeName(dynamic salary, List<dynamic> allEmployees) {
+    if (salary is! Map) return 'Employee';
+    final empIdObj = salary['employeeId'];
+    if (empIdObj is Map && empIdObj['name'] != null && empIdObj['name'].toString().isNotEmpty) {
+      return empIdObj['name'].toString();
+    }
+    final userObj = salary['userId'];
+    if (userObj is Map && userObj['name'] != null && userObj['name'].toString().isNotEmpty) {
+      return userObj['name'].toString();
+    }
+    final empObj = salary['employee'];
+    if (empObj is Map && empObj['name'] != null && empObj['name'].toString().isNotEmpty) {
+      return empObj['name'].toString();
+    }
+    if (salary['employeeName'] != null && salary['employeeName'].toString().isNotEmpty) {
+      return salary['employeeName'].toString();
+    }
+    if (salary['name'] != null && salary['name'].toString().isNotEmpty) {
+      return salary['name'].toString();
+    }
+
+    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'] ?? salary['_id'])?.toString();
+    if (targetId != null && targetId.isNotEmpty) {
+      for (final e in allEmployees) {
+        if (e is Map) {
+          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
+          if (eId == targetId && e['name'] != null) {
+            return e['name'].toString();
+          }
+        }
+      }
+    }
+    return 'Employee';
+  }
+
+  String _resolveEmployeeEmail(dynamic salary, List<dynamic> allEmployees) {
+    if (salary is! Map) return '';
+    final empIdObj = salary['employeeId'];
+    if (empIdObj is Map && empIdObj['email'] != null) return empIdObj['email'].toString();
+    final userObj = salary['userId'];
+    if (userObj is Map && userObj['email'] != null) return userObj['email'].toString();
+    final empObj = salary['employee'];
+    if (empObj is Map && empObj['email'] != null) return empObj['email'].toString();
+    if (salary['email'] != null) return salary['email'].toString();
+
+    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
+    if (targetId != null && targetId.isNotEmpty) {
+      for (final e in allEmployees) {
+        if (e is Map) {
+          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
+          if (eId == targetId && e['email'] != null) {
+            return e['email'].toString();
+          }
+        }
+      }
+    }
+    return '';
+  }
+
+  String _resolveEmployeeDept(dynamic salary, List<dynamic> allEmployees) {
+    if (salary is! Map) return '';
+    final empIdObj = salary['employeeId'];
+    if (empIdObj is Map && empIdObj['designation'] != null) return empIdObj['designation'].toString();
+    if (empIdObj is Map && empIdObj['department'] != null) return empIdObj['department'].toString();
+    final empObj = salary['employee'];
+    if (empObj is Map && empObj['designation'] != null) return empObj['designation'].toString();
+    if (empObj is Map && empObj['department'] != null) return empObj['department'].toString();
+    if (salary['designation'] != null) return salary['designation'].toString();
+    if (salary['department'] != null) return salary['department'].toString();
+
+    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
+    if (targetId != null && targetId.isNotEmpty) {
+      for (final e in allEmployees) {
+        if (e is Map) {
+          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
+          if (eId == targetId) {
+            return (e['designation'] ?? e['department'] ?? e['role'] ?? '').toString();
+          }
+        }
+      }
+    }
+    return '';
+  }
+
+  dynamic _resolveAvatar(dynamic salary, List<dynamic> allEmployees) {
+    if (salary is! Map) return null;
+    final empIdObj = salary['employeeId'];
+    if (empIdObj is Map) {
+      final av = extractAvatarUrl(empIdObj);
+      if (av != null && av.isNotEmpty) return av;
+    }
+    final userObj = salary['userId'];
+    if (userObj is Map) {
+      final av = extractAvatarUrl(userObj);
+      if (av != null && av.isNotEmpty) return av;
+    }
+    final empObj = salary['employee'];
+    if (empObj is Map) {
+      final av = extractAvatarUrl(empObj);
+      if (av != null && av.isNotEmpty) return av;
+    }
+    final direct = extractAvatarUrl(salary);
+    if (direct != null && direct.isNotEmpty) return direct;
+
+    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
+    if (targetId != null && targetId.isNotEmpty) {
+      for (final e in allEmployees) {
+        if (e is Map) {
+          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
+          if (eId == targetId) {
+            return extractAvatarUrl(e) ?? e;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  double _resolveNetPay(dynamic salary) {
+    if (salary is! Map) return 0;
+    final val = salary['finalSalary'] ??
+        salary['netSalary'] ??
+        salary['basicSalary'] ??
+        salary['netPay'] ??
+        salary['amount'] ??
+        salary['baseSalary'] ??
+        salary['salary'] ??
+        0;
+    return double.tryParse(val.toString()) ?? 0;
+  }
+
+  String _resolveMonthYear(dynamic salary) {
+    if (salary is! Map) return DateFormat('MMMM yyyy').format(DateTime.now());
+    final m = salary['month'];
+    final y = salary['year'];
+    if (m != null) {
+      final mInt = int.tryParse(m.toString());
+      final yInt = int.tryParse(y?.toString() ?? '') ?? DateTime.now().year;
+      if (mInt != null && mInt >= 1 && mInt <= 12) {
+        final dt = DateTime(yInt, mInt);
+        return DateFormat('MMMM yyyy').format(dt);
+      }
+    }
+    if (salary['salaryMonth'] != null) return salary['salaryMonth'].toString();
+    return DateFormat('MMMM yyyy').format(DateTime.now());
+  }
+
+  String _resolveStatus(dynamic salary) {
+    if (salary is! Map) return 'Pending';
+    if (salary['isPaid'] == true ||
+        salary['status']?.toString().toLowerCase() == 'paid' ||
+        salary['status']?.toString().toLowerCase() == 'processed') {
+      return 'Paid';
+    }
+    return 'Pending';
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -297,7 +485,10 @@ class AdminSalaryScreen extends ConsumerWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            onPressed: () => ref.refresh(allSalaryProvider),
+            onPressed: () {
+              ref.invalidate(allSalaryProvider);
+              ref.read(employeeProvider.notifier).loadEmployees();
+            },
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
           ),

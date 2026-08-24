@@ -317,11 +317,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 6, 8, 10),
       decoration: BoxDecoration(
-        color: context.cardBg.withValues(alpha: 0.9),
-        border: Border(
-          bottom: BorderSide(
-              color: context.borderCol.withValues(alpha: 0.5), width: 1),
-        ),
+        color: context.isDark
+            ? Colors.transparent
+            : context.cardBg.withValues(alpha: 0.9),
+        border: context.isDark
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: context.borderCol.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
       ),
       child: Row(
         children: [

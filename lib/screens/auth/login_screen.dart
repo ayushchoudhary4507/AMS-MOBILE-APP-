@@ -9,7 +9,6 @@ import '../../services/biometric_service.dart';
 import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/custom_button.dart';
-import '../../widgets/common/app_logo.dart';
 import '../../widgets/common/attendance_pro_icon.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {

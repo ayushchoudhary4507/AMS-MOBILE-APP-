@@ -10,7 +10,8 @@ import '../../providers/employee_provider.dart';
 import '../../widgets/common/app_avatar.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
-  const ChatListScreen({super.key});
+  final bool showAppBar;
+  const ChatListScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
@@ -172,32 +173,41 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final employees = ref.watch(employeeProvider).employees;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Messages',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              ref.read(chatProvider.notifier).loadConversations();
-              ref.read(chatProvider.notifier).loadContacts();
-              ref.read(employeeProvider.notifier).loadEmployees();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: context.cardBg,
-                borderRadius: BorderRadius.circular(16),
+      backgroundColor: Colors.transparent,
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: const Text(
+                'Messages',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
+              ),
+              centerTitle: false,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: () {
+                    ref.read(chatProvider.notifier).loadConversations();
+                    ref.read(chatProvider.notifier).loadContacts();
+                    ref.read(employeeProvider.notifier).loadEmployees();
+                  },
+                ),
+              ],
+            )
+          : null,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(gradient: context.mainBgGradient),
+        child: Column(
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: context.cardBg,
+                  borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: context.borderCol.withValues(alpha: 0.5)),
               ),
               child: TextField(
@@ -358,6 +368,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           ),
         ],
       ),
+    ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showStartChatModal(context),
         backgroundColor: AppColors.primary,

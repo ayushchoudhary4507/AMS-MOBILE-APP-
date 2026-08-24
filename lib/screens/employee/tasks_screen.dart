@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/employee_provider.dart';
-import '../../providers/theme_provider.dart';
 
 class EmployeeTasksScreen extends ConsumerStatefulWidget {
   const EmployeeTasksScreen({super.key});
@@ -25,7 +24,6 @@ class _EmployeeTasksScreenState extends ConsumerState<EmployeeTasksScreen> {
   @override
   Widget build(BuildContext context) {
     final taskState = ref.watch(taskProvider);
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
 
     final filteredTasks = _filterStatus == 'All'
         ? taskState.tasks
@@ -35,14 +33,28 @@ class _EmployeeTasksScreenState extends ConsumerState<EmployeeTasksScreen> {
           }).toList();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'My Tasks',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -53,20 +65,15 @@ class _EmployeeTasksScreenState extends ConsumerState<EmployeeTasksScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: context.txtMuted),
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
             onPressed: () => ref.read(taskProvider.notifier).loadTasks(),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: Column(

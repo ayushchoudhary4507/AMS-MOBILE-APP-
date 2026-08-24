@@ -4,27 +4,55 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/employee_provider.dart';
 import '../../providers/attendance_provider.dart';
-import '../../providers/theme_provider.dart';
 import 'admin_dashboard.dart';
 
-class AdminAnalyticsScreen extends ConsumerWidget {
+class AdminAnalyticsScreen extends ConsumerStatefulWidget {
   const AdminAnalyticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminAnalyticsScreen> createState() => _AdminAnalyticsScreenState();
+}
+
+class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(analyticsProvider);
+      ref.read(attendanceProvider.notifier).loadStats();
+      ref.read(attendanceProvider.notifier).loadAllLeaves();
+      ref.read(employeeProvider.notifier).loadEmployees();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final analyticsAsync = ref.watch(analyticsProvider);
     final attendance = ref.watch(attendanceProvider);
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Analytics',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -35,35 +63,32 @@ class AdminAnalyticsScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: context.txtMuted),
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
             onPressed: () {
               ref.invalidate(analyticsProvider);
               ref.read(attendanceProvider.notifier).loadStats();
+              ref.read(attendanceProvider.notifier).loadAllLeaves();
+              ref.read(employeeProvider.notifier).loadEmployees();
             },
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: analyticsAsync.when(
             loading: () => const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             ),
-            error: (e, _) => _buildFromAttendanceStats(context, ref, attendance),
+            error: (e, _) => _buildFromAttendanceStats(context, attendance),
             data: (analytics) {
               if (analytics == null || analytics.isEmpty) {
-                return _buildFromAttendanceStats(context, ref, attendance);
+                return _buildFromAttendanceStats(context, attendance);
               }
-              return _buildAnalyticsContent(context, ref, analytics, attendance);
+              return _buildAnalyticsContent(context, analytics, attendance);
             },
           ),
         ),
@@ -71,12 +96,12 @@ class AdminAnalyticsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildFromAttendanceStats(BuildContext context, WidgetRef ref, AttendanceState attendance) {
+  Widget _buildFromAttendanceStats(BuildContext context, AttendanceState attendance) {
     final stats = attendance.stats ?? {};
-    return _buildAnalyticsContent(context, ref, stats, attendance);
+    return _buildAnalyticsContent(context, stats, attendance);
   }
 
-  Widget _buildAnalyticsContent(BuildContext context, WidgetRef ref, Map<String, dynamic> analytics, AttendanceState attendance) {
+  Widget _buildAnalyticsContent(BuildContext context, Map<String, dynamic> analytics, AttendanceState attendance) {
     final employeeState = ref.watch(employeeProvider);
     final stats = attendance.stats ?? analytics;
 
@@ -87,18 +112,29 @@ class AdminAnalyticsScreen extends ConsumerWidget {
     final presentToday = _parseInt(
       analytics['presentToday'] ?? analytics['present'] ?? stats['presentCount'] ?? stats['present'] ?? 0
     );
-    final absentToday = _parseInt(
-      analytics['absentToday'] ?? analytics['absent'] ?? stats['absentCount'] ?? stats['absent'] ?? 0
-    );
 
     final activeTodayLeavesCount = attendance.allLeaves.where((l) => isLeaveActiveToday(l)).length;
 
-    final onLeave = _parseInt(
-      analytics['onLeave'] ?? analytics['leaveCount'] ?? stats['leaveCount'] ?? stats['onLeave'] ?? activeTodayLeavesCount
+    final onLeave = stats['leaveCount'] != null && _parseInt(stats['leaveCount']) > 0
+        ? _parseInt(stats['leaveCount'])
+        : (analytics['onLeave'] != null && _parseInt(analytics['onLeave']) > 0
+            ? _parseInt(analytics['onLeave'])
+            : activeTodayLeavesCount);
+
+    final explicitAbsent = _parseInt(
+      analytics['absentToday'] ?? analytics['absent'] ?? stats['absentCount'] ?? stats['absent'] ?? 0
     );
+    final calculatedAbsent = (totalEmployees - presentToday - onLeave).clamp(0, totalEmployees);
+    final absentToday = explicitAbsent > 0 ? explicitAbsent : calculatedAbsent;
+
     final pendingLeaves = attendance.allLeaves.where((l) {
       if (l is! Map) return false;
       return (l['status'] ?? '').toString().toLowerCase() == 'pending';
+    }).length;
+
+    final approvedLeaves = attendance.allLeaves.where((l) {
+      if (l is! Map) return false;
+      return (l['status'] ?? '').toString().toLowerCase() == 'approved';
     }).length;
 
     final attendanceRate = totalEmployees > 0
@@ -108,7 +144,9 @@ class AdminAnalyticsScreen extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(analyticsProvider);
-        ref.read(attendanceProvider.notifier).loadStats();
+        await ref.read(attendanceProvider.notifier).loadStats();
+        await ref.read(attendanceProvider.notifier).loadAllLeaves();
+        await ref.read(employeeProvider.notifier).loadEmployees();
       },
       color: AppColors.primary,
       child: SingleChildScrollView(
@@ -232,7 +270,7 @@ class AdminAnalyticsScreen extends ConsumerWidget {
                 children: [
                   _buildLeaveRow(context, 'Pending Leaves', pendingLeaves, const Color(0xFFF59E0B)),
                   const SizedBox(height: 12),
-                  _buildLeaveRow(context, 'Approved Leaves', onLeave, const Color(0xFF10B981)),
+                  _buildLeaveRow(context, 'Approved Leaves', approvedLeaves, const Color(0xFF10B981)),
                   const SizedBox(height: 12),
                   _buildLeaveRow(context, 'Total Requests', attendance.allLeaves.length, const Color(0xFF6366F1)),
                 ],

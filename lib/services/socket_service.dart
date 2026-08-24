@@ -18,11 +18,13 @@ class SocketService {
   final _typingController = StreamController<Map<String, dynamic>>.broadcast();
   final _onlineUsersController = StreamController<Set<String>>.broadcast();
   final _userStatusController = StreamController<Map<String, dynamic>>.broadcast();
+  final _dashboardConfigController = StreamController<dynamic>.broadcast();
 
   Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
   Stream<Map<String, dynamic>> get typingStream => _typingController.stream;
   Stream<Set<String>> get onlineUsersStream => _onlineUsersController.stream;
   Stream<Map<String, dynamic>> get userStatusStream => _userStatusController.stream;
+  Stream<dynamic> get dashboardConfigStream => _dashboardConfigController.stream;
 
   Set<String> _onlineUserIds = {};
   Set<String> get onlineUserIds => _onlineUserIds;
@@ -124,6 +126,12 @@ class SocketService {
             _userStatusController.add(statusMap);
           }
         }
+      });
+
+      // Receive real-time dashboard configuration updates from website
+      _socket!.on('dashboard_config_updated', (data) {
+        debugPrint('⚡ Received dashboard_config_updated from socket: $data');
+        _dashboardConfigController.add(data);
       });
 
     } catch (e) {

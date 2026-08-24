@@ -73,13 +73,17 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        color: context.cardBg.withValues(alpha: 0.95),
-        border: Border(
-          bottom: BorderSide(
-            color: context.borderCol.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
+        color: context.isDark
+            ? Colors.transparent
+            : context.cardBg.withValues(alpha: 0.95),
+        border: context.isDark
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: context.borderCol.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
       ),
       child: Row(
         children: [
@@ -242,7 +246,7 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
     if (_selectedIndex == 0) return _buildDashboardTab();
     if (_selectedIndex == 1) return _buildAttendanceTab();
     if (_selectedIndex == 2) return _buildLeaveTab();
-    if (_selectedIndex == 3) return const ChatListScreen();
+    if (_selectedIndex == 3) return const ChatListScreen(showAppBar: false);
     if (_selectedIndex == 4) return _buildSalaryTab();
     return _buildDashboardTab();
   }

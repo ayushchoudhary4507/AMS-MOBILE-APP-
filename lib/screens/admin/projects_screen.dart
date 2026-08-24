@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/employee_provider.dart';
-import '../../providers/theme_provider.dart';
 
 class AdminProjectsScreen extends ConsumerStatefulWidget {
   const AdminProjectsScreen({super.key});
@@ -20,17 +19,30 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsProvider);
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Projects',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -46,20 +58,15 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: context.txtMuted),
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
             onPressed: () => ref.refresh(projectsProvider),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: projectsAsync.when(
@@ -72,30 +79,53 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
                   : projects.where((p) => (p['status'] ?? '').toString().toLowerCase() == _filter.toLowerCase()).toList();
               return Column(
                 children: [
-                  // Filter
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  // Filter bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
                       child: Row(
-                        children: ['All', 'Active', 'Completed', 'On Hold', 'Planning'].map((f) {
-                          final isSelected = _filter == f;
+                        children: ['All', 'Active', 'In Progress', 'Completed', 'On Hold', 'Planning'].map((f) {
+                          final isSelected = _filter.toLowerCase() == f.toLowerCase() ||
+                              (_filter == 'Active' && f == 'In Progress');
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: FilterChip(
-                              label: Text(f),
-                              selected: isSelected,
-                              onSelected: (_) => setState(() => _filter = f),
-                              selectedColor: const Color(0xFF6366F1),
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : context.txtSecondary,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
-                                fontSize: 13,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => setState(() => _filter = f),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? const Color(0xFF6366F1) : context.cardBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFF6366F1)
+                                          : context.borderCol.withValues(alpha: 0.6),
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    f,
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : context.txtSecondary,
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              backgroundColor: context.chipBg,
-                              side: BorderSide(color: isSelected ? const Color(0xFF6366F1) : context.borderCol),
-                              showCheckmark: false,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             ),
                           );
                         }).toList(),
@@ -108,7 +138,7 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
                       onRefresh: () async => ref.refresh(projectsProvider),
                       color: AppColors.primary,
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                         itemCount: filtered.length,
                         itemBuilder: (ctx, i) => _buildProjectCard(context, filtered[i]),
                       ),
@@ -140,12 +170,12 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.borderCol),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.borderCol.withValues(alpha: 0.6)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: context.isDark ? 0.2 : 0.04),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -160,10 +190,20 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF6366F1).withValues(alpha: 0.25),
+                      const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                  ),
                 ),
-                child: const Icon(Icons.folder_rounded, color: Color(0xFF6366F1), size: 22),
+                child: const Icon(Icons.folder_rounded, color: Color(0xFF818CF8), size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -182,7 +222,7 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
                       const SizedBox(height: 4),
                       Text(
                         description,
-                        style: TextStyle(color: context.txtSecondary, fontSize: 12),
+                        style: TextStyle(color: context.txtSecondary, fontSize: 12, height: 1.3),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -190,15 +230,17 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   status,
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -210,15 +252,15 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Progress', style: TextStyle(color: context.txtMuted, fontSize: 12)),
-                Text('$progress%', style: TextStyle(color: context.txtSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text('$progress%', style: TextStyle(color: context.txtPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 6),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: progress / 100,
-                backgroundColor: context.borderCol,
+                backgroundColor: context.borderCol.withValues(alpha: 0.4),
                 valueColor: AlwaysStoppedAnimation<Color>(_getProgressColor(progress)),
                 minHeight: 6,
               ),
@@ -232,13 +274,13 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
           Row(
             children: [
               if (teamSize > 0) ...[
-                Icon(Icons.people_outlined, size: 14, color: context.txtMuted),
+                Icon(Icons.people_outline_rounded, size: 15, color: context.txtMuted),
                 const SizedBox(width: 4),
                 Text('$teamSize members', style: TextStyle(color: context.txtMuted, fontSize: 12)),
                 const SizedBox(width: 16),
               ],
               if (endDate != null) ...[
-                Icon(Icons.schedule_rounded, size: 14, color: context.txtMuted),
+                Icon(Icons.schedule_rounded, size: 15, color: context.txtMuted),
                 const SizedBox(width: 4),
                 Text(_formatDate(endDate), style: TextStyle(color: context.txtMuted, fontSize: 12)),
               ],
@@ -246,8 +288,8 @@ class _AdminProjectsScreenState extends ConsumerState<AdminProjectsScreen> {
               if (budget.isNotEmpty)
                 Text(
                   '₹$budget',
-                  style: TextStyle(
-                    color: const Color(0xFF10B981),
+                  style: const TextStyle(
+                    color: Color(0xFF10B981),
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),

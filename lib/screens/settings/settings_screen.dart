@@ -139,14 +139,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .toUpperCase();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Settings',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: context.txtPrimary,
+          ),
         ),
         centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: context.txtPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -159,23 +173,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             }
           },
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-            tooltip: isDark ? 'Light Mode' : 'Dark Mode',
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             children: [
               // User Card Header
               _buildUserHeaderCard(
@@ -186,7 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 userRole,
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
 
               // Section Title: Security & Biometrics
               _buildSectionTitle(
@@ -199,27 +204,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               // Fingerprint Option Card
               _buildBiometricOptionCard(
                 context: context,
-                icon: Icons.fingerprint,
-                iconColor: AppColors.primary,
+                icon: Icons.fingerprint_rounded,
+                iconColor: const Color(0xFF6366F1),
                 title: 'Fingerprint Lock',
                 subtitle: 'Unlock AMS app using your fingerprint scanner',
                 isEnabled: caps.isFingerprintEnabled,
                 isAvailable: caps.hasFingerprint || caps.isSupported,
                 onChanged: (val) => _toggleFingerprint(val),
-                badgeText: caps.hasFingerprint
-                    ? 'Fingerprint Ready'
-                    : (caps.canCheckBiometrics ? 'Available' : 'Not Detected'),
-                badgeColor: caps.hasFingerprint
+                badgeText: caps.isFingerprintEnabled
+                    ? 'Active'
+                    : (caps.hasFingerprint
+                        ? 'Available'
+                        : (caps.canCheckBiometrics ? 'Supported' : 'Not Detected')),
+                badgeColor: caps.isFingerprintEnabled
                     ? AppColors.accentGreen
-                    : AppColors.accentAmber,
+                    : const Color(0xFFF59E0B),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Face Lock Option Card
               _buildBiometricOptionCard(
                 context: context,
-                icon: Icons.face_rounded,
+                icon: Icons.face_retouching_natural_rounded,
                 iconColor: const Color(0xFF06B6D4),
                 title: 'Face Lock (Camera)',
                 subtitle: 'Unlock AMS app using front camera facial recognition',
@@ -227,14 +234,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 isAvailable: true,
                 onChanged: (val) => _toggleFaceLock(val),
                 badgeText: caps.isFaceLockEnabled
-                    ? 'Face Lock Active'
+                    ? 'Active'
                     : 'Camera Ready',
                 badgeColor: caps.isFaceLockEnabled
                     ? AppColors.accentGreen
                     : const Color(0xFF06B6D4),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
 
               // Section Title: Preferences
               _buildSectionTitle(
@@ -245,101 +252,148 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 12),
 
               // Dark Theme Card
-              Card(
-                color: context.cardBg,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: context.borderCol),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.cardBg,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF272A3E)
+                        : const Color(0xFFE2E8F0),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: (isDark ? Colors.amber : Colors.indigo)
-                              .withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isDark
-                              ? Icons.dark_mode_rounded
-                              : Icons.light_mode_rounded,
-                          color: isDark ? Colors.amber : Colors.indigo,
-                          size: 22,
-                        ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (isDark ? const Color(0xFFF59E0B) : const Color(0xFF6366F1))
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Dark Mode',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: context.txtPrimary,
-                              ),
+                      child: Icon(
+                        isDark
+                            ? Icons.dark_mode_rounded
+                            : Icons.light_mode_rounded,
+                        color: isDark ? const Color(0xFFF59E0B) : const Color(0xFF6366F1),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Dark Mode',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: context.txtPrimary,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isDark
-                                  ? 'Dark theme active'
-                                  : 'Light theme active',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: context.txtSecondary,
-                              ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            isDark
+                                ? 'Dark theme active'
+                                : 'Light theme active',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.txtSecondary,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      Switch(
-                        value: isDark,
-                        activeThumbColor: AppColors.primary,
-                        onChanged: (_) =>
-                            ref.read(themeProvider.notifier).toggleTheme(),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Switch(
+                      value: isDark,
+                      activeTrackColor: const Color(0xFF6366F1),
+                      activeThumbColor: Colors.white,
+                      onChanged: (_) =>
+                          ref.read(themeProvider.notifier).toggleTheme(),
+                    ),
+                  ],
                 ),
               ),
 
               const SizedBox(height: 24),
 
               // Logout Button Card
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accentRed.withValues(alpha: 0.15),
-                  foregroundColor: AppColors.accentRed,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: AppColors.accentRed.withValues(alpha: 0.4),
-                    ),
-                  ),
-                ),
-                icon: const Icon(Icons.logout_rounded, size: 20),
-                label: const Text(
-                  'Log Out of Account',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-                onPressed: () async {
+              InkWell(
+                onTap: () async {
                   await ref.read(authProvider.notifier).logout();
                   if (context.mounted) {
                     context.go('/welcome');
                   }
                 },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentRed.withValues(alpha: isDark ? 0.12 : 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.accentRed.withValues(alpha: isDark ? 0.45 : 0.35),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.logout_rounded, size: 20, color: AppColors.accentRed),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Log Out of Account',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.accentRed,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // App Version Footer
+              Center(
+                child: Column(
+                  children: [
+                    Text(
+                      'AttendancePro • v1.0.0 Pro Edition',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: context.txtMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Secured with AES-256 Biometric Hash',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: context.txtMuted.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -362,6 +416,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String email,
     String role,
   ) {
+    final isDark = context.isDark;
     final phone =
         user?['phone']?.toString() ?? user?['phoneNumber']?.toString();
 
@@ -369,12 +424,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: context.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: context.borderCol),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark ? const Color(0xFF272A3E) : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -883,83 +941,92 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String badgeText,
     required Color badgeColor,
   }) {
-    return Card(
-      color: context.cardBg,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+    final isDark = context.isDark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.cardBg,
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
+        border: Border.all(
           color: isEnabled
-              ? iconColor.withValues(alpha: 0.5)
-              : context.borderCol,
-          width: isEnabled ? 1.5 : 1,
+              ? iconColor.withValues(alpha: 0.6)
+              : (isDark ? const Color(0xFF272A3E) : const Color(0xFFE2E8F0)),
+          width: isEnabled ? 1.5 : 1.2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isEnabled
+                ? iconColor.withValues(alpha: isDark ? 0.18 : 0.08)
+                : Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      Text(
-                        title,
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: context.txtPrimary,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badgeText,
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w700,
-                          color: context.txtPrimary,
+                          color: badgeColor,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: badgeColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: context.txtSecondary),
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: context.txtSecondary),
+                ),
+              ],
             ),
-            Switch(
-              value: isEnabled,
-              activeThumbColor: iconColor,
-              onChanged: onChanged,
-            ),
-          ],
-        ),
+          ),
+          Switch(
+            value: isEnabled,
+            activeTrackColor: iconColor,
+            activeThumbColor: Colors.white,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
