@@ -39,8 +39,9 @@ class StorageService {
     map['email'] ??= user?['email'] ?? (emailOrId.contains('@') ? emailOrId : null);
     map['name'] ??= user?['name'] ?? 'Employee';
     map['status'] ??= 'Present';
-    map['checkIn'] ??= now.toIso8601String();
-    map['date'] ??= now.toIso8601String();
+    map['checkIn'] ??= att['checkInTime'] ?? att['inTime'] ?? att['date'] ?? now.toIso8601String();
+    map['checkInTime'] ??= map['checkIn'];
+    map['date'] ??= att['date'] ?? map['checkIn'] ?? now.toIso8601String();
 
     await prefs.setString(key, jsonEncode(map));
   }

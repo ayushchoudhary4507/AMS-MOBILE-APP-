@@ -837,8 +837,17 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 leaveKeys.addAll(keys);
               } else {
                 presentKeys.addAll(keys);
-                final cIn = att['checkIn'] ?? att['checkInTime'] ?? att['inTime'];
-                final cOut = att['checkOut'] ?? att['checkOutTime'] ?? att['outTime'];
+                final cIn = att['checkIn'] ??
+                    att['checkInTime'] ??
+                    att['check_in'] ??
+                    att['inTime'] ??
+                    (att['raw'] is Map ? (att['raw']['checkInTime'] ?? att['raw']['checkIn'] ?? att['raw']['inTime'] ?? att['raw']['date']) : null) ??
+                    att['date'];
+                final cOut = att['checkOut'] ??
+                    att['checkOutTime'] ??
+                    att['check_out'] ??
+                    att['outTime'] ??
+                    (att['raw'] is Map ? (att['raw']['checkOutTime'] ?? att['raw']['checkOut'] ?? att['raw']['outTime']) : null);
                 final method = att['attendanceMethod'] ??
                     att['verificationMethod'] ??
                     (att['faceImage'] != null ? 'Face Lock Biometric' : null);
@@ -855,7 +864,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     'status': 'Present',
                     'method': method,
                     'checkIn': cIn,
+                    'checkInTime': cIn,
                     'checkOut': cOut,
+                    'checkOutTime': cOut,
                     'raw': att,
                   });
                 }
@@ -936,6 +947,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   emp['email'] ?? emp['department'] ?? emp['role'] ?? '';
 
               if (isPresent) {
+                final empCheckIn = emp['checkInTime'] ??
+                    emp['checkIn'] ??
+                    (emp['attendanceToday'] is Map ? (emp['attendanceToday']['checkInTime'] ?? emp['attendanceToday']['checkIn']) : null);
                 final match = presentList.firstWhere(
                   (p) =>
                       ((id != null && (p['id']?.toString().toLowerCase() == id || p['userId']?.toString().toLowerCase() == id)) ||
@@ -948,12 +962,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     'email': empSub,
                     'avatar': avatar,
                     'status': 'Present',
+                    'checkIn': empCheckIn,
+                    'checkInTime': empCheckIn,
                   },
                 );
                 if (!allList.contains(match)) {
                   allList.add(match);
                 }
-                // Ensure presentList has real name & photo
+                // Ensure presentList has real name, photo and checkIn
                 final pIdx = presentList.indexOf(match);
                 if (pIdx >= 0) {
                   if (presentList[pIdx]['name'] == 'Employee' || presentList[pIdx]['name'] == null) {
@@ -961,6 +977,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   }
                   if (presentList[pIdx]['avatar'] == null) {
                     presentList[pIdx]['avatar'] = avatar;
+                  }
+                  if (presentList[pIdx]['checkIn'] == null && empCheckIn != null) {
+                    presentList[pIdx]['checkIn'] = empCheckIn;
+                    presentList[pIdx]['checkInTime'] = empCheckIn;
                   }
                 }
               } else if (isOnLeave) {

@@ -1155,7 +1155,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       final list = <dynamic>[];
       final seenIds = <String>{};
 
-      void addIfUnique(Map<String, dynamic> record) {
+      void addIfUnique(Map<String, dynamic> record, {bool isServerRecord = false}) {
         final id = (record['userId'] ?? record['employeeId'] ?? record['_id'] ?? record['id'])
             ?.toString()
             .trim()
@@ -1184,7 +1184,20 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           });
           if (idx >= 0) {
             final old = Map<String, dynamic>.from(list[idx]);
+            final oldCheckIn = old['checkIn'] ?? old['checkInTime'] ?? old['inTime'];
+            final newCheckIn = record['checkIn'] ?? record['checkInTime'] ?? record['inTime'];
+
             old.addAll(record);
+
+            // Preserve valid server check-in time if existing record already had one
+            if (oldCheckIn != null &&
+                oldCheckIn.toString().isNotEmpty &&
+                oldCheckIn.toString() != 'null') {
+              if (!isServerRecord || (newCheckIn == null || newCheckIn.toString().isEmpty || newCheckIn.toString() == 'null')) {
+                old['checkIn'] = oldCheckIn;
+                old['checkInTime'] = oldCheckIn;
+              }
+            }
             list[idx] = old;
           }
           return;
@@ -1204,18 +1217,28 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           if (!st.toLowerCase().contains('absent') && !st.toLowerCase().contains('leave')) {
             final cIn = attToday['checkInTime'] ??
                 attToday['checkIn'] ??
-                attToday['check_in'];
+                attToday['check_in'] ??
+                attToday['inTime'] ??
+                emp['checkInTime'] ??
+                emp['checkIn'] ??
+                emp['inTime'];
             final cOut = attToday['checkOutTime'] ??
                 attToday['checkOut'] ??
-                attToday['check_out'];
-            final dtVal = attToday['date'] ?? attToday['createdAt'];
+                attToday['check_out'] ??
+                emp['checkOutTime'] ??
+                emp['checkOut'];
+            final dtVal = attToday['date'] ?? attToday['createdAt'] ?? emp['date'] ?? emp['createdAt'];
+
+            final checkInFinal = cIn ?? dtVal;
 
             final merged = <String, dynamic>{
               '_id': attToday['_id'] ?? attToday['id'] ?? emp['_id'],
               'status': st.isNotEmpty ? st : 'Present',
-              'checkIn': cIn ?? dtVal ?? DateTime.now().toIso8601String(),
+              'checkIn': checkInFinal,
+              'checkInTime': checkInFinal,
               'checkOut': cOut,
-              'date': dtVal ?? cIn ?? DateTime.now().toIso8601String(),
+              'checkOutTime': cOut,
+              'date': dtVal ?? checkInFinal,
               'createdAt': attToday['createdAt'],
               'isActive': attToday['isActive'],
               'workHours': attToday['workHours'],
@@ -1238,7 +1261,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
                     emp['image'],
               },
             };
-            addIfUnique(merged);
+            addIfUnique(merged, isServerRecord: true);
           }
         } else {
           final empObj = emp['employee'] ?? emp['user'];
@@ -1262,20 +1285,24 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
               emp['checkOutTime'] ?? emp['checkOut'] ?? emp['check_out'] ?? emp['outTime'];
           final st = (emp['status'] ?? emp['attendanceStatus'] ?? '').toString();
 
-          final bool isToday = _isDateToday(checkInVal) ||
-              _isDateToday(emp['date']) ||
-              (checkInVal != null &&
-                  checkInVal.toString().isNotEmpty &&
-                  checkInVal.toString() != 'null' &&
-                  st.toLowerCase() == 'present');
+          final bool hasValidCheckIn = checkInVal != null &&
+              checkInVal.toString().isNotEmpty &&
+              checkInVal.toString() != 'null';
 
-          if (isToday) {
+          final bool isToday = hasValidCheckIn ||
+              _isDateToday(checkInVal) ||
+              _isDateToday(emp['date']);
+
+          if (isToday && (st.toLowerCase() == 'present' || st.toLowerCase() == 'active' || hasValidCheckIn)) {
+            final finalCheckIn = checkInVal ?? emp['date'];
             addIfUnique({
               '_id': emp['_id'] ?? emp['id'] ?? uid,
-              'status': st.isNotEmpty ? st : 'Present',
-              'checkIn': checkInVal ?? emp['date'] ?? DateTime.now().toIso8601String(),
+              'status': (st.isNotEmpty && st.toLowerCase() != 'inactive') ? st : 'Present',
+              'checkIn': finalCheckIn,
+              'checkInTime': finalCheckIn,
               'checkOut': checkOutVal,
-              'date': emp['date'] ?? checkInVal ?? DateTime.now().toIso8601String(),
+              'checkOutTime': checkOutVal,
+              'date': emp['date'] ?? finalCheckIn,
               'createdAt': emp['createdAt'],
               'attendanceMethod': emp['attendanceMethod'] ??
                   emp['method'] ??
@@ -1286,7 +1313,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
               'userId': uid ?? '',
               'employeeId': uid ?? '',
               'employee': empObj is Map ? empObj : emp,
-            });
+            }, isServerRecord: true);
           }
         }
       }
@@ -1333,13 +1360,15 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         final session = state.activeSession;
         if (session != null && session.scannedEmployees.isNotEmpty) {
           for (final scanned in session.scannedEmployees) {
+            final scanTime = scanned['scannedAt'] ??
+                scanned['checkIn'] ??
+                scanned['checkInTime'] ??
+                scanned['createdAt'];
             addIfUnique({
               '_id': scanned['_id'] ?? scanned['id'] ?? scanned['employeeId'],
               'status': 'Present',
-              'checkIn': scanned['scannedAt'] ??
-                  scanned['checkIn'] ??
-                  scanned['createdAt'] ??
-                  DateTime.now().toIso8601String(),
+              'checkIn': scanTime,
+              'checkInTime': scanTime,
               'name': scanned['name'] ?? scanned['employeeName'] ?? 'Employee',
               'email': scanned['email'] ?? '',
               'userId': (scanned['employeeId'] ??
@@ -1359,7 +1388,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         }
       } catch (_) {}
 
-      // 4. Merge all locally saved today attendances from StorageService
+      // 4. Merge locally saved today attendances only for employees not yet in list
       try {
         final savedTodayList = await StorageService.getAllSavedTodayAttendances();
         for (final saved in savedTodayList) {
@@ -1367,7 +1396,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
               saved['checkIn'] != null ||
               saved['checkInTime'] != null;
           if (isPresent) {
-            addIfUnique(saved);
+            addIfUnique(saved, isServerRecord: false);
           }
         }
       } catch (_) {}
@@ -1375,7 +1404,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       // 5. Ensure current user's local today attendance is merged if marked
       if (state.isCheckedIn && state.todayAttendance != null) {
         final localAtt = state.todayAttendance!;
-        addIfUnique(localAtt.toJson());
+        addIfUnique(localAtt.toJson(), isServerRecord: false);
       }
 
       state = state.copyWith(todayAllAttendance: list);
