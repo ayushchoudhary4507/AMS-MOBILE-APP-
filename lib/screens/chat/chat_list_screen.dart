@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/storage_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/employee_provider.dart';
 import '../../widgets/common/app_avatar.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
@@ -23,6 +26,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatProvider.notifier).loadConversations();
       ref.read(chatProvider.notifier).loadContacts();
+      ref.read(employeeProvider.notifier).loadEmployees();
     });
   }
 
@@ -39,6 +43,98 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       return (raw['_id'] ?? raw['id'] ?? raw['userId'])?.toString() ?? '';
     }
     return raw.toString();
+  }
+
+  dynamic _resolveUserAvatar(
+    dynamic userOrConv,
+    List<dynamic> contacts,
+    List<dynamic> employees,
+  ) {
+    final direct = extractAvatarUrl(userOrConv);
+    if (direct != null && direct.isNotEmpty) return direct;
+
+    String? uid;
+    String? uEmail;
+    String? uName;
+
+    if (userOrConv is Map) {
+      uid = (userOrConv['_id'] ??
+              userOrConv['id'] ??
+              userOrConv['userId'] ??
+              userOrConv['user']?['_id'] ??
+              userOrConv['user']?['id'])
+          ?.toString();
+      uEmail = (userOrConv['email'] ??
+              userOrConv['userEmail'] ??
+              userOrConv['user']?['email'])
+          ?.toString();
+      uName = (userOrConv['name'] ??
+              userOrConv['userName'] ??
+              userOrConv['user']?['name'])
+          ?.toString();
+    } else if (userOrConv is String) {
+      uid = userOrConv;
+    }
+
+    // 1. Check in contacts
+    for (final c in contacts) {
+      if (c is Map) {
+        final cId = (c['_id'] ?? c['id'])?.toString();
+        final cEmail = c['email']?.toString();
+        final cName = c['name']?.toString();
+        if ((uid != null && uid.isNotEmpty && uid == cId) ||
+            (uEmail != null &&
+                uEmail.isNotEmpty &&
+                uEmail.toLowerCase() == cEmail?.toLowerCase()) ||
+            (uName != null &&
+                uName.isNotEmpty &&
+                uName.toLowerCase() == cName?.toLowerCase())) {
+          final av = extractAvatarUrl(c);
+          if (av != null && av.isNotEmpty) return av;
+        }
+      }
+    }
+
+    // 2. Check in employees
+    for (final e in employees) {
+      if (e is Map) {
+        final eId = (e['_id'] ?? e['id'])?.toString();
+        final eEmail = e['email']?.toString();
+        final eName = e['name']?.toString();
+        if ((uid != null && uid.isNotEmpty && uid == eId) ||
+            (uEmail != null &&
+                uEmail.isNotEmpty &&
+                uEmail.toLowerCase() == eEmail?.toLowerCase()) ||
+            (uName != null &&
+                uName.isNotEmpty &&
+                uName.toLowerCase() == eName?.toLowerCase())) {
+          final av = extractAvatarUrl(e);
+          if (av != null && av.isNotEmpty) return av;
+        }
+      }
+    }
+
+    // 3. Check avatarCache
+    if (uEmail != null &&
+        uEmail.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uEmail.toLowerCase())) {
+      final cached = StorageService.avatarCache[uEmail.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    if (uid != null &&
+        uid.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uid.toLowerCase())) {
+      final cached = StorageService.avatarCache[uid.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    if (uName != null &&
+        uName.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uName.toLowerCase())) {
+      final cached = StorageService.avatarCache[uName.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+
+    return userOrConv;
   }
 
   DateTime? _parseToLocal(dynamic raw) {
@@ -73,6 +169,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       return name.contains(_searchQuery) || email.contains(_searchQuery);
     }).toList();
 
+    final employees = ref.watch(employeeProvider).employees;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -86,6 +184,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             onPressed: () {
               ref.read(chatProvider.notifier).loadConversations();
               ref.read(chatProvider.notifier).loadContacts();
+              ref.read(employeeProvider.notifier).loadEmployees();
             },
           ),
         ],
@@ -129,6 +228,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               onRefresh: () async {
                 await ref.read(chatProvider.notifier).loadConversations();
                 await ref.read(chatProvider.notifier).loadContacts();
+                await ref.read(employeeProvider.notifier).loadEmployees();
               },
               child: filteredConversations.isEmpty
                   ? _buildEmptyState(context, chatState.contacts)
@@ -145,6 +245,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         final userId = _extractId(conv['userId'] ?? conv['user'] ?? conv['id'] ?? conv['_id']);
                         final userName = (conv['userName'] ?? conv['user']?['name'] ?? 'User').toString();
                         final userEmail = (conv['userEmail'] ?? conv['user']?['email'] ?? '').toString();
+                        final resolvedAvatar = _resolveUserAvatar(conv['user'] ?? conv, chatState.contacts, employees);
                         final lastMsgObj = conv['lastMessage'];
                         final lastMsg = (lastMsgObj is Map ? lastMsgObj['message'] : lastMsgObj)?.toString() ?? '';
                         final unreadCount = (conv['unreadCount'] ?? 0) as int;
@@ -166,12 +267,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                             context.push('/chat/$userId', extra: {
                               'name': userName,
                               'email': userEmail,
+                              'avatar': resolvedAvatar,
+                              'user': conv['user'] ?? conv,
                             });
                           },
                           leading: Stack(
                             children: [
                               AppAvatar(
-                                avatarOrUser: userName,
+                                avatarOrUser: resolvedAvatar,
                                 fallbackText: userName.isNotEmpty ? userName[0] : 'U',
                                 radius: 24,
                               ),
@@ -368,10 +471,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                               final role = (contact['role'] ?? 'employee').toString();
                               final isOnline = onlineUserIds.contains(id);
 
+                              final contactAvatar = _resolveUserAvatar(contact, contacts, ref.watch(employeeProvider).employees);
+
                               return ListTile(
                                 leading: Stack(
                                   children: [
-                                    AppAvatar(avatarOrUser: name, fallbackText: name.isNotEmpty ? name[0] : 'U', radius: 22),
+                                    AppAvatar(
+                                      avatarOrUser: contactAvatar,
+                                      fallbackText: name.isNotEmpty ? name[0] : 'U',
+                                      radius: 22,
+                                    ),
                                     if (isOnline)
                                       Positioned(
                                         right: 0,
@@ -399,6 +508,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                     'name': name,
                                     'email': email,
                                     'role': role,
+                                    'avatar': contactAvatar,
+                                    'user': contact,
                                   });
                                 },
                               );

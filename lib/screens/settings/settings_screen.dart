@@ -10,6 +10,7 @@ import '../../services/biometric_service.dart';
 import '../../services/face_recognition_service.dart';
 import '../../widgets/auth/face_camera_auth_dialog.dart';
 import '../../widgets/common/app_avatar.dart';
+import '../../widgets/common/photo_viewer_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -384,7 +385,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               Stack(
                 children: [
-                  _buildAvatarWidget(user, name, 30),
+                  GestureDetector(
+                    onTap: () => showPhotoPreview(
+                      context,
+                      avatarOrUser: user,
+                      title: name,
+                      subtitle: role,
+                    ),
+                    child: _buildAvatarWidget(user, name, 30),
+                  ),
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -627,10 +636,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     Center(
                       child: Stack(
                         children: [
-                          _buildAvatarWidget(
-                            selectedBase64Image,
-                            nameController.text,
-                            45,
+                          GestureDetector(
+                            onTap: () {
+                              showPhotoPreview(
+                                modalCtx,
+                                avatarOrUser: selectedBase64Image ?? user,
+                                title: nameController.text,
+                                subtitle: 'Profile Photo Preview',
+                              );
+                            },
+                            child: _buildAvatarWidget(
+                              selectedBase64Image ?? user,
+                              nameController.text,
+                              45,
+                            ),
                           ),
                           Positioned(
                             bottom: 0,

@@ -32,7 +32,17 @@ class StorageService {
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final keyLower = emailOrId.trim().toLowerCase();
     final key = 'today_att_${keyLower}_$dateStr';
-    await prefs.setString(key, jsonEncode(att));
+
+    final map = Map<String, dynamic>.from(att);
+    final user = await getUser();
+    map['userId'] ??= user?['id'] ?? user?['_id'] ?? emailOrId;
+    map['email'] ??= user?['email'] ?? (emailOrId.contains('@') ? emailOrId : null);
+    map['name'] ??= user?['name'] ?? 'Employee';
+    map['status'] ??= 'Present';
+    map['checkIn'] ??= now.toIso8601String();
+    map['date'] ??= now.toIso8601String();
+
+    await prefs.setString(key, jsonEncode(map));
   }
 
   // Get Today Attendance cache per user/date
@@ -54,6 +64,35 @@ class StorageService {
       } catch (_) {}
     }
     return null;
+  }
+
+  // Get all locally saved today attendance records
+  static Future<List<Map<String, dynamic>>> getAllSavedTodayAttendances() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final prefix = 'today_att_';
+      final suffix = '_$dateStr';
+      final results = <Map<String, dynamic>>[];
+      for (final key in prefs.getKeys()) {
+        if (key.startsWith(prefix) && key.endsWith(suffix)) {
+          final raw = prefs.getString(key);
+          if (raw != null && raw.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(raw);
+              if (decoded is Map) {
+                results.add(Map<String, dynamic>.from(decoded));
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      return results;
+    } catch (_) {
+      return [];
+    }
   }
 
   // Save User Avatar per email/ID
@@ -138,9 +177,22 @@ class StorageService {
                     userMap['photo'])
                 ?.toString();
 
-        if ((currentAvatar == null || currentAvatar.isEmpty) && email != null) {
+        if (currentAvatar != null &&
+            (currentAvatar.startsWith('AAAB') || currentAvatar.startsWith('xtbHVj'))) {
+          userMap.remove('avatar');
+          userMap.remove('profilePicture');
+          userMap.remove('profileImage');
+          userMap.remove('profile_picture');
+          userMap.remove('image');
+          if (email != null) avatarCache.remove(email.trim().toLowerCase());
+          if (id != null) avatarCache.remove(id.trim().toLowerCase());
+          if (name != null) avatarCache.remove(name.trim().toLowerCase());
+        } else if ((currentAvatar == null || currentAvatar.isEmpty) && email != null) {
           final cachedAvatar = await getUserAvatar(email);
-          if (cachedAvatar != null && cachedAvatar.isNotEmpty) {
+          if (cachedAvatar != null &&
+              cachedAvatar.isNotEmpty &&
+              !cachedAvatar.startsWith('AAAB') &&
+              !cachedAvatar.startsWith('xtbHVj')) {
             userMap['avatar'] = cachedAvatar;
             userMap['profilePicture'] = cachedAvatar;
             userMap['profileImage'] = cachedAvatar;

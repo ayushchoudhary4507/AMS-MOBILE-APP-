@@ -864,13 +864,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 14),
 
-                        // OTP Code Field (Empty for real input)
+                        // OTP Code Field (User enters manually)
                         CustomTextField(
                           controller: otpController,
                           label: 'OTP / Verification Code',
                           hint: 'Enter 6-digit OTP from Gmail/SMS',
                           prefixIcon: Icons.pin_outlined,
                           keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          autofillHints: const [],
+                          counter: const SizedBox.shrink(),
                         ),
                         const SizedBox(height: 14),
 

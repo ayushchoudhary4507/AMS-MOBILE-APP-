@@ -52,12 +52,23 @@ class AuthState {
   }
 }
 
+bool isLikelyValidAvatarString(String clean) {
+  if (clean.isEmpty || clean == 'null' || clean == 'undefined') return false;
+  if (clean.startsWith('http://') || clean.startsWith('https://')) return true;
+  if (clean.startsWith('/') || clean.startsWith('uploads') || clean.startsWith('public')) return true;
+  if (clean.startsWith('file://') || clean.contains(':\\') || clean.startsWith('/data/')) return true;
+  if (clean.startsWith('data:image/')) return true;
+  // ICC color profile junk starts with AAAB, xtbHVj, etc.
+  if (clean.startsWith('AAAB') || clean.startsWith('xtbHVj')) return false;
+  return clean.length > 50;
+}
+
 /// Helper to extract valid avatar string (URL, relative path, or base64) from user object or string
 String? extractAvatarUrl(dynamic avatarOrUser) {
   if (avatarOrUser == null) return null;
   if (avatarOrUser is String) {
     final clean = avatarOrUser.trim();
-    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+    if (isLikelyValidAvatarString(clean)) {
       return clean;
     }
     return null;
@@ -104,7 +115,7 @@ String? extractAvatarUrl(dynamic avatarOrUser) {
       final val = avatarOrUser[f];
       if (val is String) {
         final clean = val.trim();
-        if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+        if (isLikelyValidAvatarString(clean)) {
           return clean;
         }
       } else if (val is Map) {

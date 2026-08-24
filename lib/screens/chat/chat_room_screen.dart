@@ -7,7 +7,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/storage_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/employee_provider.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/common/app_avatar.dart';
 
@@ -38,6 +40,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     _loadCurrentUserId();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatProvider.notifier).loadMessages(widget.targetUserId);
+      ref.read(employeeProvider.notifier).loadEmployees();
+      ref.read(chatProvider.notifier).loadContacts();
     });
   }
 
@@ -54,6 +58,101 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  dynamic _resolveUserAvatar(
+    dynamic userOrConv,
+    List<dynamic> contacts,
+    List<dynamic> employees,
+  ) {
+    final direct = extractAvatarUrl(userOrConv);
+    if (direct != null && direct.isNotEmpty) return direct;
+
+    String? uid;
+    String? uEmail;
+    String? uName;
+
+    if (userOrConv is Map) {
+      uid = (userOrConv['_id'] ??
+              userOrConv['id'] ??
+              userOrConv['userId'] ??
+              userOrConv['user']?['_id'] ??
+              userOrConv['user']?['id'])
+          ?.toString();
+      uEmail = (userOrConv['email'] ??
+              userOrConv['userEmail'] ??
+              userOrConv['user']?['email'])
+          ?.toString();
+      uName = (userOrConv['name'] ??
+              userOrConv['userName'] ??
+              userOrConv['user']?['name'])
+          ?.toString();
+    } else if (userOrConv is String) {
+      uid = userOrConv;
+    }
+
+    if (uid == null || uid.isEmpty) {
+      uid = widget.targetUserId;
+    }
+
+    // 1. Check in contacts
+    for (final c in contacts) {
+      if (c is Map) {
+        final cId = (c['_id'] ?? c['id'])?.toString();
+        final cEmail = c['email']?.toString();
+        final cName = c['name']?.toString();
+        if ((uid.isNotEmpty && uid == cId) ||
+            (uEmail != null &&
+                uEmail.isNotEmpty &&
+                uEmail.toLowerCase() == cEmail?.toLowerCase()) ||
+            (uName != null &&
+                uName.isNotEmpty &&
+                uName.toLowerCase() == cName?.toLowerCase())) {
+          final av = extractAvatarUrl(c);
+          if (av != null && av.isNotEmpty) return av;
+        }
+      }
+    }
+
+    // 2. Check in employees
+    for (final e in employees) {
+      if (e is Map) {
+        final eId = (e['_id'] ?? e['id'])?.toString();
+        final eEmail = e['email']?.toString();
+        final eName = e['name']?.toString();
+        if ((uid.isNotEmpty && uid == eId) ||
+            (uEmail != null &&
+                uEmail.isNotEmpty &&
+                uEmail.toLowerCase() == eEmail?.toLowerCase()) ||
+            (uName != null &&
+                uName.isNotEmpty &&
+                uName.toLowerCase() == eName?.toLowerCase())) {
+          final av = extractAvatarUrl(e);
+          if (av != null && av.isNotEmpty) return av;
+        }
+      }
+    }
+
+    // 3. Check avatarCache
+    if (uEmail != null &&
+        uEmail.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uEmail.toLowerCase())) {
+      final cached = StorageService.avatarCache[uEmail.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    if (uid.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uid.toLowerCase())) {
+      final cached = StorageService.avatarCache[uid.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    if (uName != null &&
+        uName.isNotEmpty &&
+        StorageService.avatarCache.containsKey(uName.toLowerCase())) {
+      final cached = StorageService.avatarCache[uName.toLowerCase()];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+
+    return userOrConv;
   }
 
   void _scrollToBottom() {
@@ -170,6 +269,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider);
+    final employees = ref.watch(employeeProvider).employees;
     final messages = chatState.messagesMap[widget.targetUserId] ?? [];
     if (messages.length > _prevMsgCount) {
       _prevMsgCount = messages.length;
@@ -179,6 +279,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final isTyping = chatState.typingMap[widget.targetUserId] == true;
 
     final targetName = (widget.initialUserData?['name'] ?? 'User').toString();
+    final targetAvatar = _resolveUserAvatar(
+      widget.initialUserData ?? widget.targetUserId,
+      chatState.contacts,
+      employees,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -187,7 +292,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           children: [
             Stack(
               children: [
-                AppAvatar(avatarOrUser: targetName, fallbackText: targetName.isNotEmpty ? targetName[0] : 'U', radius: 20),
+                AppAvatar(
+                  avatarOrUser: targetAvatar,
+                  fallbackText: targetName.isNotEmpty ? targetName[0] : 'U',
+                  radius: 20,
+                ),
                 if (isOnline)
                   Positioned(
                     right: 0,

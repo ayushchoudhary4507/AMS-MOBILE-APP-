@@ -14,6 +14,7 @@ import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../employee/employee_dashboard.dart';
 import '../../widgets/common/app_avatar.dart';
+import '../../widgets/common/photo_viewer_dialog.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
@@ -342,7 +343,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       }
     }
 
-    int realActivePresent = 0;
+    int realPresent = 0;
     int realLeave = 0;
     int realAbsent = 0;
 
@@ -358,20 +359,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             (email != null && presentKeys.contains(email)) ||
             (name != null && presentKeys.contains(name));
 
-        final isActive =
-            (id != null && activePresentKeys.contains(id)) ||
-            (email != null && activePresentKeys.contains(email)) ||
-            (name != null && activePresentKeys.contains(name));
-
         final isOnLeave =
             (id != null && leaveKeys.contains(id)) ||
             (email != null && leaveKeys.contains(email)) ||
             (name != null && leaveKeys.contains(name));
 
         if (isPresent) {
-          if (isActive) {
-            realActivePresent++;
-          }
+          realPresent++;
         } else if (isOnLeave) {
           realLeave++;
         } else {
@@ -379,7 +373,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         }
       }
     } else {
-      realActivePresent = activePresentKeys.length;
+      // If allEmps is empty, count unique records from todayList
+      final uniquePresentIds = <String>{};
+      for (final att in todayList) {
+        if (att is! Map) continue;
+        final st = (att['status'] ?? '').toString().toLowerCase();
+        if (st.contains('absent') || st.contains('leave')) continue;
+        final uid = (att['userId'] ?? att['employeeId'] ?? att['_id'] ?? att['email'] ?? att['name'])?.toString();
+        if (uid != null && uid.isNotEmpty) {
+          uniquePresentIds.add(uid.toLowerCase());
+        }
+      }
+      realPresent = uniquePresentIds.length;
       realLeave = leaveKeys.length;
       final statsAbsent = int.tryParse(
         stats?['absentCount']?.toString() ?? stats?['absent']?.toString() ?? '',
@@ -395,10 +400,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     stats?['count']?.toString() ??
                     '',
               ) ??
-              0);
+              (realPresent + realLeave + realAbsent));
+
+    // Ensure present count never exceeds total employee count
+    if (totalEmpCount > 0 && realPresent > totalEmpCount) {
+      realPresent = totalEmpCount;
+    }
+    if (totalEmpCount >= realPresent + realLeave) {
+      realAbsent = totalEmpCount - realPresent - realLeave;
+    }
 
     final totalEmp = totalEmpCount.toString();
-    final presentCount = realActivePresent.toString();
+    final presentCount = realPresent.toString();
     final leaveCount = realLeave.toString();
     final absentCount = realAbsent.toString();
 
@@ -537,6 +550,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   label: 'Attendance QR',
                   color: const Color(0xFF6366F1),
                   onTap: () => context.push('/admin/attendance-qr'),
+                ),
+                const SizedBox(width: 10),
+                _buildQuickActionButton(
+                  icon: Icons.face_retouching_natural_rounded,
+                  label: 'Face Attendance',
+                  color: const Color(0xFF06B6D4),
+                  onTap: () => context.push('/admin/face-attendance'),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionButton(
@@ -772,6 +792,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             final leaveKeys = <String>{};
 
             // 1. Collect Present records from today's attendance (already pre-parsed by provider)
+            final seenPresentEmpKeys = <String>{};
             for (var att in todayList) {
               if (att is! Map) continue;
               final st = (att['status'] ?? '').toString().toLowerCase();
@@ -790,6 +811,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               name ??= att['name']?.toString();
               avatar ??= extractAvatarUrl(att);
 
+              // Resolve real name and avatar from allEmployees if missing or generic
+              if (allEmployees.isNotEmpty) {
+                for (final e in allEmployees) {
+                  if (e is! Map) continue;
+                  final eId = (e['_id'] ?? e['id'])?.toString();
+                  final eEmail = e['email']?.toString();
+                  final eName = e['name']?.toString();
+                  if ((id != null && id.isNotEmpty && id == eId) ||
+                      (email != null && email.isNotEmpty && email.toLowerCase() == eEmail?.toLowerCase())) {
+                    if (eName != null && eName.isNotEmpty) name = eName;
+                    if (eEmail != null && eEmail.isNotEmpty) email = eEmail;
+                    avatar ??= extractAvatarUrl(e);
+                    break;
+                  }
+                }
+              }
+
               final keys = [id, email, name]
                   .where((k) => k != null && k.isNotEmpty)
                   .map((k) => k!.trim().toLowerCase())
@@ -799,18 +837,28 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 leaveKeys.addAll(keys);
               } else {
                 presentKeys.addAll(keys);
-                // checkIn is already parsed from checkInTime
-                final cIn = att['checkIn'];
-                final cOut = att['checkOut'];
-                presentList.add({
-                  'name': name ?? 'Employee',
-                  'email': email ?? '',
-                  'avatar': avatar,
-                  'status': 'Present',
-                  'checkIn': cIn,
-                  'checkOut': cOut,
-                  'raw': att,
-                });
+                final cIn = att['checkIn'] ?? att['checkInTime'] ?? att['inTime'];
+                final cOut = att['checkOut'] ?? att['checkOutTime'] ?? att['outTime'];
+                final method = att['attendanceMethod'] ??
+                    att['verificationMethod'] ??
+                    (att['faceImage'] != null ? 'Face Lock Biometric' : null);
+
+                final empDedupKey = (id ?? email ?? (name ?? 'emp')).toLowerCase();
+                if (!seenPresentEmpKeys.contains(empDedupKey)) {
+                  seenPresentEmpKeys.add(empDedupKey);
+                  presentList.add({
+                    'id': id,
+                    'userId': id,
+                    'name': name ?? 'Employee',
+                    'email': email ?? '',
+                    'avatar': avatar,
+                    'status': 'Present',
+                    'method': method,
+                    'checkIn': cIn,
+                    'checkOut': cOut,
+                    'raw': att,
+                  });
+                }
               }
             }
 
@@ -890,7 +938,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               if (isPresent) {
                 final match = presentList.firstWhere(
                   (p) =>
-                      ((email != null &&
+                      ((id != null && (p['id']?.toString().toLowerCase() == id || p['userId']?.toString().toLowerCase() == id)) ||
+                      (email != null &&
                           p['email']?.toString().toLowerCase() == email) ||
                       (name != null &&
                           p['name']?.toString().toLowerCase() == name)),
@@ -903,6 +952,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 );
                 if (!allList.contains(match)) {
                   allList.add(match);
+                }
+                // Ensure presentList has real name & photo
+                final pIdx = presentList.indexOf(match);
+                if (pIdx >= 0) {
+                  if (presentList[pIdx]['name'] == 'Employee' || presentList[pIdx]['name'] == null) {
+                    presentList[pIdx]['name'] = empName;
+                  }
+                  if (presentList[pIdx]['avatar'] == null) {
+                    presentList[pIdx]['avatar'] = avatar;
+                  }
                 }
               } else if (isOnLeave) {
                 final match = leaveList.firstWhere(
@@ -1171,52 +1230,73 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                             const SizedBox(height: 4),
                                             if (statusStr.toLowerCase() ==
                                                 'present') ...[
-                                              Row(
+                                              Wrap(
+                                                spacing: 8,
+                                                runSpacing: 4,
+                                                crossAxisAlignment:
+                                                    WrapCrossAlignment.center,
                                                 children: [
-                                                  const Icon(
-                                                    Icons.login_rounded,
-                                                    size: 12,
-                                                    color: Color(0xFF10B981),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.login_rounded,
+                                                        size: 12,
+                                                        color: Color(0xFF10B981),
+                                                      ),
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        'In: ${_formatTimeStr(item['checkIn'])}',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: Color(0xFF10B981),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    'In: ${_formatTimeStr(item['checkIn'])}',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Color(0xFF10B981),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.calendar_today_rounded,
+                                                        size: 11,
+                                                        color: Color(0xFF6366F1),
+                                                      ),
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        _formatDateStr(item['checkIn'] ?? item['date']),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color: context.txtMuted,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  if (item['method'] != null &&
+                                                      item['method'].toString().isNotEmpty)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 6, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        item['method'].toString(),
+                                                        style: const TextStyle(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(0xFF6366F1),
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  const Icon(
-                                                    Icons.logout_rounded,
-                                                    size: 12,
-                                                    color: Color(0xFF6366F1),
-                                                  ),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    'Out: ${_formatTimeStr(item['checkOut'])}',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          (item['checkOut'] !=
-                                                                  null &&
-                                                              item['checkOut']
-                                                                      .toString() !=
-                                                                  'null')
-                                                          ? const Color(
-                                                              0xFF6366F1,
-                                                            )
-                                                          : context.txtMuted,
-                                                    ),
-                                                  ),
                                                 ],
                                               ),
-                                            ] else if (statusStr
-                                                    .toLowerCase() ==
+                                            ] else if (statusStr.toLowerCase() ==
                                                 'absent') ...[
                                               Row(
                                                 children: [
@@ -1389,6 +1469,20 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       final str = raw.toString().trim();
       if (str.length > 20) return str.substring(0, 10);
       return str;
+    }
+  }
+
+  String _formatDateStr(dynamic raw) {
+    if (raw == null ||
+        raw.toString().trim().isEmpty ||
+        raw.toString() == 'null') {
+      return DateFormat('dd MMM yyyy').format(DateTime.now());
+    }
+    try {
+      final dt = DateTime.parse(raw.toString());
+      return DateFormat('dd MMM yyyy').format(dt.toLocal());
+    } catch (_) {
+      return DateFormat('dd MMM yyyy').format(DateTime.now());
     }
   }
 
@@ -2102,7 +2196,12 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           Column(
                             children: [
                               GestureDetector(
-                                onTap: () => context.push('/settings'),
+                                onTap: () => showPhotoPreview(
+                                  context,
+                                  avatarOrUser: user,
+                                  title: authName,
+                                  subtitle: roleTitle.toUpperCase(),
+                                ),
                                 child: Stack(
                                   alignment: Alignment.center,
                                   clipBehavior: Clip.none,
@@ -2796,7 +2895,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       backgroundColor: context.drawerBg,
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + 20,
+              20,
+              20,
+            ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -2808,41 +2914,56 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                 end: Alignment.bottomRight,
               ),
             ),
-            accountName: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  userName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'ADMIN',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                _buildAvatarWidget(auth.user, userName, 30),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        userName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'ADMIN',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  userEmail,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
-            accountEmail: Text(
-              userEmail,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            currentAccountPicture: _buildAvatarWidget(auth.user, userName, 28),
           ),
           Expanded(
             child: ListView(
@@ -2942,6 +3063,27 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 1);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.face_retouching_natural_rounded,
+                    color: Color(0xFF06B6D4),
+                  ),
+                  title: Text(
+                    'Face Lock Attendance',
+                    style: TextStyle(
+                      color: context.txtPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'View employee face photos & scans',
+                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/admin/face-attendance');
                   },
                 ),
                 ListTile(

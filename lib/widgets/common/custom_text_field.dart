@@ -11,6 +11,12 @@ class CustomTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final int maxLines;
+  final int? maxLength;
+  final bool? enableSuggestions;
+  final bool autocorrect;
+  final Iterable<String>? autofillHints;
+  final void Function(String)? onChanged;
+  final Widget? counter;
 
   const CustomTextField({
     super.key,
@@ -23,6 +29,12 @@ class CustomTextField extends StatelessWidget {
     this.keyboardType,
     this.validator,
     this.maxLines = 1,
+    this.maxLength,
+    this.enableSuggestions,
+    this.autocorrect = true,
+    this.autofillHints,
+    this.onChanged,
+    this.counter,
   });
 
   @override
@@ -33,6 +45,11 @@ class CustomTextField extends StatelessWidget {
       keyboardType: keyboardType,
       validator: validator,
       maxLines: maxLines,
+      maxLength: maxLength,
+      enableSuggestions: enableSuggestions ?? true,
+      autocorrect: autocorrect,
+      autofillHints: autofillHints,
+      onChanged: onChanged,
       style: TextStyle(
         color: context.txtPrimary,
         fontSize: 15,
@@ -44,6 +61,7 @@ class CustomTextField extends StatelessWidget {
         hintStyle: TextStyle(color: context.txtMuted),
         prefixIcon: Icon(prefixIcon, color: context.txtMuted, size: 20),
         suffixIcon: suffixIcon,
+        counter: counter,
       ),
     );
   }

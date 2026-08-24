@@ -14,6 +14,7 @@ import '../../providers/chat_provider.dart';
 import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../../widgets/common/app_avatar.dart';
+import '../../widgets/common/photo_viewer_dialog.dart';
 import '../../widgets/attendance/face_attendance_dialog.dart';
 
 class EmployeeDashboard extends ConsumerStatefulWidget {
@@ -625,38 +626,46 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
               ),
               const SizedBox(width: 14),
               // 3D Avatar picture with green status dot
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        width: 2,
-                      ),
-                    ),
-                    child: _buildAvatarWidget(user, firstName, 32),
-                  ),
-                  // Active Green Status Indicator Dot
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      width: 17,
-                      height: 17,
+              GestureDetector(
+                onTap: () => showPhotoPreview(
+                  context,
+                  avatarOrUser: user,
+                  title: firstName,
+                  subtitle: 'Employee',
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF22C55E),
+                        color: Colors.white.withValues(alpha: 0.25),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2.5),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          width: 2,
+                        ),
+                      ),
+                      child: _buildAvatarWidget(user, firstName, 32),
+                    ),
+                    // Active Green Status Indicator Dot
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Container(
+                        width: 17,
+                        height: 17,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -1207,7 +1216,14 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
       backgroundColor: context.drawerBg,
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + 20,
+              20,
+              20,
+            ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -1219,45 +1235,56 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                 end: Alignment.bottomRight,
               ),
             ),
-            accountName: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    userName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                _buildAvatarWidget(auth.user, userName, 30),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        userName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'EMPLOYEE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'EMPLOYEE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                const SizedBox(height: 4),
+                Text(
+                  userEmail,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
-            accountEmail: Text(
-              userEmail,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
-            ),
-            currentAccountPicture: _buildAvatarWidget(auth.user, userName, 28),
           ),
           Expanded(
             child: ListView(
@@ -1331,6 +1358,30 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
                     FaceAttendanceDialog.show(context);
                   },
                 ),
+                if (auth.isAdmin ||
+                    (auth.role?.toLowerCase() == 'admin') ||
+                    (auth.user?['role']?.toString().toLowerCase() == 'admin'))
+                  ListTile(
+                    leading: const Icon(
+                      Icons.face_retouching_natural_rounded,
+                      color: Color(0xFF06B6D4),
+                    ),
+                    title: Text(
+                      'Face Attendance Logs (Admin)',
+                      style: TextStyle(
+                        color: context.txtPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'View enrolled employee faces & live scans',
+                      style: TextStyle(color: context.txtMuted, fontSize: 11),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/face-attendance');
+                    },
+                  ),
                 ListTile(
                   leading: const Icon(
                     Icons.chat_rounded,

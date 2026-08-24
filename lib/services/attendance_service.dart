@@ -1,4 +1,5 @@
 import '../core/constants/api_constants.dart';
+import '../core/utils/storage_service.dart';
 import 'api_service.dart';
 
 class AttendanceService {
@@ -10,9 +11,32 @@ class AttendanceService {
     double? latitude,
     double? longitude,
   }) async {
+    final user = await StorageService.getUser();
+    final employeeId = (user?['id'] ?? user?['_id'])?.toString();
+    final userEmail = user?['email']?.toString();
+    final userName = user?['name']?.toString();
+    final now = DateTime.now();
+
     final Map<String, dynamic> body = {
       'status': status,
+      'attendanceStatus': status,
+      'date': now.toIso8601String(),
+      'checkIn': now.toIso8601String(),
+      'checkInTime': now.toIso8601String(),
     };
+
+    if (employeeId != null && employeeId.isNotEmpty) {
+      body['employeeId'] = employeeId;
+      body['userId'] = employeeId;
+      body['id'] = employeeId;
+    }
+    if (userEmail != null && userEmail.isNotEmpty) {
+      body['email'] = userEmail;
+    }
+    if (userName != null && userName.isNotEmpty) {
+      body['name'] = userName;
+      body['employeeName'] = userName;
+    }
     if (notes != null && notes.isNotEmpty) {
       body['notes'] = notes;
     }
@@ -51,6 +75,15 @@ class AttendanceService {
       try {
         final response = await ApiService.post(
           '/attendance/checkin',
+          data: body,
+        );
+        return ApiService.toMap(response.data);
+      } catch (_) {}
+
+      // Fallback 3: Try /attendance (POST)
+      try {
+        final response = await ApiService.post(
+          '/attendance',
           data: body,
         );
         return ApiService.toMap(response.data);

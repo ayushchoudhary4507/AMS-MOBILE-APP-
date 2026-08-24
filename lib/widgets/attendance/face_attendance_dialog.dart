@@ -8,8 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../models/face_attendance_record_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/face_attendance_log_service.dart';
 import '../../services/face_recognition_service.dart';
 import '../../services/location_service.dart';
 
@@ -314,6 +316,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
           }
         }
 
+        double verifyScore = 0.95;
         if (!isMatched) {
           final enrolled = _enrolledTemplate ??
               await _faceService.getEnrolledFaceTemplate(userId: _employeeId);
@@ -325,6 +328,7 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
             dev.log('[FaceAttendance] Verification Score: ${result.similarityScore.toStringAsFixed(4)} (Threshold: ${FaceRecognitionService.securityThreshold})', name: 'FaceAttendance');
             if (result.isSuccess) {
               isMatched = true;
+              verifyScore = result.similarityScore;
             }
           }
         }
@@ -343,6 +347,13 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
         }
 
         // --- FACE MATCHED: MARK ATTENDANCE ---
+        final double finalMatchScore = idResult.isSuccess && idResult.similarityScore > 0
+            ? idResult.similarityScore
+            : verifyScore;
+
+        // Compress live captured face image for admin viewing
+        final liveFaceBase64 = FaceAttendanceLogService.compressImageToBase64(imageBytes);
+
         dev.log('[FaceAttendance] Face MATCHED ($verifiedName)! Fetching GPS location and marking attendance...', name: 'FaceAttendance');
         setState(() {
           _statusText = 'Face Verified ($verifiedName)! Recording attendance...';
@@ -367,6 +378,34 @@ class _FaceAttendanceDialogState extends ConsumerState<FaceAttendanceDialog>
             );
 
         if (!mounted) return;
+
+        // Save Face Attendance Record for Admin & Dashboard Inspection
+        try {
+          final authState = ref.read(authProvider);
+          final userEmail = authState.user?['email']?.toString() ?? '';
+          final regPhoto = await FaceAttendanceLogService().getRegisteredFaceImage(_employeeId ?? '');
+
+          final record = FaceAttendanceRecord(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            userId: _employeeId ?? '',
+            userName: verifiedName,
+            email: userEmail,
+            timestamp: DateTime.now(),
+            faceImageBase64: liveFaceBase64,
+            registeredFaceImageBase64: regPhoto,
+            similarityScore: finalMatchScore,
+            status: 'present',
+            verificationMethod: 'Face Lock Biometric',
+            latitude: latitude,
+            longitude: longitude,
+            notes: 'Face Verified via Front Camera ($verifiedName)',
+          );
+          await FaceAttendanceLogService().saveFaceAttendanceLog(record);
+          await ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
+          await ref.read(attendanceProvider.notifier).loadStats();
+        } catch (e) {
+          dev.log('[FaceAttendance] Error storing face attendance log: $e', name: 'FaceAttendance');
+        }
 
         if (res['success'] == true) {
           setState(() {

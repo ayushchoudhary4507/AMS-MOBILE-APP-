@@ -12,6 +12,7 @@ import '../../models/biometric_profile_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/biometric_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/face_attendance_log_service.dart';
 import '../../services/face_recognition_service.dart';
 
 class FaceLockRegistrationScreen extends ConsumerStatefulWidget {
@@ -227,6 +228,19 @@ class _FaceLockRegistrationScreenState
       final success = await _faceService.saveFaceProfile(profile);
 
       if (success && mounted) {
+        // Save registered face photo thumbnail for Admin verification directory
+        try {
+          final regBase64 = FaceAttendanceLogService.compressImageToBase64(imageBytes);
+          if (regBase64 != null) {
+            await FaceAttendanceLogService().saveRegisteredFaceImage(
+              userId: effectiveUserId,
+              imageBase64: regBase64,
+            );
+          }
+        } catch (e) {
+          dev.log('[FaceRegistration] Error saving reg photo: $e', name: 'FaceRegistration');
+        }
+
         // Also enable Face Lock capability in BiometricNotifier
         await ref.read(biometricProvider.notifier).setFaceLockEnabled(
               true,

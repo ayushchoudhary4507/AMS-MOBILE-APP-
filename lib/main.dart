@@ -28,6 +28,7 @@ import 'screens/chat/chat_room_screen.dart';
 import 'screens/employee/qr_scanner_screen.dart';
 import 'screens/employee/face_lock_registration_screen.dart';
 import 'screens/admin/admin_attendance_qr_screen.dart';
+import 'screens/admin/admin_face_attendance_screen.dart';
 
 import 'services/realtime_notification_service.dart';
 
@@ -164,6 +165,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/admin/attendance-qr',
       builder: (context, state) => const AdminAttendanceQRScreen(),
+    ),
+    GoRoute(
+      path: '/admin/face-attendance',
+      builder: (context, state) => const AdminFaceAttendanceScreen(),
     ),
     GoRoute(
       path: '/admin/analytics',

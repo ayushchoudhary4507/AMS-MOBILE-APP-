@@ -8,6 +8,7 @@ import '../models/attendance_model.dart';
 import '../models/attendance_session_model.dart';
 import '../services/attendance_service.dart';
 import '../services/employee_service.dart';
+import '../services/face_attendance_log_service.dart';
 import '../services/realtime_notification_service.dart';
 
 class AttendanceState {
@@ -170,50 +171,19 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
   Future<void> _syncAdminAttendanceFromWeb() async {
     try {
-      final data = await AttendanceService.getTodayAllAttendance();
-      final rawList = data['data'] ??
-          data['attendance'] ??
-          data['records'] ??
-          data['todayAttendance'] ??
-          data['result'] ??
-          data['items'] ??
-          [];
-      final empList = rawList is List ? List<dynamic>.from(rawList) : <dynamic>[];
-      final freshList = <dynamic>[];
+      await loadTodayAllAttendance();
 
-      for (final emp in empList) {
-        if (emp is! Map) continue;
-        final attToday = emp['attendanceToday'] ?? emp['attendance'] ?? emp['today'];
+      for (final item in state.todayAllAttendance) {
+        if (item is! Map) continue;
+        final empId = (item['userId'] ?? item['employeeId'] ?? item['_id'])?.toString() ?? '';
+        final checkInVal = item['checkIn'] ?? item['checkInTime'];
+        final checkOutVal = item['checkOut'] ?? item['checkOutTime'];
+        final empName = (item['name'] ?? 'Employee').toString();
 
-        dynamic checkInVal;
-        dynamic checkOutVal;
-        String? attId;
-        String empName = (emp['name'] ?? 'Employee').toString();
-        String empId = (emp['_id'] ?? emp['id'] ?? emp['email'])?.toString() ?? '';
+        final uniqueCheckInKey = '${empId}_checkin_$checkInVal';
+        final uniqueCheckOutKey = '${empId}_checkout_$checkOutVal';
 
-        if (attToday is Map) {
-          attId = (attToday['_id'] ?? attToday['id'])?.toString();
-          checkInVal = attToday['checkInTime'] ?? attToday['checkIn'] ?? attToday['check_in'];
-          checkOutVal = attToday['checkOutTime'] ?? attToday['checkOut'] ?? attToday['check_out'];
-        } else {
-          checkInVal = emp['checkInTime'] ?? emp['checkIn'] ?? emp['check_in'];
-          checkOutVal = emp['checkOutTime'] ?? emp['checkOut'] ?? emp['check_out'];
-        }
-
-        final uniqueCheckInKey = '${empId}_checkin_${checkInVal ?? attId}';
-        final uniqueCheckOutKey = '${empId}_checkout_${checkOutVal ?? attId}';
-
-        if (checkInVal != null && checkInVal.toString().isNotEmpty) {
-          freshList.add({
-            '_id': attId ?? empId,
-            'status': 'Present',
-            'checkIn': checkInVal,
-            'checkOut': checkOutVal,
-            'name': empName,
-            'email': emp['email'],
-            'userId': empId,
-          });
-
+        if (checkInVal != null && checkInVal.toString().isNotEmpty && checkInVal.toString() != 'null') {
           if (!_isFirstAdminSync && !_adminTrackedCheckInIds.contains(uniqueCheckInKey)) {
             _adminTrackedCheckInIds.add(uniqueCheckInKey);
             DateTime checkInDt = DateTime.now();
@@ -244,7 +214,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
           }
         }
 
-        if (checkOutVal != null && checkOutVal.toString().isNotEmpty) {
+        if (checkOutVal != null && checkOutVal.toString().isNotEmpty && checkOutVal.toString() != 'null') {
           if (!_isFirstAdminSync && !_adminTrackedCheckOutIds.contains(uniqueCheckOutKey)) {
             _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
             DateTime checkOutDt = DateTime.now();
@@ -277,7 +247,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       }
 
       _isFirstAdminSync = false;
-      state = state.copyWith(todayAllAttendance: freshList);
     } catch (_) {}
   }
 
@@ -1142,11 +1111,34 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
     }
   }
 
+  bool _isDateToday(dynamic val) {
+    if (val == null) return false;
+    try {
+      DateTime dt;
+      if (val is DateTime) {
+        dt = val;
+      } else {
+        String s = val.toString().trim();
+        if (s.isEmpty || s == 'null') return false;
+        if (s.contains('T') &&
+            !s.endsWith('Z') &&
+            !s.substring(s.indexOf('T')).contains('+') &&
+            !s.substring(s.indexOf('T')).contains('-')) {
+          s += 'Z';
+        }
+        dt = DateTime.parse(s).toLocal();
+      }
+      final now = DateTime.now();
+      return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> loadTodayAllAttendance() async {
     try {
       final data = await AttendanceService.getTodayAllAttendance();
 
-      // API returns: { success, count, data: [ { _id, name, email, attendanceToday: {...} } ] }
       final rawList = data['data'] ??
           data['attendance'] ??
           data['records'] ??
@@ -1161,68 +1153,234 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       final empList = rawList is List ? List<dynamic>.from(rawList) : <dynamic>[];
 
       final list = <dynamic>[];
+      final seenIds = <String>{};
+
+      void addIfUnique(Map<String, dynamic> record) {
+        final id = (record['userId'] ?? record['employeeId'] ?? record['_id'] ?? record['id'])
+            ?.toString()
+            .trim()
+            .toLowerCase();
+        final email = record['email']?.toString().trim().toLowerCase();
+        final name = record['name']?.toString().trim().toLowerCase();
+
+        final keys = [id, email, (name != null && name != 'employee' && name.length > 2 ? name : null)]
+            .where((k) => k != null && k.isNotEmpty)
+            .cast<String>();
+
+        if (keys.any((k) => seenIds.contains(k))) {
+          final idx = list.indexWhere((item) {
+            if (item is! Map) return false;
+            final iId = (item['userId'] ?? item['employeeId'] ?? item['_id'] ?? item['id'])
+                ?.toString()
+                .trim()
+                .toLowerCase();
+            final iEmail = item['email']?.toString().trim().toLowerCase();
+            final iName = item['name']?.toString().trim().toLowerCase();
+
+            final bool idMatch = id != null && id.isNotEmpty && id == iId;
+            final bool emailMatch = email != null && email.isNotEmpty && email == iEmail;
+            final bool nameMatch = name != null && name != 'employee' && name.length > 2 && name == iName;
+            return idMatch || emailMatch || nameMatch;
+          });
+          if (idx >= 0) {
+            final old = Map<String, dynamic>.from(list[idx]);
+            old.addAll(record);
+            list[idx] = old;
+          }
+          return;
+        }
+
+        seenIds.addAll(keys);
+        list.add(record);
+      }
 
       for (final emp in empList) {
         if (emp is! Map) continue;
 
-        final attToday = emp['attendanceToday'];
+        final attToday = emp['attendanceToday'] ?? emp['today'] ?? emp['todayAttendance'];
 
         if (attToday != null && attToday is Map) {
-          // Merge employee info into a flat attendance record
-          final merged = <String, dynamic>{
-            '_id': attToday['_id'],
-            'status': attToday['status'] ?? attToday['attendanceStatus'] ?? 'Present',
-            'checkIn': attToday['checkInTime'] ?? attToday['checkIn'] ?? attToday['check_in'] ?? attToday['date'] ?? attToday['createdAt'],
-            'checkOut': attToday['checkOutTime'] ?? attToday['checkOut'] ?? attToday['check_out'],
-            'date': attToday['date'] ?? attToday['createdAt'],
-            'createdAt': attToday['createdAt'],
-            'isActive': attToday['isActive'],
-            'workHours': attToday['workHours'],
-            // Flatten employee identity
-            'name': emp['name'],
-            'email': emp['email'],
-            'userId': attToday['userId'] ?? emp['_id'],
-            'employeeId': emp['employeeId'] ?? emp['_id'],
-            'employee': {
-              '_id': emp['_id'],
-              'name': emp['name'],
-              'email': emp['email'],
-              'designation': emp['designation'],
-              'profilePhoto': emp['profilePhoto'] ?? emp['avatar'] ?? emp['photo'],
-            },
-          };
-          list.add(merged);
-        } else if ((emp['attendanceStatus']?.toString().toLowerCase() == 'active') ||
-            (emp['status']?.toString().toLowerCase() == 'present')) {
-          // No nested attendanceToday but marked as present
-          list.add({
-            'status': 'Present',
-            'name': emp['name'],
-            'email': emp['email'],
-            'userId': emp['_id'],
-            'employeeId': emp['employeeId'] ?? emp['_id'],
-            'employee': emp,
-          });
+          final st = (attToday['status'] ?? attToday['attendanceStatus'] ?? 'Present').toString();
+          if (!st.toLowerCase().contains('absent') && !st.toLowerCase().contains('leave')) {
+            final cIn = attToday['checkInTime'] ??
+                attToday['checkIn'] ??
+                attToday['check_in'];
+            final cOut = attToday['checkOutTime'] ??
+                attToday['checkOut'] ??
+                attToday['check_out'];
+            final dtVal = attToday['date'] ?? attToday['createdAt'];
+
+            final merged = <String, dynamic>{
+              '_id': attToday['_id'] ?? attToday['id'] ?? emp['_id'],
+              'status': st.isNotEmpty ? st : 'Present',
+              'checkIn': cIn ?? dtVal ?? DateTime.now().toIso8601String(),
+              'checkOut': cOut,
+              'date': dtVal ?? cIn ?? DateTime.now().toIso8601String(),
+              'createdAt': attToday['createdAt'],
+              'isActive': attToday['isActive'],
+              'workHours': attToday['workHours'],
+              'attendanceMethod': attToday['attendanceMethod'] ??
+                  attToday['method'] ??
+                  attToday['verificationMethod'] ??
+                  'Direct Check-in',
+              'name': emp['name'] ?? attToday['name'] ?? 'Employee',
+              'email': emp['email'] ?? attToday['email'] ?? '',
+              'userId': attToday['userId'] ?? emp['_id'] ?? emp['id'],
+              'employeeId': emp['employeeId'] ?? attToday['employeeId'] ?? emp['_id'],
+              'employee': {
+                '_id': emp['_id'] ?? emp['id'],
+                'name': emp['name'] ?? attToday['name'],
+                'email': emp['email'] ?? attToday['email'],
+                'designation': emp['designation'] ?? emp['role'],
+                'profilePhoto': emp['profilePhoto'] ??
+                    emp['avatar'] ??
+                    emp['photo'] ??
+                    emp['image'],
+              },
+            };
+            addIfUnique(merged);
+          }
+        } else {
+          final empObj = emp['employee'] ?? emp['user'];
+          String? name = (empObj is Map ? empObj['name'] : null) ??
+              emp['name'] ??
+              emp['userName'] ??
+              emp['employeeName'];
+          String? email = (empObj is Map ? empObj['email'] : null) ??
+              emp['email'] ??
+              emp['userEmail'];
+          String? uid = (empObj is Map ? (empObj['_id'] ?? empObj['id']) : null) ??
+              emp['userId'] ??
+              emp['employeeId'] ??
+              emp['_id'] ??
+              emp['id'];
+          final checkInVal = emp['checkInTime'] ??
+              emp['checkIn'] ??
+              emp['check_in'] ??
+              emp['inTime'];
+          final checkOutVal =
+              emp['checkOutTime'] ?? emp['checkOut'] ?? emp['check_out'] ?? emp['outTime'];
+          final st = (emp['status'] ?? emp['attendanceStatus'] ?? '').toString();
+
+          final bool isToday = _isDateToday(checkInVal) ||
+              _isDateToday(emp['date']) ||
+              (checkInVal != null &&
+                  checkInVal.toString().isNotEmpty &&
+                  checkInVal.toString() != 'null' &&
+                  st.toLowerCase() == 'present');
+
+          if (isToday) {
+            addIfUnique({
+              '_id': emp['_id'] ?? emp['id'] ?? uid,
+              'status': st.isNotEmpty ? st : 'Present',
+              'checkIn': checkInVal ?? emp['date'] ?? DateTime.now().toIso8601String(),
+              'checkOut': checkOutVal,
+              'date': emp['date'] ?? checkInVal ?? DateTime.now().toIso8601String(),
+              'createdAt': emp['createdAt'],
+              'attendanceMethod': emp['attendanceMethod'] ??
+                  emp['method'] ??
+                  emp['verificationMethod'] ??
+                  'Direct Check-in',
+              'name': name ?? 'Employee',
+              'email': email ?? '',
+              'userId': uid ?? '',
+              'employeeId': uid ?? '',
+              'employee': empObj is Map ? empObj : emp,
+            });
+          }
         }
       }
 
-      debugPrint('[ATT_DEBUG] Parsed ${list.length} present records from ${empList.length} employees');
+      // 2. Load and Merge Face Lock Attendance scans recorded today
+      try {
+        final now = DateTime.now();
+        final faceLogs = await FaceAttendanceLogService().getFaceAttendanceLogs();
+        for (final fLog in faceLogs) {
+          final isToday = (fLog.timestamp.year == now.year &&
+                  fLog.timestamp.month == now.month &&
+                  fLog.timestamp.day == now.day) ||
+              now.difference(fLog.timestamp).inHours.abs() < 24;
+          if (isToday) {
+            addIfUnique({
+              '_id': fLog.id,
+              'status': 'Present',
+              'checkIn': fLog.timestamp.toIso8601String(),
+              'checkInTime': fLog.timestamp.toIso8601String(),
+              'date': fLog.timestamp.toIso8601String(),
+              'createdAt': fLog.timestamp.toIso8601String(),
+              'name': fLog.userName,
+              'email': fLog.email,
+              'userId': fLog.userId,
+              'employeeId': fLog.userId,
+              'attendanceMethod': 'Face Lock Biometric',
+              'verificationMethod': fLog.verificationMethod,
+              'faceImage': fLog.faceImageBase64,
+              'avatar': fLog.faceImageBase64 ?? fLog.registeredFaceImageBase64,
+              'notes': fLog.notes,
+              'employee': {
+                '_id': fLog.userId,
+                'name': fLog.userName,
+                'email': fLog.email,
+                'avatar': fLog.faceImageBase64 ?? fLog.registeredFaceImageBase64,
+              },
+            });
+          }
+        }
+      } catch (_) {}
 
+      // 3. Load and Merge Attendance QR / Barcode scanned session records
+      try {
+        final session = state.activeSession;
+        if (session != null && session.scannedEmployees.isNotEmpty) {
+          for (final scanned in session.scannedEmployees) {
+            addIfUnique({
+              '_id': scanned['_id'] ?? scanned['id'] ?? scanned['employeeId'],
+              'status': 'Present',
+              'checkIn': scanned['scannedAt'] ??
+                  scanned['checkIn'] ??
+                  scanned['createdAt'] ??
+                  DateTime.now().toIso8601String(),
+              'name': scanned['name'] ?? scanned['employeeName'] ?? 'Employee',
+              'email': scanned['email'] ?? '',
+              'userId': (scanned['employeeId'] ??
+                      scanned['userId'] ??
+                      scanned['_id'])
+                  ?.toString() ??
+                  '',
+              'employeeId': (scanned['employeeId'] ??
+                      scanned['userId'] ??
+                      scanned['_id'])
+                  ?.toString() ??
+                  '',
+              'attendanceMethod': 'QR Scanner',
+              'employee': scanned,
+            });
+          }
+        }
+      } catch (_) {}
+
+      // 4. Merge all locally saved today attendances from StorageService
+      try {
+        final savedTodayList = await StorageService.getAllSavedTodayAttendances();
+        for (final saved in savedTodayList) {
+          final isPresent = (saved['status'] ?? '').toString().toLowerCase().contains('present') ||
+              saved['checkIn'] != null ||
+              saved['checkInTime'] != null;
+          if (isPresent) {
+            addIfUnique(saved);
+          }
+        }
+      } catch (_) {}
+
+      // 5. Ensure current user's local today attendance is merged if marked
       if (state.isCheckedIn && state.todayAttendance != null) {
         final localAtt = state.todayAttendance!;
-        final exists = list.any((item) {
-          if (item is! Map) return false;
-          final id = (item['userId'] ?? item['employeeId'])?.toString();
-          return id != null && (id == localAtt.userId || id == localAtt.employeeId || id == localAtt.id);
-        });
-        if (!exists) {
-          list.add(localAtt.toJson());
-        }
+        addIfUnique(localAtt.toJson());
       }
+
       state = state.copyWith(todayAllAttendance: list);
     } catch (e, st) {
       debugPrint('[ATT_DEBUG] loadTodayAllAttendance ERROR: $e\n$st');
-      state = state.copyWith(todayAllAttendance: []);
     }
   }
 
