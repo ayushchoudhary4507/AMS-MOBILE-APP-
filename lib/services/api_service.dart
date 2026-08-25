@@ -27,40 +27,19 @@ class ApiService {
               options.headers['Authorization'] = 'Bearer $token';
             }
           } catch (_) {}
-          // Debug Logging
+          // Clean path logging
           // ignore: avoid_print
-          print('--> ${options.method.toUpperCase()} ${options.uri}');
-          if (options.data != null) {
-            // ignore: avoid_print
-            print('BODY: ${options.data}');
-          }
+          print('--> ${options.method.toUpperCase()} ${options.uri.path}');
           return handler.next(options);
         },
         onResponse: (response, handler) {
-          // Truncated safe logging
           // ignore: avoid_print
-          print('<-- ${response.statusCode} ${response.requestOptions.uri}');
-          final resStr = response.data?.toString() ?? '';
-          if (resStr.length > 200) {
-            // ignore: avoid_print
-            print('RESPONSE: ${resStr.substring(0, 200)}... [truncated]');
-          } else if (resStr.isNotEmpty) {
-            // ignore: avoid_print
-            print('RESPONSE: $resStr');
-          }
+          print('<-- ${response.statusCode} ${response.requestOptions.uri.path}');
           return handler.next(response);
         },
         onError: (DioException e, handler) async {
           // ignore: avoid_print
-          print('<-- ERROR ${e.response?.statusCode} ${e.requestOptions.uri}');
-          final errStr = e.response?.data?.toString() ?? '';
-          if (errStr.length > 200) {
-            // ignore: avoid_print
-            print('ERROR BODY: ${errStr.substring(0, 200)}... [truncated]');
-          } else if (errStr.isNotEmpty) {
-            // ignore: avoid_print
-            print('ERROR BODY: $errStr');
-          }
+          print('<-- ERROR ${e.response?.statusCode} ${e.requestOptions.uri.path}');
           try {
             final statusCode = e.response?.statusCode;
             final bodyStr = e.response?.data?.toString().toLowerCase() ?? '';

@@ -24,7 +24,9 @@ class DashboardConfigState {
 
   List<BottomNavItemConfig> get enabledBottomNav {
     final list = bottomNav ?? BottomNavItemConfig.defaultNav;
-    final enabled = list.where((n) => n.enabled).toList()
+    final enabled = list
+        .where((n) => n.enabled && n.id.toLowerCase() != 'more')
+        .toList()
       ..sort((a, b) => a.order.compareTo(b.order));
     return enabled.isNotEmpty ? enabled : BottomNavItemConfig.defaultNav;
   }

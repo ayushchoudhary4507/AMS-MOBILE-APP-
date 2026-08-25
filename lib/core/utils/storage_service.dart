@@ -99,11 +99,15 @@ class StorageService {
   // Save User Avatar per email/ID
   static Future<void> saveUserAvatar(String emailOrId, String avatar) async {
     if (emailOrId.trim().isEmpty || avatar.trim().isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
     final keyLower = emailOrId.trim().toLowerCase();
-    final key = 'user_avatar_$keyLower';
-    await prefs.setString(key, avatar);
     avatarCache[keyLower] = avatar;
+    if (avatar.length < 5000) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'user_avatar_$keyLower';
+        await prefs.setString(key, avatar);
+      } catch (_) {}
+    }
   }
 
   // Get User Avatar per email/ID

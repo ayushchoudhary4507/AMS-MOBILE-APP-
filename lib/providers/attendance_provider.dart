@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../core/utils/storage_service.dart';
 import '../models/attendance_model.dart';
 import '../models/attendance_session_model.dart';
@@ -78,13 +77,8 @@ class AttendanceState {
 class AttendanceNotifier extends StateNotifier<AttendanceState> {
   final Ref? _ref;
   Timer? _bgSyncTimer;
-  final Set<String> _adminTrackedCheckInIds = {};
-  final Set<String> _adminTrackedCheckOutIds = {};
   final Set<String> _adminTrackedLeaveIds = {};
   final Set<String> _adminTrackedLoginIds = {};
-  bool _isFirstAdminSync = true;
-  bool _isFirstLeaveSync = true;
-  bool _isFirstLoginSync = true;
 
   AttendanceNotifier([this._ref]) : super(const AttendanceState()) {
     _startBackgroundSync();
@@ -133,120 +127,15 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
         final isLoginNotif = type.contains('login') || title.toLowerCase().contains('login') || message.toLowerCase().contains('logged in');
 
         if (isLoginNotif) {
-          if (!_isFirstLoginSync && !_adminTrackedLoginIds.contains(id)) {
-            _adminTrackedLoginIds.add(id);
-            if (_ref != null) {
-              final rawTime = item['loginAt'] ?? item['createdAt'] ?? item['timestamp'] ?? item['loginTimestampUtc'];
-              DateTime? createdAt;
-              if (rawTime != null && rawTime.toString().isNotEmpty) {
-                try {
-                  String str = rawTime.toString().trim();
-                  if (str.contains('T') &&
-                      !str.endsWith('Z') &&
-                      !str.substring(str.indexOf('T')).contains('+') &&
-                      !str.substring(str.indexOf('T')).contains('-')) {
-                    str += 'Z';
-                  }
-                  createdAt = DateTime.parse(str);
-                } catch (_) {}
-              }
-
-              RealtimeNotificationService.dispatchNotification(
-                _ref,
-                title: title.isNotEmpty ? title : 'Employee Logged In',
-                message: message.isNotEmpty ? message : 'An employee has logged in.',
-                type: 'employee_login',
-                category: NotificationCategory.userLogin,
-                createdAt: createdAt,
-              );
-            }
-          } else {
-            _adminTrackedLoginIds.add(id);
-          }
+          _adminTrackedLoginIds.add(id);
         }
       }
-      _isFirstLoginSync = false;
     } catch (_) {}
   }
 
   Future<void> _syncAdminAttendanceFromWeb() async {
     try {
       await loadTodayAllAttendance();
-
-      for (final item in state.todayAllAttendance) {
-        if (item is! Map) continue;
-        final empId = (item['userId'] ?? item['employeeId'] ?? item['_id'])?.toString() ?? '';
-        final checkInVal = item['checkIn'] ?? item['checkInTime'];
-        final checkOutVal = item['checkOut'] ?? item['checkOutTime'];
-        final empName = (item['name'] ?? 'Employee').toString();
-
-        final uniqueCheckInKey = '${empId}_checkin_$checkInVal';
-        final uniqueCheckOutKey = '${empId}_checkout_$checkOutVal';
-
-        if (checkInVal != null && checkInVal.toString().isNotEmpty && checkInVal.toString() != 'null') {
-          if (!_isFirstAdminSync && !_adminTrackedCheckInIds.contains(uniqueCheckInKey)) {
-            _adminTrackedCheckInIds.add(uniqueCheckInKey);
-            DateTime checkInDt = DateTime.now();
-            try {
-              String str = checkInVal.toString().trim();
-              if (str.contains('T') &&
-                  !str.endsWith('Z') &&
-                  !str.substring(str.indexOf('T')).contains('+') &&
-                  !str.substring(str.indexOf('T')).contains('-')) {
-                str += 'Z';
-              }
-              checkInDt = DateTime.parse(str).toLocal();
-            } catch (_) {}
-
-            final timeStr = DateFormat('hh:mm a').format(checkInDt);
-            if (_ref != null) {
-              RealtimeNotificationService.dispatchNotification(
-                _ref,
-                title: 'Attendance Update',
-                message: '$empName marked Check In at $timeStr.',
-                type: 'attendance_checkin',
-                category: NotificationCategory.attendanceCheckIn,
-                createdAt: checkInDt,
-              );
-            }
-          } else {
-            _adminTrackedCheckInIds.add(uniqueCheckInKey);
-          }
-        }
-
-        if (checkOutVal != null && checkOutVal.toString().isNotEmpty && checkOutVal.toString() != 'null') {
-          if (!_isFirstAdminSync && !_adminTrackedCheckOutIds.contains(uniqueCheckOutKey)) {
-            _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
-            DateTime checkOutDt = DateTime.now();
-            try {
-              String str = checkOutVal.toString().trim();
-              if (str.contains('T') &&
-                  !str.endsWith('Z') &&
-                  !str.substring(str.indexOf('T')).contains('+') &&
-                  !str.substring(str.indexOf('T')).contains('-')) {
-                str += 'Z';
-              }
-              checkOutDt = DateTime.parse(str).toLocal();
-            } catch (_) {}
-
-            final timeStr = DateFormat('hh:mm a').format(checkOutDt);
-            if (_ref != null) {
-              RealtimeNotificationService.dispatchNotification(
-                _ref,
-                title: 'Attendance Update',
-                message: '$empName marked Check Out at $timeStr.',
-                type: 'attendance_checkout',
-                category: NotificationCategory.attendanceCheckOut,
-                createdAt: checkOutDt,
-              );
-            }
-          } else {
-            _adminTrackedCheckOutIds.add(uniqueCheckOutKey);
-          }
-        }
-      }
-
-      _isFirstAdminSync = false;
     } catch (_) {}
   }
 
@@ -316,36 +205,10 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       for (final leave in (list.isNotEmpty ? list : state.allLeaves)) {
         if (leave is! Map) continue;
         final leaveId = (leave['_id'] ?? leave['id'])?.toString();
-        if (leaveId == null || leaveId.isEmpty) continue;
-
-        final status = (leave['status'] ?? 'pending').toString().toLowerCase();
-        final empName = (leave['user']?['name'] ??
-                leave['employee']?['name'] ??
-                leave['employeeName'] ??
-                leave['name'] ??
-                'Employee')
-            .toString();
-        final leaveType =
-            (leave['leaveType'] ?? leave['type'] ?? 'Leave').toString();
-
-        if (!_isFirstLeaveSync &&
-            !_adminTrackedLeaveIds.contains(leaveId) &&
-            status == 'pending') {
-          _adminTrackedLeaveIds.add(leaveId);
-          if (_ref != null) {
-            RealtimeNotificationService.dispatchNotification(
-              _ref,
-              title: 'New Leave Request',
-              message: '$empName applied for $leaveType.',
-              type: 'leave_request',
-              category: NotificationCategory.leaveRequest,
-            );
-          }
-        } else {
+        if (leaveId != null && leaveId.isNotEmpty) {
           _adminTrackedLeaveIds.add(leaveId);
         }
       }
-      _isFirstLeaveSync = false;
     } catch (_) {}
   }
 

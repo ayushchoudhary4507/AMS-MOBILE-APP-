@@ -213,6 +213,5 @@ class BottomNavItemConfig {
         BottomNavItemConfig(id: 'employees', label: 'Employees', icon: 'people', enabled: true, order: 2),
         BottomNavItemConfig(id: 'leaves', label: 'Leaves', icon: 'business_center', enabled: true, order: 3),
         BottomNavItemConfig(id: 'messages', label: 'Messages', icon: 'chat', enabled: true, order: 4),
-        BottomNavItemConfig(id: 'more', label: 'More', icon: 'more_horiz', enabled: true, order: 5),
       ];
 }

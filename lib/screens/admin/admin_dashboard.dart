@@ -5464,10 +5464,3 @@ bool isLeaveActiveToday(dynamic leave, [DateTime? targetDate]) {
     return false;
   }
 }
-
-
-class _NavIconPair {
-  final IconData item1;
-  final IconData item2;
-  const _NavIconPair(this.item1, this.item2);
-}
