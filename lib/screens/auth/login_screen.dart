@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -577,7 +578,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  // --- Biometric Buttons Section Below Login Button ---
+  // --- Biometric & OTP Login Buttons Section Below Login Button ---
   Widget _buildSecondaryBiometricSection(BiometricCapabilities caps) {
     final isDark = context.isDark;
 
@@ -605,6 +606,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ],
         ),
         const SizedBox(height: 14),
+
+        // 1. Prominent Email OTP Button
+        InkWell(
+          key: const ValueKey('email_otp_login_btn'),
+          onTap: () => _showEmailOtpLoginModal(context),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                  : const Color(0xFF10B981).withValues(alpha: 0.08),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                width: 1.3,
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.mark_email_read_rounded, color: Color(0xFF10B981), size: 18),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Login with Email OTP',
+                  style: TextStyle(
+                    color: Color(0xFF10B981),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.arrow_forward_rounded, color: Color(0xFF10B981), size: 16),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // 2. Fingerprint & Face Unlock Row
         Row(
           key: const ValueKey('sec_bio_btn_row'),
           children: [
@@ -692,6 +743,388 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  void _showEmailOtpLoginModal(BuildContext context) {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final otpController = TextEditingController();
+
+    int currentStep = 1; // 1 = Enter Email & Send OTP, 2 = Enter 6-digit OTP & Login
+    bool isSubmitting = false;
+    String? errorText;
+    int resendCountdown = 0;
+    Timer? countdownTimer;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            void startTimer() {
+              countdownTimer?.cancel();
+              resendCountdown = 60;
+              countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+                if (resendCountdown > 0) {
+                  setModalState(() => resendCountdown--);
+                } else {
+                  timer.cancel();
+                }
+              });
+            }
+
+            Future<void> sendOtp() async {
+              final email = emailController.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                setModalState(() => errorText = 'Please enter a valid email address');
+                return;
+              }
+
+              setModalState(() {
+                isSubmitting = true;
+                errorText = null;
+              });
+
+              final res = await ref.read(authProvider.notifier).sendLoginOtp(email);
+
+              if (res != null) {
+                setModalState(() {
+                  isSubmitting = false;
+                  currentStep = 2;
+                  errorText = null;
+                });
+                startTimer();
+              } else {
+                final err = ref.read(authProvider).error;
+                setModalState(() {
+                  isSubmitting = false;
+                  errorText = err ?? 'Failed to send OTP code to $email';
+                });
+              }
+            }
+
+            Future<void> verifyOtpAndLogin() async {
+              final email = emailController.text.trim();
+              final otp = otpController.text.trim();
+
+              if (otp.length < 4) {
+                setModalState(() => errorText = 'Please enter the complete OTP code');
+                return;
+              }
+
+              setModalState(() {
+                isSubmitting = true;
+                errorText = null;
+              });
+
+              final success = await ref
+                  .read(authProvider.notifier)
+                  .loginWithOtp(email, otp);
+
+              if (success && mounted) {
+                countdownTimer?.cancel();
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                        SizedBox(width: 10),
+                        Text('Logged in successfully via OTP!'),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF10B981),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+                _navigateByRole();
+              } else {
+                final err = ref.read(authProvider).error;
+                setModalState(() {
+                  isSubmitting = false;
+                  errorText = err ?? 'Invalid OTP code. Please check and try again.';
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: context.cardBg,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border.all(color: context.borderCol, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: context.isDark ? 0.4 : 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle bar
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: context.txtMuted.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              currentStep == 1
+                                  ? Icons.mark_email_read_rounded
+                                  : Icons.verified_user_rounded,
+                              color: const Color(0xFF10B981),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  currentStep == 1
+                                      ? 'Login with Email OTP'
+                                      : 'Enter Verification Code',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: context.txtPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  currentStep == 1
+                                      ? 'Step 1 of 2: Get OTP code on your Email'
+                                      : 'Step 2 of 2: Enter OTP to Login',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: context.txtMuted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            color: context.txtMuted,
+                            onPressed: () {
+                              countdownTimer?.cancel();
+                              Navigator.of(ctx).pop();
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Error banner
+                      if (errorText != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentRed.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.accentRed.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                color: AppColors.accentRed,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  errorText!,
+                                  style: const TextStyle(
+                                    color: AppColors.accentRed,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Step 1: Request OTP
+                      if (currentStep == 1) ...[
+                        Text(
+                          'Email Address',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: context.txtPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        CustomTextField(
+                          controller: emailController,
+                          label: 'Email Address',
+                          hint: 'Enter your registered email',
+                          prefixIcon: Icons.mail_outline_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 20),
+                        CustomButton(
+                          label: 'Send Login Code',
+                          isLoading: isSubmitting,
+                          onPressed: isSubmitting ? null : sendOtp,
+                        ),
+                      ],
+
+                      // Step 2: Enter OTP & Login
+                      if (currentStep == 2) ...[
+                        // Email target info banner
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.email_outlined, color: Color(0xFF10B981), size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'OTP sent to ${emailController.text.trim()}',
+                                  style: TextStyle(
+                                    color: context.txtPrimary,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  countdownTimer?.cancel();
+                                  setModalState(() {
+                                    currentStep = 1;
+                                    errorText = null;
+                                  });
+                                },
+                                child: const Text(
+                                  'Edit',
+                                  style: TextStyle(
+                                    color: Color(0xFF6366F1),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        Text(
+                          'Verification Code (OTP)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: context.txtPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        CustomTextField(
+                          controller: otpController,
+                          label: 'OTP Code',
+                          hint: 'Enter 6-digit OTP code',
+                          prefixIcon: Icons.pin_outlined,
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Resend OTP Countdown
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: resendCountdown > 0
+                              ? Text(
+                                  'Resend OTP in ${resendCountdown}s',
+                                  style: TextStyle(
+                                    color: context.txtMuted,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                )
+                              : TextButton(
+                                  onPressed: isSubmitting ? null : sendOtp,
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  child: const Text(
+                                    'Resend Code',
+                                    style: TextStyle(
+                                      color: Color(0xFF6366F1),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        CustomButton(
+                          label: 'Verify & Login',
+                          isLoading: isSubmitting,
+                          onPressed: isSubmitting ? null : verifyOtpAndLogin,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

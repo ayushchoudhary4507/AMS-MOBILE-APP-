@@ -57,9 +57,6 @@ void main() async {
         await Firebase.initializeApp(options: _fallbackFirebaseOptions);
       }
       if (Firebase.apps.isNotEmpty) {
-        try {
-          FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-        } catch (_) {}
         await RealtimeNotificationService.initFirebaseMessaging();
       }
     } catch (e) {

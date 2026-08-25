@@ -12,10 +12,19 @@ import '../screens/shared/notifications_screen.dart';
 import '../providers/auth_provider.dart';
 import 'employee_service.dart';
 
+const FirebaseOptions _fallbackFirebaseOptions = FirebaseOptions(
+  apiKey: 'AIzaSyAamsMobileDefaultApiKey123456789',
+  appId: '1:123456789012:android:abcdef1234567890',
+  messagingSenderId: '123456789012',
+  projectId: 'attendence-management-system1',
+);
+
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp();
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: _fallbackFirebaseOptions);
+    }
     debugPrint("Handling background FCM push message: \${message.messageId}");
   } catch (e) {
     debugPrint("Background FCM handler error: \$e");

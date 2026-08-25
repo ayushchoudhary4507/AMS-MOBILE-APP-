@@ -221,6 +221,102 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
   }
 
+  /// Send OTP to Email for Login
+  Future<Map<String, dynamic>?> sendLoginOtp(String email) async {
+    state = state.copyWith(status: AuthStatus.loading, error: null);
+    try {
+      final res = await AuthService.sendLoginOtp(email);
+      state = state.copyWith(status: AuthStatus.unauthenticated);
+      return res;
+    } catch (e) {
+      String msg = 'Failed to send OTP code. Please check your email.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map) {
+          msg = resData['message']?.toString() ?? resData['error']?.toString() ?? msg;
+        }
+      } else if (e is Exception) {
+        msg = e.toString().replaceFirst('Exception: ', '');
+      }
+      state = state.copyWith(status: AuthStatus.error, error: msg);
+      return null;
+    }
+  }
+
+  /// Verify OTP and Login directly without password
+  Future<bool> loginWithOtp(String email, String otp) async {
+    state = state.copyWith(status: AuthStatus.loading, error: null);
+
+    if (_ref != null) {
+      Future.microtask(() {
+        _ref.read(attendanceProvider.notifier).reset();
+        _ref.read(employeeProvider.notifier).reset();
+      });
+    }
+
+    try {
+      final data = await AuthService.verifyLoginOtp(email, otp);
+      final token = (data['token'] ??
+              data['accessToken'] ??
+              data['access_token'] ??
+              data['jwt'] ??
+              data['data']?['token'] ??
+              data['data']?['accessToken'] ??
+              data['data']?['access_token'] ??
+              data['result']?['token'] ??
+              data['result']?['accessToken'])
+          ?.toString();
+
+      Map<String, dynamic>? user;
+      if (data['user'] is Map<String, dynamic>) {
+        user = Map<String, dynamic>.from(data['user']);
+      } else if (data['data'] is Map<String, dynamic> &&
+          data['data']['user'] is Map<String, dynamic>) {
+        user = Map<String, dynamic>.from(data['data']['user']);
+      } else if (data['data'] is Map<String, dynamic>) {
+        user = Map<String, dynamic>.from(data['data']);
+      } else if (data['employee'] is Map<String, dynamic>) {
+        user = Map<String, dynamic>.from(data['employee']);
+      }
+
+      final role = user?['role']?.toString() ?? 'employee';
+
+      if (token != null && token.isNotEmpty) {
+        await StorageService.saveToken(token);
+        if (user != null) await StorageService.saveUser(user);
+        await StorageService.saveRole(role);
+
+        state = AuthState(
+          status: AuthStatus.authenticated,
+          user: user,
+          role: role,
+          token: token,
+        );
+        _syncDeviceToken(user);
+        await refreshProfile();
+        return true;
+      }
+
+      state = state.copyWith(
+        status: AuthStatus.error,
+        error: 'Login failed: Server did not return a valid session token.',
+      );
+      return false;
+    } catch (e) {
+      String msg = 'Failed to verify OTP. Please try again.';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map) {
+          msg = resData['message']?.toString() ?? resData['error']?.toString() ?? msg;
+        }
+      } else if (e is Exception) {
+        msg = e.toString().replaceFirst('Exception: ', '');
+      }
+      state = state.copyWith(status: AuthStatus.error, error: msg);
+      return false;
+    }
+  }
+
   /// Login karta hai — pehle employee endpoint try karta hai,
   /// fail hone par admin endpoint try karta hai.
   /// Role automatically server response se detect hota hai.

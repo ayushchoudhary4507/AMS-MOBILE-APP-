@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import 'api_service.dart';
-import 'email_service.dart';
 import '../core/utils/storage_service.dart';
 
 class AuthService {
@@ -15,6 +14,39 @@ class AuthService {
       data: {'email': email, 'password': password},
     );
     return ApiService.toMap(response.data);
+  }
+
+  // Send Login OTP to Email
+  static Future<Map<String, dynamic>> sendLoginOtp(String email) async {
+    final clean = email.trim().toLowerCase();
+    final response = await ApiService.post(
+      ApiConstants.authSend,
+      data: {'email': clean},
+    );
+    final map = ApiService.toMap(response.data);
+    if (map['success'] == false) {
+      throw Exception(map['message']?.toString() ?? 'Failed to send OTP to $clean');
+    }
+    return map;
+  }
+
+  // Verify Login OTP and authenticate
+  static Future<Map<String, dynamic>> verifyLoginOtp(
+      String email, String otp) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanOtp = otp.trim();
+    final response = await ApiService.post(
+      ApiConstants.authVerify,
+      data: {
+        'email': cleanEmail,
+        'otp': cleanOtp,
+      },
+    );
+    final map = ApiService.toMap(response.data);
+    if (map['success'] == false) {
+      throw Exception(map['message']?.toString() ?? 'Invalid or expired OTP code.');
+    }
+    return map;
   }
 
   // Admin Login
@@ -171,99 +203,74 @@ class AuthService {
     return result.isNotEmpty ? result : {'success': true};
   }
 
-  // Forgot Password: Request OTP to Phone or Email in Real-Time
-  // Cache last successfully matched identifier format (e.g. +919876543210 vs 9876543210)
+  // Forgot Password: Request OTP to Phone or Email via Backend API
   static String? _lastMatchedIdentifier;
-
-  // Forgot Password: Request OTP to Phone or Email with multi-format matching
-  // Dedicated Dio instance for OTP registration
-  // Render.com free tier cold-starts can take 30-60s — use generous timeouts
-  static final Dio _otpDio = Dio(
-    BaseOptions(
-      baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 60),
-      receiveTimeout: const Duration(seconds: 60),
-      sendTimeout: const Duration(seconds: 60),
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-    ),
-  );
-
-  // Generate a 6-digit OTP locally
-  static String _generateOtp() {
-    int seed = DateTime.now().millisecondsSinceEpoch;
-    return List.generate(6, (_) {
-      seed = (seed * 1664525 + 1013904223) & 0xFFFFFFFF;
-      return ((seed >> 16) % 10).toString();
-    }).join();
-  }
 
   static Future<Map<String, dynamic>> forgotPassword(String identifier) async {
     final raw = identifier.trim();
     final isEmail = raw.contains('@');
 
     if (isEmail) {
-      // Generate OTP locally on Flutter side
-      // NOTE: /auth/register-otp does NOT exist on this backend (404).
-      // We generate OTP locally, send via email directly, and verify via /auth/verify.
-      final otp = _generateOtp();
+      final payload = {'email': raw.toLowerCase()};
 
-      // First verify the email exists on backend by attempting a lightweight check
-      // We use /auth/verify with a dummy OTP to confirm the user exists
-      // If it returns "OTP not found or expired" → user exists ✅
-      // If it returns "user not found" / 404 → user doesn't exist ❌
+      // Debug logs as requested
+      // ignore: avoid_print
+      print('================ [FORGOT PASSWORD API REQUEST] ================');
+      // ignore: avoid_print
+      print('Full Request URL: ${ApiConstants.baseUrl}${ApiConstants.authSend}');
+      // ignore: avoid_print
+      print('HTTP Method: POST');
+      // ignore: avoid_print
+      print('Request Headers: { Content-Type: application/json, Accept: application/json }');
+      // ignore: avoid_print
+      print('Request Payload: $payload');
+
       try {
-        await _otpDio.post(
-          '/auth/verify',
-          data: {
-            'email': raw.toLowerCase(),
-            'otp': '000000', // dummy OTP just to check if user exists
-            'password': 'checkonly',
-            'newPassword': 'checkonly',
-          },
-        ).catchError((e) {
-          if (e is DioException) {
-            final msg = (e.response?.data is Map)
-                ? (e.response!.data['message']?.toString() ?? '')
-                : '';
-            // "OTP not found or expired" means user EXISTS in DB
-            if (msg.toLowerCase().contains('otp not found') ||
-                msg.toLowerCase().contains('expired') ||
-                msg.toLowerCase().contains('invalid otp')) {
-              return e.response!; // user exists, continue
-            }
-            // Any other error — user might not exist
+        final response = await ApiService.post(
+          ApiConstants.authSend,
+          data: payload,
+        );
+
+        // ignore: avoid_print
+        print('================ [FORGOT PASSWORD API RESPONSE] ===============');
+        // ignore: avoid_print
+        print('Response Status Code: ${response.statusCode}');
+        // ignore: avoid_print
+        print('Response Body: ${response.data}');
+
+        final map = ApiService.toMap(response.data);
+        if (map['success'] == true || (response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300)) {
+          _lastMatchedIdentifier = raw;
+          return map.isNotEmpty
+              ? map
+              : {
+                  'success': true,
+                  'message': 'OTP sent successfully to $raw',
+                };
+        }
+
+        final msg = map['message']?.toString() ?? 'Failed to send OTP to $raw';
+        throw Exception(msg);
+      } catch (e) {
+        // ignore: avoid_print
+        print('================ [FORGOT PASSWORD API ERROR] ==================');
+        // ignore: avoid_print
+        print('Network/API Error: $e');
+        if (e is DioException) {
+          // ignore: avoid_print
+          print('Dio Status Code: ${e.response?.statusCode}');
+          // ignore: avoid_print
+          print('Dio Response Body: ${e.response?.data}');
+          final errData = e.response?.data;
+          final msg = (errData is Map)
+              ? (errData['message']?.toString() ?? errData['error']?.toString() ?? '')
+              : (errData is String ? errData : '');
+          if (msg.isNotEmpty) {
+            throw Exception(msg);
           }
-          throw e;
-        });
-      } on DioException catch (e) {
-        final msg = (e.response?.data is Map)
-            ? (e.response!.data['message']?.toString() ?? '')
-            : '';
-        final userNotFound = msg.toLowerCase().contains('user not found') ||
-            msg.toLowerCase().contains('no account') ||
-            msg.toLowerCase().contains('not found') ||
-            msg.toLowerCase().contains('no user');
-        if (userNotFound) {
-          throw Exception('No account found for "$raw". Please check your registered email or contact Admin.');
         }
-        // "OTP not found or expired" → user exists, ignore and proceed
-        if (!msg.toLowerCase().contains('otp') &&
-            !msg.toLowerCase().contains('expired')) {
-          // Unknown error — proceed anyway and let email send
-        }
-      } catch (_) {
-        // Network error etc — proceed anyway
+        rethrow;
       }
-
-      _lastMatchedIdentifier = raw;
-
-      // Send OTP email directly from Flutter (guaranteed delivery)
-      EmailService.sendOtpEmail(
-        recipientEmail: raw,
-        otp: otp,
-      ).catchError((_) => false);
-
-      return {'success': true, 'otp': otp, 'message': 'OTP sent to $raw'};
     }
 
     // Phone / Mobile Mode: Build candidates to match however the phone number was stored in MongoDB (+91, 10-digit, etc.)
@@ -289,7 +296,25 @@ class AuthService {
     for (final candidate in candidates) {
       try {
         final payload = {'mobile': candidate, 'phone': candidate};
-        final response = await ApiService.post('/auth/send', data: payload);
+
+        // ignore: avoid_print
+        print('================ [FORGOT PASSWORD API REQUEST (PHONE)] ========');
+        // ignore: avoid_print
+        print('Full Request URL: ${ApiConstants.baseUrl}${ApiConstants.authSend}');
+        // ignore: avoid_print
+        print('HTTP Method: POST');
+        // ignore: avoid_print
+        print('Request Payload: $payload');
+
+        final response = await ApiService.post(ApiConstants.authSend, data: payload);
+
+        // ignore: avoid_print
+        print('================ [FORGOT PASSWORD API RESPONSE (PHONE)] =======');
+        // ignore: avoid_print
+        print('Response Status Code: ${response.statusCode}');
+        // ignore: avoid_print
+        print('Response Body: ${response.data}');
+
         final map = ApiService.toMap(response.data);
 
         if (map['success'] == true || (map['status'] == 'success') || (response.statusCode == 200)) {
@@ -307,6 +332,10 @@ class AuthService {
           throw Exception(msg.isNotEmpty ? msg : 'Failed to send OTP to $candidate');
         }
       } catch (e) {
+        // ignore: avoid_print
+        print('================ [FORGOT PASSWORD PHONE ERROR] ================');
+        // ignore: avoid_print
+        print('Error candidate ($candidate): $e');
         if (e is DioException) {
           final errData = e.response?.data;
           final status = e.response?.statusCode;
@@ -342,7 +371,7 @@ class AuthService {
         Exception('No account found with phone number ($raw). Please check your registered number or contact Admin.');
   }
 
-  // Reset Password: Send Real OTP and New Password to Backend
+  // Reset Password: Send Real OTP and New Password to Backend (POST /auth/verify)
   static Future<Map<String, dynamic>> resetPassword({
     required String identifier,
     required String otp,
@@ -353,7 +382,7 @@ class AuthService {
     final effectivePhone = _lastMatchedIdentifier ?? raw;
 
     final payload = {
-      if (isEmail) 'email': raw,
+      if (isEmail) 'email': raw.toLowerCase(),
       if (!isEmail) ...{
         'mobile': effectivePhone,
         'phone': effectivePhone,
@@ -363,11 +392,31 @@ class AuthService {
       'newPassword': newPassword.trim(),
     };
 
+    // Debug logs (passwords safely masked)
+    // ignore: avoid_print
+    print('================ [RESET PASSWORD API REQUEST] =================');
+    // ignore: avoid_print
+    print('Full Request URL: ${ApiConstants.baseUrl}${ApiConstants.authVerify}');
+    // ignore: avoid_print
+    print('HTTP Method: POST');
+    // ignore: avoid_print
+    print('Request Headers: { Content-Type: application/json, Accept: application/json }');
+    // ignore: avoid_print
+    print('Request Payload: { ${isEmail ? "email: ${raw.toLowerCase()}" : "mobile: $effectivePhone"}, otp: ${otp.trim()}, password: [MASKED], newPassword: [MASKED] }');
+
     try {
       final response = await ApiService.post(
-        '/auth/verify',
+        ApiConstants.authVerify,
         data: payload,
       );
+
+      // ignore: avoid_print
+      print('================ [RESET PASSWORD API RESPONSE] ================');
+      // ignore: avoid_print
+      print('Response Status Code: ${response.statusCode}');
+      // ignore: avoid_print
+      print('Response Body: ${response.data}');
+
       final map = ApiService.toMap(response.data);
 
       if (map['success'] == false) {
@@ -379,7 +428,15 @@ class AuthService {
           ? map
           : {'success': true, 'message': 'Password reset successfully'};
     } catch (e) {
+      // ignore: avoid_print
+      print('================ [RESET PASSWORD API ERROR] ===================');
+      // ignore: avoid_print
+      print('Network/API Error: $e');
       if (e is DioException) {
+        // ignore: avoid_print
+        print('Dio Status Code: ${e.response?.statusCode}');
+        // ignore: avoid_print
+        print('Dio Response Body: ${e.response?.data}');
         final errData = e.response?.data;
         if (errData is Map && errData['message'] != null) {
           final msg = errData['message'].toString();
