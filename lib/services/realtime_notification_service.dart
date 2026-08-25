@@ -194,7 +194,7 @@ class RealtimeNotificationService {
           } catch (_) {}
         }
 
-        final category = _parseCategory(type);
+        final category = parseCategory(type);
         final item = RealtimeNotificationItem(
           id: message.messageId ?? 'fcm_${DateTime.now().millisecondsSinceEpoch}',
           title: title,
@@ -248,7 +248,7 @@ class RealtimeNotificationService {
     }
   }
 
-  static NotificationCategory _parseCategory(String type) {
+  static NotificationCategory parseCategory(String type) {
     final lower = type.toLowerCase();
     if (lower.contains('login')) return NotificationCategory.userLogin;
     if (lower.contains('checkin') || lower.contains('check_in')) return NotificationCategory.attendanceCheckIn;

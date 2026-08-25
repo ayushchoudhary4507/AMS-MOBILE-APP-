@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import '../chat/chat_list_screen.dart';
 import '../../widgets/common/app_avatar.dart';
 import '../../widgets/common/photo_viewer_dialog.dart';
 import '../../widgets/attendance/face_attendance_dialog.dart';
+import '../../services/socket_service.dart';
 
 class EmployeeDashboard extends ConsumerStatefulWidget {
   const EmployeeDashboard({super.key});
@@ -27,6 +29,7 @@ class EmployeeDashboard extends ConsumerStatefulWidget {
 class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
   int _selectedIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamSubscription? _attendanceSub;
 
   @override
   void initState() {
@@ -39,7 +42,21 @@ class _EmployeeDashboardState extends ConsumerState<EmployeeDashboard> {
       ref.read(attendanceProvider.notifier).loadCalendar();
       ref.read(attendanceProvider.notifier).loadMyLeaves();
       ref.read(authProvider.notifier).refreshProfile();
+      SocketService().initSocket();
     });
+
+    _attendanceSub = SocketService().attendanceMarkedStream.listen((_) {
+      if (!mounted) return;
+      ref.read(attendanceProvider.notifier).loadTodayAttendance();
+      ref.read(attendanceProvider.notifier).loadStats();
+      ref.read(attendanceProvider.notifier).loadCalendar();
+    });
+  }
+
+  @override
+  void dispose() {
+    _attendanceSub?.cancel();
+    super.dispose();
   }
 
   @override

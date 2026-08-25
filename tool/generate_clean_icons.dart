@@ -25,11 +25,13 @@ void main() {
       // Check rounded corner distance
       int dx = 0;
       int dy = 0;
-      if (x < pad + cornerRadius) dx = (pad + cornerRadius) - x;
-      else if (x > pad + sqSize - cornerRadius) dx = x - (pad + sqSize - cornerRadius);
+      if (x < pad + cornerRadius) {
+        dx = (pad + cornerRadius) - x;
+      } else if (x > pad + sqSize - cornerRadius) dx = x - (pad + sqSize - cornerRadius);
 
-      if (y < pad + cornerRadius) dy = (pad + cornerRadius) - y;
-      else if (y > pad + sqSize - cornerRadius) dy = y - (pad + sqSize - cornerRadius);
+      if (y < pad + cornerRadius) {
+        dy = (pad + cornerRadius) - y;
+      } else if (y > pad + sqSize - cornerRadius) dy = y - (pad + sqSize - cornerRadius);
 
       if (dx > 0 && dy > 0) {
         final dist = math.sqrt(dx * dx + dy * dy);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../employee/employee_dashboard.dart';
 import '../../widgets/common/app_avatar.dart';
+import '../../services/socket_service.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
@@ -27,6 +29,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   int _selectedIndex = 0;
   String _leaveFilter = 'All';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamSubscription? _attendanceSub;
 
   @override
   void initState() {
@@ -39,7 +42,21 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       ref.read(employeeProvider.notifier).loadEmployees();
       ref.read(attendanceProvider.notifier).loadAllLeaves();
       ref.read(dashboardConfigProvider.notifier).loadConfig();
+      SocketService().initSocket();
     });
+
+    _attendanceSub = SocketService().attendanceMarkedStream.listen((_) {
+      if (!mounted) return;
+      ref.read(attendanceProvider.notifier).loadStats();
+      ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
+      ref.read(attendanceProvider.notifier).loadAllLeaves();
+    });
+  }
+
+  @override
+  void dispose() {
+    _attendanceSub?.cancel();
+    super.dispose();
   }
 
   @override

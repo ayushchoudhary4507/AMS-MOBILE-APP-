@@ -31,6 +31,7 @@ import 'screens/admin/admin_attendance_qr_screen.dart';
 import 'screens/admin/admin_face_attendance_screen.dart';
 
 import 'services/realtime_notification_service.dart';
+import 'services/socket_service.dart';
 
 const FirebaseOptions _fallbackFirebaseOptions = FirebaseOptions(
   apiKey: 'AIzaSyAamsMobileDefaultApiKey123456789',
@@ -49,7 +50,7 @@ void main() async {
     ),
   );
 
-  // Initialize Firebase and Native Push Notifications asynchronously in background
+  // Initialize Firebase, Native Push Notifications and Realtime Sockets in background
   Future.microtask(() async {
     try {
       if (Firebase.apps.isEmpty) {
@@ -69,6 +70,12 @@ void main() async {
       await RealtimeNotificationService.initNativeNotifications();
     } catch (e) {
       debugPrint('Native notifications async warning: $e');
+    }
+
+    try {
+      await SocketService().initSocket();
+    } catch (e) {
+      debugPrint('Socket async initialization warning: $e');
     }
   });
 }
