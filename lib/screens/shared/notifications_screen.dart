@@ -40,28 +40,10 @@ class NotifState {
 }
 
 class NotifNotifier extends StateNotifier<NotifState> {
-  Timer? _pollTimer;
   final Set<String> _deletedIds = {};
 
   NotifNotifier() : super(const NotifState()) {
     load();
-    _startPolling();
-  }
-
-  bool _isSyncing = false;
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (_isSyncing) return;
-      _isSyncing = true;
-      try {
-        await syncFromBackend();
-      } catch (_) {
-      } finally {
-        _isSyncing = false;
-      }
-    });
   }
 
   Future<void> syncFromBackend() async {
@@ -112,12 +94,6 @@ class NotifNotifier extends StateNotifier<NotifState> {
       state =
           state.copyWith(isLoading: false, notifications: [], error: e.toString());
     }
-  }
-
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    super.dispose();
   }
 
   void prependRealtimeNotification(Map<String, dynamic> item) {

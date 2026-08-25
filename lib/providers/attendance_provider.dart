@@ -6,7 +6,6 @@ import '../core/utils/storage_service.dart';
 import '../models/attendance_model.dart';
 import '../models/attendance_session_model.dart';
 import '../services/attendance_service.dart';
-import '../services/employee_service.dart';
 import '../services/face_attendance_log_service.dart';
 import '../services/realtime_notification_service.dart';
 
@@ -76,68 +75,8 @@ class AttendanceState {
 
 class AttendanceNotifier extends StateNotifier<AttendanceState> {
   final Ref? _ref;
-  Timer? _bgSyncTimer;
-  final Set<String> _adminTrackedLeaveIds = {};
-  final Set<String> _adminTrackedLoginIds = {};
 
-  AttendanceNotifier([this._ref]) : super(const AttendanceState()) {
-    _startBackgroundSync();
-  }
-
-  bool _isSyncing = false;
-
-  void _startBackgroundSync() {
-    _bgSyncTimer?.cancel();
-    _bgSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (_isSyncing) return;
-      _isSyncing = true;
-      try {
-        final user = await StorageService.getUser();
-        if (user == null) return;
-        final role = (user['role'] ?? '').toString().toLowerCase();
-        if (role == 'admin') {
-          await _syncAdminAttendanceFromWeb();
-          await _syncAdminLeavesFromWeb();
-          await _syncAdminLoginNotificationsFromWeb();
-        } else {
-          await _syncEmployeeAttendanceFromWeb();
-        }
-      } catch (_) {
-      } finally {
-        _isSyncing = false;
-      }
-    });
-  }
-
-  Future<void> _syncAdminLoginNotificationsFromWeb() async {
-    try {
-      final data = await NotificationService.getAll();
-      final rawList = data['notifications'] ?? data['data'] ?? data['result'] ?? data['items'];
-      final list = rawList is List ? rawList : <dynamic>[];
-
-      for (final item in list) {
-        if (item is! Map) continue;
-        final id = (item['_id'] ?? item['id'])?.toString();
-        if (id == null || id.isEmpty) continue;
-
-        final type = (item['type'] ?? item['category'] ?? '').toString().toLowerCase();
-        final title = (item['title'] ?? '').toString();
-        final message = (item['message'] ?? item['body'] ?? '').toString();
-
-        final isLoginNotif = type.contains('login') || title.toLowerCase().contains('login') || message.toLowerCase().contains('logged in');
-
-        if (isLoginNotif) {
-          _adminTrackedLoginIds.add(id);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _syncAdminAttendanceFromWeb() async {
-    try {
-      await loadTodayAllAttendance();
-    } catch (_) {}
-  }
+  AttendanceNotifier([this._ref]) : super(const AttendanceState());
 
   List<dynamic> _extractLeavesList(dynamic data) {
     if (data is List) return data;
@@ -177,65 +116,6 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       }
     }
     return [];
-  }
-
-  Future<void> _syncAdminLeavesFromWeb() async {
-    try {
-      final data = await AttendanceService.getAllLeaves();
-      final list = _extractLeavesList(data);
-
-      if (list.isNotEmpty) {
-        final combined = <dynamic>[...list];
-        for (final local in state.allLeaves) {
-          if (local is Map) {
-            final locId = (local['_id'] ?? local['id'])?.toString();
-            final isFound = combined.any((srv) =>
-                srv is Map &&
-                (srv['_id']?.toString() == locId ||
-                    srv['id']?.toString() == locId));
-            if (!isFound) {
-              combined.insert(0, local);
-            }
-          }
-        }
-        state = state.copyWith(allLeaves: combined);
-        await StorageService.saveAllLeaves(combined);
-      }
-
-      for (final leave in (list.isNotEmpty ? list : state.allLeaves)) {
-        if (leave is! Map) continue;
-        final leaveId = (leave['_id'] ?? leave['id'])?.toString();
-        if (leaveId != null && leaveId.isNotEmpty) {
-          _adminTrackedLeaveIds.add(leaveId);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _syncEmployeeAttendanceFromWeb() async {
-    try {
-      final data = await AttendanceService.getMyTodayAttendance();
-      final raw = data['attendance'] ?? data['data'] ?? data['result'];
-      if (raw is Map) {
-        final model = AttendanceModel.fromJson(Map<String, dynamic>.from(raw));
-        final checkedIn = model.isCheckedIn;
-        final checkedOut = model.isCheckedOut;
-
-        if (!state.isCheckedIn && checkedIn) {
-          state = state.copyWith(
-            todayAttendance: model,
-            isCheckedIn: true,
-            isCheckedOut: checkedOut,
-          );
-        }
-      }
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _bgSyncTimer?.cancel();
-    super.dispose();
   }
 
   void reset() {

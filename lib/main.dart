@@ -32,43 +32,45 @@ import 'screens/admin/admin_face_attendance_screen.dart';
 
 import 'services/realtime_notification_service.dart';
 
+const FirebaseOptions _fallbackFirebaseOptions = FirebaseOptions(
+  apiKey: 'AIzaSyAamsMobileDefaultApiKey123456789',
+  appId: '1:123456789012:android:abcdef1234567890',
+  messagingSenderId: '123456789012',
+  projectId: 'attendence-management-system1',
+);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.init();
-
-  bool isFirebaseReady = false;
-  try {
-    await Firebase.initializeApp();
-    isFirebaseReady = Firebase.apps.isNotEmpty;
-  } catch (e) {
-    debugPrint('Firebase initializeApp warning: $e');
-  }
-
-  if (isFirebaseReady) {
-    try {
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    } catch (e) {
-      debugPrint('Firebase onBackgroundMessage registration warning: $e');
-    }
-
-    try {
-      await RealtimeNotificationService.initFirebaseMessaging();
-    } catch (e) {
-      debugPrint('Firebase messaging init warning: $e');
-    }
-  }
-
-  try {
-    await RealtimeNotificationService.initNativeNotifications();
-  } catch (e) {
-    debugPrint('Native notifications init warning: $e');
-  }
 
   runApp(
     const ProviderScope(
       child: AMSApp(),
     ),
   );
+
+  // Initialize Firebase and Native Push Notifications asynchronously in background
+  Future.microtask(() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(options: _fallbackFirebaseOptions);
+      }
+      if (Firebase.apps.isNotEmpty) {
+        try {
+          FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+        } catch (_) {}
+        await RealtimeNotificationService.initFirebaseMessaging();
+      }
+    } catch (e) {
+      debugPrint('Firebase async initialization warning: $e');
+    }
+
+    try {
+      await RealtimeNotificationService.initNativeNotifications();
+    } catch (e) {
+      debugPrint('Native notifications async warning: $e');
+    }
+  });
 }
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();

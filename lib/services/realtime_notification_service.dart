@@ -136,19 +136,7 @@ class RealtimeNotificationService {
   static Future<void> initFirebaseMessaging() async {
     if (_isFirebaseMessagingInitialized) return;
     try {
-      if (Firebase.apps.isEmpty) {
-        try {
-          await Firebase.initializeApp();
-        } catch (e) {
-          debugPrint("Firebase initializeApp warning: $e");
-          return;
-        }
-      }
       if (Firebase.apps.isEmpty) return;
-
-      try {
-        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      } catch (_) {}
 
       final messaging = FirebaseMessaging.instance;
 

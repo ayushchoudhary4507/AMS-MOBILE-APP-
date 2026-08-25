@@ -15,7 +15,6 @@ import '../shared/notifications_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../employee/employee_dashboard.dart';
 import '../../widgets/common/app_avatar.dart';
-import '../../widgets/common/photo_viewer_dialog.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
@@ -2252,12 +2251,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           Column(
                             children: [
                               GestureDetector(
-                                onTap: () => showPhotoPreview(
-                                  context,
-                                  avatarOrUser: user,
-                                  title: authName,
-                                  subtitle: roleTitle.toUpperCase(),
-                                ),
+                                onTap: () =>
+                                    _scaffoldKey.currentState?.openDrawer(),
                                 child: Stack(
                                   alignment: Alignment.center,
                                   clipBehavior: Clip.none,
@@ -2346,7 +2341,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
                               // Compact View Profile Pill Button
                               InkWell(
-                                onTap: () => context.push('/settings'),
+                                onTap: () =>
+                                    _scaffoldKey.currentState?.openDrawer(),
                                 borderRadius: BorderRadius.circular(20),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -3444,6 +3440,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
 
   // --- Employees Tab ---
   // --- Admin Drawer ---
+  // --- Admin Drawer (Synchronized with Vercel Web Portal & Mobile Features) ---
   Widget _buildAdminDrawer(
     BuildContext context,
     WidgetRef ref,
@@ -3457,6 +3454,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         'Admin User';
     final userEmail = userMap?['email']?.toString() ?? 'admin@ams.com';
 
+    final attendance = ref.watch(attendanceProvider);
+    final pendingLeavesCount = attendance.allLeaves.where((l) {
+      if (l is! Map) return false;
+      return (l['status'] ?? '').toString().toLowerCase() == 'pending';
+    }).length;
+    final totalEmployeesCount = ref.watch(employeeProvider).employees.length;
+    final isQRSessionActive = attendance.activeSession?.isActive ?? false;
+
     return Drawer(
       backgroundColor: context.drawerBg,
       child: SafeArea(
@@ -3464,6 +3469,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         bottom: true,
         child: Column(
           children: [
+            // 1. Premium Drawer Header with Gradient
             Container(
               width: double.infinity,
               padding: EdgeInsets.fromLTRB(
@@ -3486,353 +3492,383 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildAvatarWidget(rawUser, userName, 30),
-                  const SizedBox(height: 14),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Text(
-                          userName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
+                      _buildAvatarWidget(rawUser, userName, 30),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+                          horizontal: 10,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF10B981),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        child: const Text(
-                          'ADMIN',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified_user_rounded, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'ADMIN',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  Text(
+                    userName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: -0.3,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     userEmail,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
                 ],
               ),
             ),
+
+            // 2. Full Categorized Sidebar Navigation Items (Web + Mobile)
             Expanded(
               child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                ListTile(
-                  leading: const Icon(
-                    Icons.dashboard_rounded,
-                    color: Color(0xFF6366F1),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  // --- SECTION 1: CORE DASHBOARD ---
+                  _buildDrawerSectionLabel(context, 'MAIN DASHBOARD'),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.dashboard_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    title: 'Dashboard Overview',
+                    subtitle: 'Real-time analytics & KPIs',
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() => _selectedIndex = 0);
+                    },
                   ),
-                  title: Text(
-                    'Dashboard',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.history_rounded,
+                    iconColor: const Color(0xFF3B82F6),
+                    title: 'Live Attendance Feed',
+                    subtitle: 'View today check-ins & logs',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showAttendanceModal(
+                        context,
+                        ref,
+                        title: 'Today Live Attendance',
+                        statusType: 'all',
+                      );
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() => _selectedIndex = 0);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.chat_rounded,
-                    color: Color(0xFF6366F1),
+
+                  // --- SECTION 2: STAFF & ORGANIZATION ---
+                  _buildDrawerSectionLabel(context, 'STAFF & MANAGEMENT'),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.people_alt_rounded,
+                    iconColor: const Color(0xFF3B82F6),
+                    title: 'Employee Directory',
+                    subtitle: 'Manage staff, designations & profiles',
+                    badgeText: totalEmployeesCount > 0 ? '$totalEmployeesCount Staff' : null,
+                    badgeColor: const Color(0xFF3B82F6),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() => _selectedIndex = 1);
+                    },
                   ),
-                  title: Text(
-                    'Messages',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.person_add_alt_1_rounded,
+                    iconColor: const Color(0xFF10B981),
+                    title: 'Add New Employee',
+                    subtitle: 'Onboard staff & assign credentials',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showAddEmployeeModal(context);
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/chat');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.person_add_alt_1_rounded,
-                    color: Color(0xFF10B981),
+
+                  // --- SECTION 3: ATTENDANCE & VERIFICATION ---
+                  _buildDrawerSectionLabel(context, 'ATTENDANCE & TIME TRACKING'),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.qr_code_scanner_rounded,
+                    iconColor: const Color(0xFF4F46E5),
+                    title: 'QR Attendance Session',
+                    subtitle: 'Dynamic QR generator & scanner kiosk',
+                    badgeText: isQRSessionActive ? 'ACTIVE' : null,
+                    badgeColor: const Color(0xFF10B981),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/attendance-qr');
+                    },
                   ),
-                  title: Text(
-                    'Add New Employee',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.face_retouching_natural_rounded,
+                    iconColor: const Color(0xFF06B6D4),
+                    title: 'Face Lock Attendance',
+                    subtitle: 'Employee facial recognition logs',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/face-attendance');
+                    },
                   ),
-                  subtitle: Text(
-                    'Onboard staff & assign permissions',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.how_to_reg_rounded,
+                    iconColor: const Color(0xFF8B5CF6),
+                    title: 'Admin Mark Attendance',
+                    subtitle: 'Manual check-in & check-out entry',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showAdminMarkAttendanceModal(context);
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showAddEmployeeModal(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.people_alt_rounded,
-                    color: Color(0xFF3B82F6),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.event_available_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: 'Leave Approvals',
+                    subtitle: 'Review pending leave requests',
+                    badgeText: pendingLeavesCount > 0 ? '$pendingLeavesCount Pending' : null,
+                    badgeColor: const Color(0xFFF59E0B),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() => _selectedIndex = 2);
+                    },
                   ),
-                  title: Text(
-                    'Employee Directory',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+
+                  // --- SECTION 4: PAYROLL & PROJECTS ---
+                  _buildDrawerSectionLabel(context, 'PAYROLL & WORKSPACE'),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.payments_rounded,
+                    iconColor: const Color(0xFF10B981),
+                    title: 'Salary & Payroll',
+                    subtitle: 'Calculate payslips & disbursements',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/salary');
+                    },
                   ),
-                  subtitle: Text(
-                    'Manage employees, edit roles',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.assignment_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    title: 'Projects & Tasks',
+                    subtitle: 'Track team deliverables & status',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/projects');
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() => _selectedIndex = 1);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.face_retouching_natural_rounded,
-                    color: Color(0xFF06B6D4),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.holiday_village_rounded,
+                    iconColor: const Color(0xFFEC4899),
+                    title: 'Holidays Calendar',
+                    subtitle: 'Public & company holiday list',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/holidays');
+                    },
                   ),
-                  title: Text(
-                    'Face Lock Attendance',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+
+                  // --- SECTION 5: REPORTS & COMMUNICATIONS ---
+                  _buildDrawerSectionLabel(context, 'INSIGHTS & COMMUNICATION'),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.insert_chart_rounded,
+                    iconColor: const Color(0xFF06B6D4),
+                    title: 'Reports & Analytics',
+                    subtitle: 'Attendance metrics & export',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/analytics');
+                    },
                   ),
-                  subtitle: Text(
-                    'View employee face photos & scans',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.chat_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    title: 'Messages & Team Chat',
+                    subtitle: 'Real-time staff conversations',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/chat');
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/face-attendance');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.access_time_filled_rounded,
-                    color: Color(0xFF8B5CF6),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.notifications_active_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: 'Notifications Center',
+                    subtitle: 'Company announcements & alerts',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/admin/notifications');
+                    },
                   ),
-                  title: Text(
-                    'Admin Mark Attendance',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+
+                  // --- SECTION 6: SYSTEM & PREFERENCES ---
+                  Divider(color: context.dividerCol, height: 28),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.badge_rounded,
+                    iconColor: const Color(0xFF64748B),
+                    title: 'Switch to Employee View',
+                    subtitle: 'Preview personal portal',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/employee/dashboard');
+                    },
                   ),
-                  subtitle: Text(
-                    'Manual attendance entry',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.settings_rounded,
+                    iconColor: const Color(0xFF64748B),
+                    title: 'Settings & Security',
+                    subtitle: 'Biometric lock & preferences',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/settings');
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showAdminMarkAttendanceModal(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.event_available_rounded,
-                    color: Color(0xFFF59E0B),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.logout_rounded,
+                    iconColor: const Color(0xFFEF4444),
+                    title: 'Logout',
+                    titleColor: const Color(0xFFEF4444),
+                    subtitle: 'Sign out from AMS Admin',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await ref.read(authProvider.notifier).logout();
+                      if (context.mounted) context.go('/welcome');
+                    },
                   ),
-                  title: Text(
-                    'Leave Approvals',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Approve or reject leave requests',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() => _selectedIndex = 2);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.insert_chart_rounded,
-                    color: Color(0xFF06B6D4),
-                  ),
-                  title: Text(
-                    'Reports & Analytics',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Attendance metrics & statistics',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/analytics');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.payments_rounded,
-                    color: Color(0xFF10B981),
-                  ),
-                  title: Text(
-                    'Salary & Payroll',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Calculate and manage monthly salary',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/salary');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.assignment_rounded,
-                    color: Color(0xFF6366F1),
-                  ),
-                  title: Text(
-                    'Projects & Tasks',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Track project deadlines and team progress',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/projects');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.holiday_village_rounded,
-                    color: Color(0xFFEC4899),
-                  ),
-                  title: Text(
-                    'Holidays Calendar',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'View upcoming public and company holidays',
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/holidays');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.notifications_active_rounded,
-                    color: Color(0xFFF59E0B),
-                  ),
-                  title: Text(
-                    'Notifications Center',
-                    style: TextStyle(
-                      color: context.txtPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/admin/notifications');
-                  },
-                ),
-                Divider(color: context.dividerCol),
-                ListTile(
-                  leading: const Icon(
-                    Icons.badge_rounded,
-                    color: Color(0xFF64748B),
-                  ),
-                  title: Text(
-                    'Switch to Employee View',
-                    style: TextStyle(color: context.txtPrimary),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/employee/dashboard');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.settings_rounded,
-                    color: Color(0xFF64748B),
-                  ),
-                  title: Text(
-                    'Settings & Biometrics',
-                    style: TextStyle(color: context.txtPrimary),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/settings');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.logout_rounded,
-                    color: Color(0xFFEF4444),
-                  ),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      color: Color(0xFFEF4444),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await ref.read(authProvider.notifier).logout();
-                    if (context.mounted) context.go('/welcome');
-                  },
-                ),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerSectionLabel(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: context.txtMuted.withValues(alpha: 0.8),
+          letterSpacing: 0.9,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    String? badgeText,
+    Color? badgeColor,
+    Color? titleColor,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: context.isDark ? 0.18 : 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: titleColor ?? context.txtPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13.5,
+              ),
             ),
           ),
+          if (badgeText != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: (badgeColor ?? const Color(0xFF6366F1)).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: (badgeColor ?? const Color(0xFF6366F1)).withValues(alpha: 0.4),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                badgeText,
+                style: TextStyle(
+                  color: badgeColor ?? const Color(0xFF6366F1),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
         ],
       ),
-    ),
-  );
-}
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: TextStyle(
+                color: context.txtMuted,
+                fontSize: 11,
+              ),
+            )
+          : null,
+      onTap: onTap,
+    );
+  }
 
   // --- Employees Tab ---
   Widget _buildEmployeesTab() {
