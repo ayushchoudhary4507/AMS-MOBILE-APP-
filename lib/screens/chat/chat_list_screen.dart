@@ -173,73 +173,69 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final employees = ref.watch(employeeProvider).employees;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: widget.showAppBar
-          ? AppBar(
-              title: const Text(
-                'Messages',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
-              ),
-              centerTitle: false,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded),
-                  onPressed: () {
-                    ref.read(chatProvider.notifier).loadConversations();
-                    ref.read(chatProvider.notifier).loadContacts();
-                    ref.read(employeeProvider.notifier).loadEmployees();
-                  },
-                ),
-              ],
-            )
-          : null,
+      backgroundColor: context.isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
-        child: Column(
-          children: [
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: context.cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.borderCol.withValues(alpha: 0.5)),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                decoration: InputDecoration(
-                  hintText: 'Search chats or employees...',
-                  prefixIcon: Icon(Icons.search_rounded, color: context.txtSecondary),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 20),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        child: SafeArea(
+          child: Column(
+            children: [
+              if (widget.showAppBar) _buildHeader(context, filteredConversations.length),
+
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: context.cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: context.borderCol.withValues(alpha: 0.5),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: context.isDark ? 0.2 : 0.04,
+                        ),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                    style: TextStyle(color: context.txtPrimary, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search chats or employees...',
+                      hintStyle: TextStyle(color: context.txtMuted, fontSize: 13.5),
+                      prefixIcon: Icon(Icons.search_rounded, color: context.txtSecondary, size: 21),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
 
-          // Conversation List
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await ref.read(chatProvider.notifier).loadConversations();
-                await ref.read(chatProvider.notifier).loadContacts();
-                await ref.read(employeeProvider.notifier).loadEmployees();
-              },
+              // Conversation List
+              Expanded(
+                child: RefreshIndicator(
+                  color: const Color(0xFF4F46E5),
+                  onRefresh: () async {
+                    await ref.read(chatProvider.notifier).loadConversations();
+                    await ref.read(chatProvider.notifier).loadContacts();
+                    await ref.read(employeeProvider.notifier).loadEmployees();
+                  },
               child: filteredConversations.isEmpty
                   ? _buildEmptyState(context, chatState.contacts)
                   : ListView.separated(
@@ -345,10 +341,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                               ),
                               if (unreadCount > 0)
                                 Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.primary,
-                                    shape: BoxShape.circle,
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4F46E5),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     '$unreadCount',
@@ -369,13 +365,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ],
       ),
     ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showStartChatModal(context),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
-      ),
-    );
-  }
+  ),
+  floatingActionButton: FloatingActionButton(
+    onPressed: () => _showStartChatModal(context),
+    backgroundColor: AppColors.primary,
+    child: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
+  ),
+);
+}
 
   Widget _buildEmptyState(BuildContext context, List<dynamic> contacts) {
     return SingleChildScrollView(
@@ -533,6 +530,99 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, int totalChats) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 12, 10),
+      decoration: BoxDecoration(
+        color: context.isDark
+            ? context.cardBg.withValues(alpha: 0.4)
+            : context.cardBg.withValues(alpha: 0.85),
+        border: Border(
+          bottom: BorderSide(
+            color: context.borderCol.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: context.txtPrimary, size: 22),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                final auth = ref.read(authProvider);
+                context.go(auth.isAdmin ? '/admin/dashboard' : '/employee/dashboard');
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Messages',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: context.txtPrimary,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    if (totalChats > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4F46E5).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          '$totalChats',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF6366F1),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  'Team chat & instant conversations',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: context.txtMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh_rounded, color: context.txtPrimary, size: 22),
+            tooltip: 'Refresh Chats',
+            onPressed: () {
+              ref.read(chatProvider.notifier).loadConversations();
+              ref.read(chatProvider.notifier).loadContacts();
+              ref.read(employeeProvider.notifier).loadEmployees();
+            },
+          ),
+        ],
+      ),
     );
   }
 }

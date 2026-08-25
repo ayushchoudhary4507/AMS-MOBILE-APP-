@@ -20,6 +20,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.invalidate(analyticsProvider);
       ref.read(attendanceProvider.notifier).loadStats();
+      ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
       ref.read(attendanceProvider.notifier).loadAllLeaves();
       ref.read(employeeProvider.notifier).loadEmployees();
     });
@@ -67,6 +68,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
             onPressed: () {
               ref.invalidate(analyticsProvider);
               ref.read(attendanceProvider.notifier).loadStats();
+              ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
               ref.read(attendanceProvider.notifier).loadAllLeaves();
               ref.read(employeeProvider.notifier).loadEmployees();
             },
@@ -85,10 +87,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
             ),
             error: (e, _) => _buildFromAttendanceStats(context, attendance),
             data: (analytics) {
-              if (analytics == null || analytics.isEmpty) {
-                return _buildFromAttendanceStats(context, attendance);
-              }
-              return _buildAnalyticsContent(context, analytics, attendance);
+              return _buildAnalyticsContent(context, analytics ?? {}, attendance);
             },
           ),
         ),
@@ -103,29 +102,93 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
 
   Widget _buildAnalyticsContent(BuildContext context, Map<String, dynamic> analytics, AttendanceState attendance) {
     final employeeState = ref.watch(employeeProvider);
+    final allEmps = employeeState.employees;
     final stats = attendance.stats ?? analytics;
+    final todayList = attendance.todayAllAttendance;
 
-    final totalEmployees = employeeState.employees.isNotEmpty
-        ? employeeState.employees.length
-        : _parseInt(stats['totalEmployees'] ?? stats['total'] ?? 0);
+    // 1. Gather present keys
+    final presentKeys = <String>{};
+    for (var att in todayList) {
+      if (att is! Map) continue;
+      final st = (att['status'] ?? '').toString().toLowerCase();
+      final isAbsentOrLeave = st.contains('absent') || st.contains('leave');
+      if (isAbsentOrLeave) continue;
 
-    final presentToday = _parseInt(
-      analytics['presentToday'] ?? analytics['present'] ?? stats['presentCount'] ?? stats['present'] ?? 0
-    );
+      final id = (att['userId'] ?? att['employeeId'] ?? att['_id'] ?? att['id'])?.toString();
+      final email = att['email']?.toString();
+      final name = att['name']?.toString();
 
-    final activeTodayLeavesCount = attendance.allLeaves.where((l) => isLeaveActiveToday(l)).length;
+      final keys = [id, email, name]
+          .where((k) => k != null && k.isNotEmpty)
+          .map((k) => k!.trim().toLowerCase())
+          .toSet();
+      presentKeys.addAll(keys);
+    }
 
-    final onLeave = stats['leaveCount'] != null && _parseInt(stats['leaveCount']) > 0
-        ? _parseInt(stats['leaveCount'])
-        : (analytics['onLeave'] != null && _parseInt(analytics['onLeave']) > 0
-            ? _parseInt(analytics['onLeave'])
-            : activeTodayLeavesCount);
+    // 2. Gather leave keys
+    final leaveKeys = <String>{};
+    for (var leave in attendance.allLeaves) {
+      if (isLeaveActiveToday(leave)) {
+        final empObj = leave['employeeId'] ?? leave['user'] ?? leave['employee'];
+        String? id, email, name;
+        if (empObj is Map) {
+          id = (empObj['_id'] ?? empObj['id'])?.toString();
+          email = empObj['email']?.toString();
+          name = empObj['name']?.toString();
+        }
+        id ??= (leave['userId'] ?? (leave['employeeId'] is String ? leave['employeeId'] : null))?.toString();
+        email ??= leave['email']?.toString();
+        name ??= (leave['employeeName'] ?? leave['name'])?.toString();
 
-    final explicitAbsent = _parseInt(
-      analytics['absentToday'] ?? analytics['absent'] ?? stats['absentCount'] ?? stats['absent'] ?? 0
-    );
-    final calculatedAbsent = (totalEmployees - presentToday - onLeave).clamp(0, totalEmployees);
-    final absentToday = explicitAbsent > 0 ? explicitAbsent : calculatedAbsent;
+        final keys = [id, email, name]
+            .where((k) => k != null && k.isNotEmpty)
+            .map((k) => k!.trim().toLowerCase())
+            .toSet();
+        leaveKeys.addAll(keys);
+      }
+    }
+
+    int realPresent = 0;
+    int realLeave = 0;
+    int realAbsent = 0;
+
+    if (allEmps.isNotEmpty) {
+      for (var emp in allEmps) {
+        if (emp is! Map) continue;
+        final id = (emp['_id'] ?? emp['id'])?.toString().trim().toLowerCase();
+        final email = emp['email']?.toString().trim().toLowerCase();
+        final name = emp['name']?.toString().trim().toLowerCase();
+
+        final isPresent = (id != null && presentKeys.contains(id)) ||
+            (email != null && presentKeys.contains(email)) ||
+            (name != null && presentKeys.contains(name));
+
+        final isOnLeave = (id != null && leaveKeys.contains(id)) ||
+            (email != null && leaveKeys.contains(email)) ||
+            (name != null && leaveKeys.contains(name));
+
+        if (isPresent) {
+          realPresent++;
+        } else if (isOnLeave) {
+          realLeave++;
+        } else {
+          realAbsent++;
+        }
+      }
+    } else {
+      realPresent = presentKeys.length;
+      realLeave = leaveKeys.length;
+      final totalStat = _parseInt(stats['totalEmployees'] ?? stats['total'] ?? 0);
+      realAbsent = (totalStat - realPresent - realLeave).clamp(0, totalStat);
+    }
+
+    final totalEmployees = allEmps.isNotEmpty
+        ? allEmps.length
+        : (realPresent + realLeave + realAbsent);
+
+    final presentToday = realPresent;
+    final onLeave = realLeave;
+    final absentToday = realAbsent;
 
     final pendingLeaves = attendance.allLeaves.where((l) {
       if (l is! Map) return false;
@@ -145,6 +208,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> {
       onRefresh: () async {
         ref.invalidate(analyticsProvider);
         await ref.read(attendanceProvider.notifier).loadStats();
+        await ref.read(attendanceProvider.notifier).loadTodayAllAttendance();
         await ref.read(attendanceProvider.notifier).loadAllLeaves();
         await ref.read(employeeProvider.notifier).loadEmployees();
       },
