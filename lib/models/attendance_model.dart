@@ -107,7 +107,10 @@ class AttendanceModel {
           json['outTime'] ??
           json['out_time'] ??
           json['timeOut'] ??
-          json['time_out'],
+          json['time_out'] ??
+          json['logoutTime'] ??
+          json['logout_time'] ??
+          json['lastLogout'],
     );
 
     // Status mapping

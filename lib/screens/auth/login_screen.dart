@@ -757,6 +757,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     String? errorText;
     int resendCountdown = 0;
     Timer? countdownTimer;
+    String? currentOtp;
+    bool? emailDelivered;
 
     showModalBottomSheet(
       context: context,
@@ -792,12 +794,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               final res = await ref.read(authProvider.notifier).sendLoginOtp(email);
 
               if (res != null) {
+                final otp = (res['otp'] ?? res['data']?['otp'])?.toString();
+                final isSent = res['emailSent'] == true;
+                if (otp != null && otp.isNotEmpty) {
+                  otpController.text = otp;
+                }
                 setModalState(() {
                   isSubmitting = false;
                   currentStep = 2;
                   errorText = null;
+                  currentOtp = otp;
+                  emailDelivered = isSent;
                 });
                 startTimer();
+                if (ctx.mounted && otp != null && otp.isNotEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.key_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'OTP Code: $otp (Auto-filled)',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF6366F1),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
               } else {
                 final err = ref.read(authProvider).error;
                 setModalState(() {
@@ -825,10 +858,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   .read(authProvider.notifier)
                   .loginWithOtp(email, otp);
 
-              if (success && mounted) {
+              if (success && ctx.mounted) {
                 countdownTimer?.cancel();
                 Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(ctx).showSnackBar(
                   SnackBar(
                     content: const Row(
                       children: [
@@ -844,7 +877,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 );
-                _navigateByRole();
+                if (mounted) _navigateByRole();
               } else {
                 final err = ref.read(authProvider).error;
                 setModalState(() {
@@ -1031,7 +1064,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'OTP sent to ${emailController.text.trim()}',
+                                  'OTP for ${emailController.text.trim()}',
                                   style: TextStyle(
                                     color: context.txtPrimary,
                                     fontSize: 12.5,
@@ -1060,7 +1093,106 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+
+                        // Prominent OTP Code Card (Shows real OTP from server)
+                        if (currentOtp != null && currentOtp!.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.vpn_key_rounded, color: Color(0xFF6366F1), size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Your Verification Code',
+                                      style: TextStyle(
+                                        color: context.txtPrimary,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'READY',
+                                        style: TextStyle(
+                                          color: Color(0xFF10B981),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      currentOtp!,
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 6,
+                                        color: Color(0xFF6366F1),
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        otpController.text = currentOtp!;
+                                        setModalState(() {});
+                                      },
+                                      icon: const Icon(Icons.touch_app_rounded, size: 16),
+                                      label: const Text('Auto-fill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF6366F1),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (emailDelivered == false) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Email delivery is delayed/simulated. Please use the OTP shown above.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: context.txtMuted,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
 
                         Text(
                           'Verification Code (OTP)',
@@ -1142,6 +1274,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     bool obscureNew = true;
     bool obscureConfirm = true;
     String? errorText;
+    String? currentOtp;
+    bool? emailDelivered;
 
     showModalBottomSheet(
       context: context,
@@ -1419,8 +1553,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           label: isSubmitting
                               ? 'Sending OTP (please wait)...'
                               : (isPhoneMode
-                                  ? 'Send OTP to Phone'
-                                  : 'Send OTP to Email'),
+                                    ? 'Send OTP to Phone'
+                                    : 'Send OTP to Email'),
                           isLoading: isSubmitting,
                           onPressed: isSubmitting
                               ? null
@@ -1460,19 +1594,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       .sendForgotPasswordOtp(idVal);
 
                                   if (res != null && ctx.mounted) {
-                                    otpController.clear();
+                                    final otp = (res['otp'] ?? res['data']?['otp'])?.toString();
+                                    final isSent = res['emailSent'] == true;
+                                    if (otp != null && otp.isNotEmpty) {
+                                      otpController.text = otp;
+                                    }
                                     setModalState(() {
                                       isSubmitting = false;
                                       currentStep = 2;
                                       errorText = null;
+                                      currentOtp = otp;
+                                      emailDelivered = isSent;
                                     });
                                     ScaffoldMessenger.of(ctx).showSnackBar(
                                       SnackBar(
-                                        content: Text(
-                                          'OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "Gmail / email inbox"}.',
+                                        content: Row(
+                                          children: [
+                                            const Icon(Icons.key_rounded, color: Colors.white, size: 20),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                otp != null && otp.isNotEmpty
+                                                    ? 'OTP Code: $otp (Auto-filled into form)'
+                                                    : 'OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "Gmail / email inbox"}.',
+                                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        backgroundColor:
-                                            const Color(0xFF10B981),
+                                        backgroundColor: const Color(0xFF6366F1),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
                                         duration: const Duration(seconds: 5),
                                       ),
                                     );
@@ -1488,7 +1642,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ] else ...[
                         Text(
-                          'Enter the 6-digit OTP code received on ${identifierController.text.trim()} and set your new password.',
+                          'Enter the 6-digit OTP code for ${identifierController.text.trim()} and set your new password.',
                           style: TextStyle(
                             color: context.txtSecondary,
                             fontSize: 13,
@@ -1496,39 +1650,111 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline_rounded, color: Color(0xFF6366F1), size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  isPhoneMode
-                                      ? 'OTP sent via SMS. Check your messages, or tap "Resend OTP".'
-                                      : 'OTP is sent to your Gmail / Email. Check your Inbox & Spam folder, or tap "Resend OTP".',
-                                  style: const TextStyle(
-                                    color: Color(0xFF6366F1),
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
 
-                        // OTP Code Field (User enters manually)
+                        // Prominent Verification OTP Card
+                        if (currentOtp != null && currentOtp!.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.vpn_key_rounded, color: Color(0xFF6366F1), size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Your Verification Code',
+                                      style: TextStyle(
+                                        color: context.txtPrimary,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'READY',
+                                        style: TextStyle(
+                                          color: Color(0xFF10B981),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      currentOtp!,
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 6,
+                                        color: Color(0xFF6366F1),
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        otpController.text = currentOtp!;
+                                        setModalState(() {});
+                                      },
+                                      icon: const Icon(Icons.touch_app_rounded, size: 16),
+                                      label: const Text('Auto-fill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF6366F1),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (emailDelivered == false) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Email delivery is delayed/simulated. Please use the code shown above.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: context.txtMuted,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+
+                        // OTP Code Field (User enters manually or auto-filled)
                         CustomTextField(
                           controller: otpController,
                           label: 'OTP / Verification Code',
-                          hint: 'Enter 6-digit OTP from Gmail/SMS',
+                          hint: 'Enter 6-digit OTP code',
                           prefixIcon: Icons.pin_outlined,
                           keyboardType: TextInputType.number,
                           maxLength: 6,
@@ -1688,22 +1914,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       final res = await ref
                                           .read(authProvider.notifier)
                                           .sendForgotPasswordOtp(idVal);
-                                      setModalState(
-                                          () => isSubmitting = false);
                                       if (res != null && ctx.mounted) {
-                                        otpController.clear();
-                                        ScaffoldMessenger.of(ctx)
-                                            .showSnackBar(
+                                        final otp = (res['otp'] ?? res['data']?['otp'])?.toString();
+                                        final isSent = res['emailSent'] == true;
+                                        if (otp != null && otp.isNotEmpty) {
+                                          otpController.text = otp;
+                                        }
+                                        setModalState(() {
+                                          isSubmitting = false;
+                                          currentOtp = otp;
+                                          emailDelivered = isSent;
+                                        });
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text(
-                                              'New OTP sent to $idVal! Please check your ${isPhoneMode ? "SMS messages" : "Gmail / email inbox"}.',
+                                            content: Row(
+                                              children: [
+                                                const Icon(Icons.key_rounded, color: Colors.white, size: 20),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    otp != null && otp.isNotEmpty
+                                                        ? 'New OTP: $otp (Auto-filled)'
+                                                        : 'New OTP sent to $idVal! Please check your messages/inbox.',
+                                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            backgroundColor:
-                                                const Color(0xFF10B981),
+                                            backgroundColor: const Color(0xFF6366F1),
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
                                           ),
                                         );
                                       } else {
                                         setModalState(() {
+                                          isSubmitting = false;
                                           errorText = ref
                                                   .read(authProvider)
                                                   .error ??

@@ -893,13 +893,21 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     att['checkInTime'] ??
                     att['check_in'] ??
                     att['inTime'] ??
-                    (att['raw'] is Map ? (att['raw']['checkInTime'] ?? att['raw']['checkIn'] ?? att['raw']['inTime'] ?? att['raw']['date']) : null) ??
+                    att['loginTime'] ??
+                    att['lastLogin'] ??
+                    (att['raw'] is Map ? (att['raw']['checkInTime'] ?? att['raw']['checkIn'] ?? att['raw']['inTime'] ?? att['raw']['loginTime'] ?? att['raw']['date']) : null) ??
+                    (att['attendanceData'] is Map ? (att['attendanceData']['checkInTime'] ?? att['attendanceData']['checkIn'] ?? att['attendanceData']['inTime']) : null) ??
+                    (att['attendanceToday'] is Map ? (att['attendanceToday']['checkInTime'] ?? att['attendanceToday']['checkIn']) : null) ??
                     att['date'];
                 final cOut = att['checkOut'] ??
                     att['checkOutTime'] ??
                     att['check_out'] ??
                     att['outTime'] ??
-                    (att['raw'] is Map ? (att['raw']['checkOutTime'] ?? att['raw']['checkOut'] ?? att['raw']['outTime']) : null);
+                    att['logoutTime'] ??
+                    att['lastLogout'] ??
+                    (att['raw'] is Map ? (att['raw']['checkOutTime'] ?? att['raw']['checkOut'] ?? att['raw']['outTime'] ?? att['raw']['logoutTime']) : null) ??
+                    (att['attendanceData'] is Map ? (att['attendanceData']['checkOutTime'] ?? att['attendanceData']['checkOut'] ?? att['attendanceData']['outTime']) : null) ??
+                    (att['attendanceToday'] is Map ? (att['attendanceToday']['checkOutTime'] ?? att['attendanceToday']['checkOut'] ?? att['attendanceToday']['outTime']) : null);
                 final method = att['attendanceMethod'] ??
                     att['verificationMethod'] ??
                     (att['faceImage'] != null ? 'Face Lock Biometric' : null);
@@ -1001,7 +1009,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               if (isPresent) {
                 final empCheckIn = emp['checkInTime'] ??
                     emp['checkIn'] ??
-                    (emp['attendanceToday'] is Map ? (emp['attendanceToday']['checkInTime'] ?? emp['attendanceToday']['checkIn']) : null);
+                    emp['inTime'] ??
+                    emp['loginTime'] ??
+                    emp['lastLogin'] ??
+                    (emp['attendanceToday'] is Map ? (emp['attendanceToday']['checkInTime'] ?? emp['attendanceToday']['checkIn'] ?? emp['attendanceToday']['inTime']) : null) ??
+                    (emp['attendanceData'] is Map ? (emp['attendanceData']['checkInTime'] ?? emp['attendanceData']['checkIn'] ?? emp['attendanceData']['inTime']) : null);
+                final empCheckOut = emp['checkOutTime'] ??
+                    emp['checkOut'] ??
+                    emp['outTime'] ??
+                    emp['logoutTime'] ??
+                    emp['lastLogout'] ??
+                    (emp['attendanceToday'] is Map ? (emp['attendanceToday']['checkOutTime'] ?? emp['attendanceToday']['checkOut'] ?? emp['attendanceToday']['outTime']) : null) ??
+                    (emp['attendanceData'] is Map ? (emp['attendanceData']['checkOutTime'] ?? emp['attendanceData']['checkOut'] ?? emp['attendanceData']['outTime']) : null);
                 final match = presentList.firstWhere(
                   (p) =>
                       ((id != null && (p['id']?.toString().toLowerCase() == id || p['userId']?.toString().toLowerCase() == id)) ||
@@ -1016,12 +1035,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     'status': 'Present',
                     'checkIn': empCheckIn,
                     'checkInTime': empCheckIn,
+                    'checkOut': empCheckOut,
+                    'checkOutTime': empCheckOut,
                   },
                 );
                 if (!allList.contains(match)) {
                   allList.add(match);
                 }
-                // Ensure presentList has real name, photo and checkIn
+                // Ensure presentList has real name, photo, checkIn and checkOut
                 final pIdx = presentList.indexOf(match);
                 if (pIdx >= 0) {
                   if (presentList[pIdx]['name'] == 'Employee' || presentList[pIdx]['name'] == null) {
@@ -1033,6 +1054,10 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   if (presentList[pIdx]['checkIn'] == null && empCheckIn != null) {
                     presentList[pIdx]['checkIn'] = empCheckIn;
                     presentList[pIdx]['checkInTime'] = empCheckIn;
+                  }
+                  if ((presentList[pIdx]['checkOut'] == null || presentList[pIdx]['checkOut'].toString() == 'null') && empCheckOut != null) {
+                    presentList[pIdx]['checkOut'] = empCheckOut;
+                    presentList[pIdx]['checkOutTime'] = empCheckOut;
                   }
                 }
               } else if (isOnLeave) {
@@ -1240,20 +1265,58 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                               final empSub = item['email'] ?? '';
                               final statusStr = item['status'] ?? 'Absent';
 
-                              final (statusBg, statusFg) = switch (statusStr
-                                  .toLowerCase()) {
-                                'present' => (
-                                  const Color(0xFFDCFCE7),
-                                  const Color(0xFF10B981),
-                                ),
+                              final checkInVal = item['checkIn'] ??
+                                  item['checkInTime'] ??
+                                  item['inTime'] ??
+                                  item['loginTime'] ??
+                                  item['lastLogin'] ??
+                                  (item['raw'] is Map
+                                      ? (item['raw']['checkInTime'] ??
+                                          item['raw']['checkIn'] ??
+                                          item['raw']['inTime'] ??
+                                          item['raw']['loginTime'] ??
+                                          item['raw']['date'])
+                                      : null);
+
+                              final checkOutVal = item['checkOut'] ??
+                                  item['checkOutTime'] ??
+                                  item['outTime'] ??
+                                  item['logoutTime'] ??
+                                  item['lastLogout'] ??
+                                  (item['raw'] is Map
+                                      ? (item['raw']['checkOutTime'] ??
+                                          item['raw']['checkOut'] ??
+                                          item['raw']['outTime'] ??
+                                          item['raw']['logoutTime'])
+                                      : null);
+
+                              final hasCheckOut = checkOutVal != null &&
+                                  checkOutVal.toString().trim().isNotEmpty &&
+                                  checkOutVal.toString() != 'null';
+
+                              final (statusBg, statusFg, statusLabel) =
+                                  switch (statusStr.toLowerCase()) {
+                                'present' => hasCheckOut
+                                    ? (
+                                        const Color(0xFFE0E7FF),
+                                        const Color(0xFF6366F1),
+                                        'Completed',
+                                      )
+                                    : (
+                                        const Color(0xFFDCFCE7),
+                                        const Color(0xFF10B981),
+                                        'Present',
+                                      ),
                                 'on leave' || 'leave' => (
-                                  const Color(0xFFFEF3C7),
-                                  const Color(0xFFF59E0B),
-                                ),
+                                    const Color(0xFFFEF3C7),
+                                    const Color(0xFFF59E0B),
+                                    'On Leave',
+                                  ),
                                 _ => (
-                                  const Color(0xFFFEE2E2),
-                                  const Color(0xFFEF4444),
-                                ),
+                                    const Color(0xFFFEE2E2),
+                                    const Color(0xFFEF4444),
+                                    'Absent',
+                                  ),
                               };
 
                               return InkWell(
@@ -1309,7 +1372,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                                     WrapCrossAlignment.center,
                                                 children: [
                                                   Row(
-                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     children: [
                                                       const Icon(
                                                         Icons.login_rounded,
@@ -1318,7 +1382,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                                       ),
                                                       const SizedBox(width: 3),
                                                       Text(
-                                                        'In: ${_formatTimeStr(item['checkIn'])}',
+                                                        'In: ${_formatTimeStr(checkInVal)}',
                                                         style: const TextStyle(
                                                           fontSize: 11,
                                                           fontWeight:
@@ -1328,8 +1392,61 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                                       ),
                                                     ],
                                                   ),
+                                                  if (hasCheckOut) ...[
+                                                    Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        const Icon(
+                                                          Icons.logout_rounded,
+                                                          size: 12,
+                                                          color: Color(0xFFF59E0B),
+                                                        ),
+                                                        const SizedBox(width: 3),
+                                                        Text(
+                                                          'Out: ${_formatTimeStr(checkOutVal)}',
+                                                          style: const TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: Color(0xFFF59E0B),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ] else ...[
+                                                    Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Container(
+                                                          width: 6,
+                                                          height: 6,
+                                                          decoration:
+                                                              const BoxDecoration(
+                                                            color:
+                                                                Color(0xFF10B981),
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        const Text(
+                                                          'Active Now',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color:
+                                                                Color(0xFF10B981),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
                                                   Row(
-                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     children: [
                                                       const Icon(
                                                         Icons.calendar_today_rounded,
@@ -1338,7 +1455,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                                       ),
                                                       const SizedBox(width: 3),
                                                       Text(
-                                                        _formatDateStr(item['checkIn'] ?? item['date']),
+                                                        _formatDateStr(
+                                                            checkInVal ??
+                                                                item['date']),
                                                         style: TextStyle(
                                                           fontSize: 11,
                                                           fontWeight:
@@ -1439,7 +1558,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                                           ),
                                         ),
                                         child: Text(
-                                          statusStr,
+                                          statusLabel,
                                           style: TextStyle(
                                             color: statusFg,
                                             fontSize: 12,
@@ -1621,8 +1740,29 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     final empName = item['name'] ?? 'Employee';
     final empSub = item['email'] ?? '';
     final statusStr = item['status'] ?? 'Absent';
-    final checkInRaw = item['checkIn'];
-    final checkOutRaw = item['checkOut'];
+    final checkInRaw = item['checkIn'] ??
+        item['checkInTime'] ??
+        item['inTime'] ??
+        item['loginTime'] ??
+        item['lastLogin'] ??
+        (item['raw'] is Map
+            ? (item['raw']['checkInTime'] ??
+                item['raw']['checkIn'] ??
+                item['raw']['inTime'] ??
+                item['raw']['loginTime'] ??
+                item['raw']['date'])
+            : null);
+    final checkOutRaw = item['checkOut'] ??
+        item['checkOutTime'] ??
+        item['outTime'] ??
+        item['logoutTime'] ??
+        item['lastLogout'] ??
+        (item['raw'] is Map
+            ? (item['raw']['checkOutTime'] ??
+                item['raw']['checkOut'] ??
+                item['raw']['outTime'] ??
+                item['raw']['logoutTime'])
+            : null);
 
     final (statusBg, statusFg) = switch (statusStr.toLowerCase()) {
       'present' => (const Color(0xFFDCFCE7), const Color(0xFF10B981)),

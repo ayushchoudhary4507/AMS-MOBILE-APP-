@@ -2326,8 +2326,17 @@ class _AttendanceCalendarTabState
     final dateLabel = _formatAttendanceDate(
       record['date'] ?? record['attendanceDate'] ?? record['createdAt'],
     );
-    final checkIn = record['checkIn'] ?? record['checkInTime'];
-    final checkOut = record['checkOut'] ?? record['checkOutTime'];
+    final checkIn = record['checkIn'] ??
+        record['checkInTime'] ??
+        record['inTime'] ??
+        record['loginTime'] ??
+        (record['raw'] is Map ? (record['raw']['checkInTime'] ?? record['raw']['checkIn']) : null);
+    final checkOut = record['checkOut'] ??
+        record['checkOutTime'] ??
+        record['outTime'] ??
+        record['logoutTime'] ??
+        record['lastLogout'] ??
+        (record['raw'] is Map ? (record['raw']['checkOutTime'] ?? record['raw']['checkOut'] ?? record['raw']['outTime']) : null);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
