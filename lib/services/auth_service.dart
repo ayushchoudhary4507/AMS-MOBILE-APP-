@@ -6,12 +6,19 @@ import 'api_service.dart';
 import '../core/utils/storage_service.dart';
 
 class AuthService {
-  // Employee Login
+  // Employee Login — always passes loginSource: 'Mobile' so backend can display
+  // the correct source (Web/Mobile) in admin login notification alerts.
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
+    final String platformInfo = Platform.operatingSystem; // android / ios / etc.
     final response = await ApiService.post(
       ApiConstants.login,
-      data: {'email': email, 'password': password},
+      data: {
+        'email': email,
+        'password': password,
+        'loginSource': 'Mobile',
+        'deviceInfo': platformInfo,
+      },
     );
     return ApiService.toMap(response.data);
   }
@@ -30,16 +37,20 @@ class AuthService {
     return map;
   }
 
-  // Verify Login OTP and authenticate
+  // Verify Login OTP and authenticate — passes loginSource so backend can track
+  // whether the OTP login came from Mobile or Web.
   static Future<Map<String, dynamic>> verifyLoginOtp(
       String email, String otp) async {
     final cleanEmail = email.trim().toLowerCase();
     final cleanOtp = otp.trim();
+    final String platformInfo = Platform.operatingSystem;
     final response = await ApiService.post(
       ApiConstants.authVerify,
       data: {
         'email': cleanEmail,
         'otp': cleanOtp,
+        'loginSource': 'Mobile',
+        'deviceInfo': platformInfo,
       },
     );
     final map = ApiService.toMap(response.data);

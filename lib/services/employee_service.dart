@@ -75,12 +75,27 @@ class NotificationService {
     try {
       final response = await ApiService.post(
         ApiConstants.deviceToken,
-        data: {'deviceToken': token, 'fcmToken': token, 'token': token},
+        data: {
+          'token': token,
+          'platform': 'android', // Defaults to android; iOS tokens work with same endpoint
+          // Legacy fields for compatibility with older endpoints
+          'deviceToken': token,
+          'fcmToken': token,
+        },
       );
       return ApiService.toMap(response.data);
     } catch (_) {
       return {};
     }
+  }
+
+  static Future<void> unregisterDeviceToken(String token) async {
+    try {
+      await ApiService.delete(
+        // ignore: prefer_interpolation_to_compose_strings
+        ApiConstants.unregisterDeviceToken + '?token=' + Uri.encodeComponent(token),
+      );
+    } catch (_) {}
   }
 
   static Future<Map<String, dynamic>> delete(String id) async {

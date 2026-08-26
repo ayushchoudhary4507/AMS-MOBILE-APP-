@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import '../core/utils/storage_service.dart';
 
@@ -12,6 +12,8 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        // Tells the backend this request comes from the Flutter Mobile App
+        'X-Platform': 'Mobile',
       },
     ),
   );
@@ -109,3 +111,4 @@ class ApiService {
     return await _dio.patch(path, data: data);
   }
 }
+

@@ -46,7 +46,9 @@ class ApiConstants {
 
   // Notifications
   static const String notifications = '/notifications';
-  static const String deviceToken = '/notifications/device-token';
+  // FCM device token registration (new endpoint that stores token in User.fcmTokens)
+  static const String deviceToken = '/notifications/register-device';
+  static const String unregisterDeviceToken = '/notifications/unregister-device';
 
   // Analytics
   static const String analytics = '/analytics';
