@@ -64,10 +64,14 @@ class ApiConstants {
 
   // Settings
   static const String settings = '/settings';
+  static const String changePassword = '/settings/change-password';
 
   // Dashboard Overview Configuration
   static const String dashboardConfig = '/dashboard-config';
 
   // Shifts
   static const String shifts = '/shifts';
+
+  // Reports
+  static const String reports = '/reports';
 }

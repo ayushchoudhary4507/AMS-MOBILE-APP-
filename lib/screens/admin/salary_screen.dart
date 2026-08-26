@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/employee_provider.dart';
+import '../../services/employee_service.dart';
 import '../../widgets/common/app_avatar.dart';
 
 class AdminSalaryScreen extends ConsumerStatefulWidget {
@@ -15,19 +16,436 @@ class AdminSalaryScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
+  int _viewMonth = DateTime.now().month;
+  int _viewYear = DateTime.now().year;
+  bool _isLoading = false;
+  List<dynamic> _salaries = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.invalidate(allSalaryProvider);
+      _fetchSalaries();
       ref.read(employeeProvider.notifier).loadEmployees();
     });
   }
 
+  Future<void> _fetchSalaries() async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await SalaryService.getAll(month: _viewMonth, year: _viewYear);
+      final list = res['data'] ?? res['salaries'] ?? res['records'] ?? [];
+      if (mounted) {
+        setState(() {
+          _salaries = list is List ? list : [];
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _salaries = []);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── CALCULATE SALARY MODAL ──────────────────────────────────────────────────
+  void _showCalculateModal(BuildContext context, List<dynamic> employees) {
+    if (employees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No employees found to calculate salary for')),
+      );
+      return;
+    }
+
+    String selectedEmpId = (employees[0]['_id'] ?? employees[0]['id'])?.toString() ?? '';
+    final basicCtrl = TextEditingController(text: '20000');
+    final perDayCtrl = TextEditingController();
+    final perHourCtrl = TextEditingController();
+    final deductionsCtrl = TextEditingController(text: '0');
+    final bonusCtrl = TextEditingController(text: '0');
+    final overtimeCtrl = TextEditingController(text: '0');
+    final notesCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            return Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.90),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 20,
+                left: 20,
+                right: 20,
+              ),
+              decoration: BoxDecoration(
+                color: context.cardBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: context.txtMuted.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.calculate_rounded, color: Color(0xFF10B981), size: 22),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Calculate Employee Salary',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.txtPrimary),
+                            ),
+                            Text(
+                              DateFormat('MMMM yyyy').format(DateTime(_viewYear, _viewMonth)),
+                              style: TextStyle(fontSize: 12, color: context.txtMuted),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Employee Dropdown
+                    Text('Select Employee', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.txtPrimary)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: context.borderCol),
+                        borderRadius: BorderRadius.circular(12),
+                        color: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedEmpId,
+                          isExpanded: true,
+                          dropdownColor: context.cardBg,
+                          items: employees.map((emp) {
+                            final id = (emp['_id'] ?? emp['id'])?.toString() ?? '';
+                            final name = (emp['name'] ?? 'Staff').toString();
+                            final desig = (emp['designation'] ?? emp['department'] ?? '').toString();
+                            return DropdownMenuItem<String>(
+                              value: id,
+                              child: Text('$name ${desig.isNotEmpty ? '($desig)' : ''}', style: TextStyle(color: context.txtPrimary, fontSize: 13)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setModalState(() => selectedEmpId = val);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Basic Salary
+                    TextField(
+                      controller: basicCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Basic Salary (₹)',
+                        prefixIcon: const Icon(Icons.currency_rupee_rounded),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Per Day & Per Hour Salary
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: perDayCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Per Day (₹)',
+                              hintText: 'Auto if empty',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: perHourCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Per Hour (₹)',
+                              hintText: 'Auto if empty',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Deductions & Bonus
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: deductionsCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Deductions (₹)',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: bonusCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Bonus (₹)',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Overtime & Notes
+                    TextField(
+                      controller: overtimeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Overtime Pay (₹)',
+                        prefixIcon: const Icon(Icons.access_time_filled_rounded),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: notesCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Notes (Optional)',
+                        prefixIcon: const Icon(Icons.notes_rounded),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF8FAFC),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () async {
+                          final sm = ScaffoldMessenger.of(context);
+                          final basic = double.tryParse(basicCtrl.text.trim()) ?? 20000;
+                          final perDay = double.tryParse(perDayCtrl.text.trim()) ?? 0;
+                          final perHour = double.tryParse(perHourCtrl.text.trim()) ?? 0;
+                          final deductions = double.tryParse(deductionsCtrl.text.trim()) ?? 0;
+                          final bonus = double.tryParse(bonusCtrl.text.trim()) ?? 0;
+                          final overtime = double.tryParse(overtimeCtrl.text.trim()) ?? 0;
+
+                          Navigator.pop(ctx);
+                          setState(() => _isLoading = true);
+                          try {
+                            final res = await SalaryService.calculateSalary({
+                              'employeeId': selectedEmpId,
+                              'month': _viewMonth,
+                              'year': _viewYear,
+                              'basicSalary': basic,
+                              'perDaySalary': perDay,
+                              'perHourSalary': perHour,
+                              'deductions': deductions,
+                              'bonus': bonus,
+                              'overtimePay': overtime,
+                              'notes': notesCtrl.text.trim(),
+                            });
+                            if (!mounted) return;
+                            if (res['success'] == true) {
+                              sm.showSnackBar(
+                                const SnackBar(content: Text('Salary calculated successfully! ✓'), backgroundColor: Color(0xFF10B981)),
+                              );
+                              _fetchSalaries();
+                            } else {
+                              sm.showSnackBar(
+                                SnackBar(content: Text(res['message']?.toString() ?? 'Failed to calculate salary'), backgroundColor: Colors.red),
+                              );
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            sm.showSnackBar(
+                              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
+                        child: const Text('Calculate & Save Salary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── BULK CALCULATE ──────────────────────────────────────────────────────────
+  Future<void> _handleBulkCalculate() async {
+    final sm = ScaffoldMessenger.of(context);
+    final monthName = DateFormat('MMMM yyyy').format(DateTime(_viewYear, _viewMonth));
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.cardBg,
+        title: Text('Bulk Calculate Salary', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.bold)),
+        content: Text('Calculate salary for all employees for $monthName based on actual attendance records?', style: TextStyle(color: context.txtSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Start Bulk Calc'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await SalaryService.bulkCalculate(_viewMonth, _viewYear);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        sm.showSnackBar(
+          SnackBar(content: Text(res['message']?.toString() ?? 'Bulk calculation completed! ✓'), backgroundColor: const Color(0xFF10B981)),
+        );
+        _fetchSalaries();
+      } else {
+        sm.showSnackBar(
+          SnackBar(content: Text(res['message']?.toString() ?? 'Failed to perform bulk calculation'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      sm.showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── MARK AS PAID HANDLER ────────────────────────────────────────────────────
+  Future<void> _handleMarkPaid(String salaryId, String empName) async {
+    final sm = ScaffoldMessenger.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.cardBg,
+        title: Text('Mark Salary as Paid', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.bold)),
+        content: Text('Mark salary for $empName as PAID?', style: TextStyle(color: context.txtSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Paid'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await SalaryService.markAsPaid(salaryId);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        sm.showSnackBar(
+          const SnackBar(content: Text('Salary marked as PAID ✓'), backgroundColor: Color(0xFF10B981)),
+        );
+        _fetchSalaries();
+      } else {
+        sm.showSnackBar(
+          SnackBar(content: Text(res['message']?.toString() ?? 'Failed to mark as paid'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      sm.showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final salaryAsync = ref.watch(allSalaryProvider);
     final employeeState = ref.watch(employeeProvider);
+    final allEmployees = employeeState.employees;
+
+    // Summary calculations
+    double totalPayroll = 0;
+    int paidCount = 0;
+    for (final s in _salaries) {
+      if (s is Map) {
+        final finalSal = (s['finalSalary'] ?? s['netPay'] ?? s['basicSalary'] ?? 0);
+        totalPayroll += (double.tryParse(finalSal.toString()) ?? 0);
+        final isPaid = s['isPaid'] == true || (s['status'] ?? '').toString().toLowerCase() == 'paid';
+        if (isPaid) paidCount++;
+      }
+    }
+    final unpaidCount = _salaries.length - paidCount;
+    final monthName = DateFormat('MMMM').format(DateTime(_viewYear, _viewMonth));
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -39,6 +457,7 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
             fontWeight: FontWeight.w800,
             fontSize: 20,
             color: context.txtPrimary,
+            letterSpacing: -0.3,
           ),
         ),
         centerTitle: false,
@@ -47,26 +466,21 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 20,
-            color: context.txtPrimary,
-          ),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: context.txtPrimary),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/admin/dashboard');
+              final auth = ref.read(authProvider);
+              context.go(auth.isAdmin ? '/admin/dashboard' : '/employee/dashboard');
             }
           },
         ),
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: context.txtPrimary),
-            onPressed: () {
-              ref.invalidate(allSalaryProvider);
-              ref.read(employeeProvider.notifier).loadEmployees();
-            },
+            tooltip: 'Refresh',
+            onPressed: _fetchSalaries,
           ),
           const SizedBox(width: 6),
         ],
@@ -76,429 +490,376 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
         height: double.infinity,
         decoration: BoxDecoration(gradient: context.mainBgGradient),
         child: SafeArea(
-          child: salaryAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-            error: (e, _) => _buildEmptyState(context),
-            data: (salaries) {
-              if (salaries.isEmpty) return _buildEmptyState(context);
-              return _buildContent(context, salaries, employeeState.employees);
-            },
+          child: RefreshIndicator(
+            onRefresh: _fetchSalaries,
+            color: AppColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Action Buttons (Calculate Salary & Bulk Calculate)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 2,
+                          ),
+                          icon: const Icon(Icons.calculate_rounded, size: 18),
+                          label: const Text('Calculate Salary', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          onPressed: () => _showCalculateModal(context, allEmployees),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: context.cardBg,
+                            foregroundColor: const Color(0xFF6366F1),
+                            side: const BorderSide(color: Color(0xFF6366F1), width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                          label: const Text('Bulk Calculate', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          onPressed: _handleBulkCalculate,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Month & Year Filter Bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: context.cardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: context.borderCol),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_month_rounded, color: Color(0xFF10B981), size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              value: _viewMonth,
+                              dropdownColor: context.cardBg,
+                              isDense: true,
+                              items: List.generate(12, (i) => i + 1).map((m) {
+                                final name = DateFormat('MMMM').format(DateTime(2025, m));
+                                return DropdownMenuItem(value: m, child: Text(name, style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.bold, fontSize: 13)));
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() => _viewMonth = val);
+                                  _fetchSalaries();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        Container(width: 1, height: 24, color: context.borderCol),
+                        const SizedBox(width: 12),
+                        DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _viewYear,
+                            dropdownColor: context.cardBg,
+                            isDense: true,
+                            items: [2024, 2025, 2026, 2027].map((y) {
+                              return DropdownMenuItem(value: y, child: Text('$y', style: TextStyle(color: context.txtPrimary, fontWeight: FontWeight.bold, fontSize: 13)));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _viewYear = val);
+                                _fetchSalaries();
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 4 Summary Metrics (Exact match with website summary cards)
+                  Row(
+                    children: [
+                      _buildSummaryStatCard(context, 'Calculated', '${_salaries.length}', const Color(0xFF6366F1)),
+                      const SizedBox(width: 8),
+                      _buildSummaryStatCard(context, 'Paid', '$paidCount', const Color(0xFF10B981)),
+                      const SizedBox(width: 8),
+                      _buildSummaryStatCard(context, 'Unpaid', '$unpaidCount', const Color(0xFFEF4444)),
+                      const SizedBox(width: 8),
+                      _buildSummaryStatCard(context, 'Total', '₹${_formatAmount(totalPayroll)}', const Color(0xFF10B981), isTotal: true),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Section Title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Salary Records ($monthName $_viewYear)',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: context.txtPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      Text(
+                        '${_salaries.length} records',
+                        style: TextStyle(fontSize: 12, color: context.txtMuted, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Salary Records List
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                    )
+                  else if (_salaries.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: context.cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.borderCol),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.receipt_long_outlined, size: 48, color: context.txtMuted.withValues(alpha: 0.4)),
+                          const SizedBox(height: 12),
+                          Text('No salary records for $monthName $_viewYear', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: context.txtPrimary)),
+                          const SizedBox(height: 6),
+                          Text('Tap "Bulk Calculate" or "Calculate Salary" to generate payslips.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: context.txtMuted)),
+                        ],
+                      ),
+                    )
+                  else
+                    ..._salaries.map((s) => _buildSalaryCard(context, s, allEmployees)),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, List<dynamic> salaries, List<dynamic> allEmployees) {
-    // Summary stats
-    double totalPayroll = 0;
-    int processedCount = 0;
-    for (final s in salaries) {
-      if (s is Map) {
-        final net = _resolveNetPay(s);
-        totalPayroll += net;
-        if (_resolveStatus(s) == 'Paid') {
-          processedCount++;
-        }
-      }
-    }
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(allSalaryProvider);
-        ref.read(employeeProvider.notifier).loadEmployees();
-      },
-      color: AppColors.primary,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Payroll Hero Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF10B981), Color(0xFF059669)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
+  Widget _buildSummaryStatCard(BuildContext context, String label, String value, Color color, {bool isTotal = false}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: context.cardBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isTotal ? color.withValues(alpha: 0.5) : context.borderCol),
+          boxShadow: isTotal
+              ? [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: color.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
-                ],
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: isTotal ? 13 : 16,
+                fontWeight: FontWeight.w800,
+                color: isTotal ? color : context.txtPrimary,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total Payroll',
-                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '₹${_formatAmount(totalPayroll)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 38,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _heroStat('Total Staff', salaries.length.toString()),
-                      const SizedBox(width: 24),
-                      _heroStat('Processed', processedCount.toString()),
-                      const SizedBox(width: 24),
-                      _heroStat('Pending', (salaries.length - processedCount).toString()),
-                    ],
-                  ),
-                ],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: context.txtMuted,
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Employee Salaries',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: context.txtPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                Text(
-                  '${salaries.length} records',
-                  style: TextStyle(color: context.txtMuted, fontSize: 13),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            ...salaries.map((s) => _buildSalaryCard(context, s, allEmployees)),
-            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _heroStat(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-      ],
-    );
-  }
-
   Widget _buildSalaryCard(BuildContext context, dynamic salary, List<dynamic> allEmployees) {
     if (salary is! Map) return const SizedBox.shrink();
-    
-    final empName = _resolveEmployeeName(salary, allEmployees);
-    final empEmail = _resolveEmployeeEmail(salary, allEmployees);
-    final dept = _resolveEmployeeDept(salary, allEmployees);
-    final netPay = _resolveNetPay(salary);
-    final status = _resolveStatus(salary);
-    final monthYear = _resolveMonthYear(salary);
-    final avatarData = _resolveAvatar(salary, allEmployees);
 
-    final isPaid = status.toLowerCase() == 'paid' || status.toLowerCase() == 'processed';
-    final statusColor = isPaid ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
+    final id = salary['_id']?.toString() ?? '';
+    final empObj = salary['employeeId'] ?? salary['userId'] ?? salary['employee'];
+    String empName = 'Staff Member';
+    String empEmail = '';
+    String dept = '';
+
+    if (empObj is Map) {
+      empName = (empObj['name'] ?? 'Staff Member').toString();
+      empEmail = (empObj['email'] ?? '').toString();
+      dept = (empObj['department'] ?? empObj['designation'] ?? '').toString();
+    } else {
+      empName = (salary['employeeName'] ?? salary['name'] ?? 'Staff Member').toString();
+    }
+
+    final basic = double.tryParse((salary['basicSalary'] ?? 0).toString()) ?? 0;
+    final presentDays = salary['totalPresentDays'] ?? salary['presentDays'] ?? 0;
+    final workHours = double.tryParse((salary['totalWorkingHours'] ?? salary['workingHours'] ?? 0).toString()) ?? 0;
+    final deductions = double.tryParse((salary['deductions'] ?? 0).toString()) ?? 0;
+    final bonus = double.tryParse((salary['bonus'] ?? 0).toString()) ?? 0;
+    final finalSalary = double.tryParse((salary['finalSalary'] ?? salary['netPay'] ?? basic).toString()) ?? basic;
+
+    final isPaid = salary['isPaid'] == true || (salary['status'] ?? '').toString().toLowerCase() == 'paid';
+    final statusColor = isPaid ? const Color(0xFF10B981) : const Color(0xFFEF4444);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: context.borderCol.withValues(alpha: 0.7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.14 : 0.04),
+            color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppAvatar(
-            avatarOrUser: avatarData ?? salary,
-            fallbackText: empName,
-            radius: 22,
-            backgroundColor: AppColors.primary,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  empName,
-                  style: TextStyle(
-                    color: context.txtPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  dept.isNotEmpty ? '$dept • $monthYear' : monthYear,
-                  style: TextStyle(color: context.txtSecondary, fontSize: 12),
-                ),
-                if (empEmail.isNotEmpty)
-                  Text(
-                    empEmail,
-                    style: TextStyle(color: context.txtMuted, fontSize: 11),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // Header: Employee Avatar & Name + Status Badge
+          Row(
             children: [
-              Text(
-                '₹${_formatAmount(netPay)}',
-                style: TextStyle(
-                  color: context.txtPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              AppAvatar(
+                avatarOrUser: empObj is Map ? empObj : salary,
+                fallbackText: empName,
+                radius: 20,
+                backgroundColor: AppColors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      empName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: context.txtPrimary,
+                      ),
+                    ),
+                    if (empEmail.isNotEmpty || dept.isNotEmpty)
+                      Text(
+                        dept.isNotEmpty ? '$dept • $empEmail' : empEmail,
+                        style: TextStyle(fontSize: 11, color: context.txtMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  status,
-                  style: TextStyle(color: statusColor, fontSize: 10.5, fontWeight: FontWeight.w700),
+                  isPaid ? 'Paid' : 'Unpaid',
+                  style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // 4-column metrics: Basic | Present/Hrs | Deductions/Bonus | Final Salary
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _metricColumn(context, 'Basic', '₹${_formatAmount(basic)}'),
+              _metricColumn(context, 'Present', '$presentDays d (${workHours.toStringAsFixed(1)}h)'),
+              _metricColumn(context, 'Ded / Bonus', '-₹${_formatAmount(deductions)} / +₹${_formatAmount(bonus)}'),
+              _metricColumn(context, 'Final Salary', '₹${_formatAmount(finalSalary)}', isHighlight: true),
+            ],
+          ),
+
+          if (!isPaid && id.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                label: const Text('Mark as Paid', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                onPressed: () => _handleMarkPaid(id, empName),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  String _resolveEmployeeName(dynamic salary, List<dynamic> allEmployees) {
-    if (salary is! Map) return 'Employee';
-    final empIdObj = salary['employeeId'];
-    if (empIdObj is Map && empIdObj['name'] != null && empIdObj['name'].toString().isNotEmpty) {
-      return empIdObj['name'].toString();
-    }
-    final userObj = salary['userId'];
-    if (userObj is Map && userObj['name'] != null && userObj['name'].toString().isNotEmpty) {
-      return userObj['name'].toString();
-    }
-    final empObj = salary['employee'];
-    if (empObj is Map && empObj['name'] != null && empObj['name'].toString().isNotEmpty) {
-      return empObj['name'].toString();
-    }
-    if (salary['employeeName'] != null && salary['employeeName'].toString().isNotEmpty) {
-      return salary['employeeName'].toString();
-    }
-    if (salary['name'] != null && salary['name'].toString().isNotEmpty) {
-      return salary['name'].toString();
-    }
-
-    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'] ?? salary['_id'])?.toString();
-    if (targetId != null && targetId.isNotEmpty) {
-      for (final e in allEmployees) {
-        if (e is Map) {
-          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
-          if (eId == targetId && e['name'] != null) {
-            return e['name'].toString();
-          }
-        }
-      }
-    }
-    return 'Employee';
-  }
-
-  String _resolveEmployeeEmail(dynamic salary, List<dynamic> allEmployees) {
-    if (salary is! Map) return '';
-    final empIdObj = salary['employeeId'];
-    if (empIdObj is Map && empIdObj['email'] != null) return empIdObj['email'].toString();
-    final userObj = salary['userId'];
-    if (userObj is Map && userObj['email'] != null) return userObj['email'].toString();
-    final empObj = salary['employee'];
-    if (empObj is Map && empObj['email'] != null) return empObj['email'].toString();
-    if (salary['email'] != null) return salary['email'].toString();
-
-    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
-    if (targetId != null && targetId.isNotEmpty) {
-      for (final e in allEmployees) {
-        if (e is Map) {
-          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
-          if (eId == targetId && e['email'] != null) {
-            return e['email'].toString();
-          }
-        }
-      }
-    }
-    return '';
-  }
-
-  String _resolveEmployeeDept(dynamic salary, List<dynamic> allEmployees) {
-    if (salary is! Map) return '';
-    final empIdObj = salary['employeeId'];
-    if (empIdObj is Map && empIdObj['designation'] != null) return empIdObj['designation'].toString();
-    if (empIdObj is Map && empIdObj['department'] != null) return empIdObj['department'].toString();
-    final empObj = salary['employee'];
-    if (empObj is Map && empObj['designation'] != null) return empObj['designation'].toString();
-    if (empObj is Map && empObj['department'] != null) return empObj['department'].toString();
-    if (salary['designation'] != null) return salary['designation'].toString();
-    if (salary['department'] != null) return salary['department'].toString();
-
-    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
-    if (targetId != null && targetId.isNotEmpty) {
-      for (final e in allEmployees) {
-        if (e is Map) {
-          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
-          if (eId == targetId) {
-            return (e['designation'] ?? e['department'] ?? e['role'] ?? '').toString();
-          }
-        }
-      }
-    }
-    return '';
-  }
-
-  dynamic _resolveAvatar(dynamic salary, List<dynamic> allEmployees) {
-    if (salary is! Map) return null;
-    final empIdObj = salary['employeeId'];
-    if (empIdObj is Map) {
-      final av = extractAvatarUrl(empIdObj);
-      if (av != null && av.isNotEmpty) return av;
-    }
-    final userObj = salary['userId'];
-    if (userObj is Map) {
-      final av = extractAvatarUrl(userObj);
-      if (av != null && av.isNotEmpty) return av;
-    }
-    final empObj = salary['employee'];
-    if (empObj is Map) {
-      final av = extractAvatarUrl(empObj);
-      if (av != null && av.isNotEmpty) return av;
-    }
-    final direct = extractAvatarUrl(salary);
-    if (direct != null && direct.isNotEmpty) return direct;
-
-    final targetId = (salary['employeeId'] ?? salary['userId'] ?? salary['employee'])?.toString();
-    if (targetId != null && targetId.isNotEmpty) {
-      for (final e in allEmployees) {
-        if (e is Map) {
-          final eId = (e['_id'] ?? e['id'] ?? e['userId'])?.toString();
-          if (eId == targetId) {
-            return extractAvatarUrl(e) ?? e;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  double _resolveNetPay(dynamic salary) {
-    if (salary is! Map) return 0;
-    final val = salary['finalSalary'] ??
-        salary['netSalary'] ??
-        salary['basicSalary'] ??
-        salary['netPay'] ??
-        salary['amount'] ??
-        salary['baseSalary'] ??
-        salary['salary'] ??
-        0;
-    return double.tryParse(val.toString()) ?? 0;
-  }
-
-  String _resolveMonthYear(dynamic salary) {
-    if (salary is! Map) return DateFormat('MMMM yyyy').format(DateTime.now());
-    final m = salary['month'];
-    final y = salary['year'];
-    if (m != null) {
-      final mInt = int.tryParse(m.toString());
-      final yInt = int.tryParse(y?.toString() ?? '') ?? DateTime.now().year;
-      if (mInt != null && mInt >= 1 && mInt <= 12) {
-        final dt = DateTime(yInt, mInt);
-        return DateFormat('MMMM yyyy').format(dt);
-      }
-    }
-    if (salary['salaryMonth'] != null) return salary['salaryMonth'].toString();
-    return DateFormat('MMMM yyyy').format(DateTime.now());
-  }
-
-  String _resolveStatus(dynamic salary) {
-    if (salary is! Map) return 'Pending';
-    if (salary['isPaid'] == true ||
-        salary['status']?.toString().toLowerCase() == 'paid' ||
-        salary['status']?.toString().toLowerCase() == 'processed') {
-      return 'Paid';
-    }
-    return 'Pending';
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.payments_outlined, size: 44, color: Color(0xFF10B981)),
+  Widget _metricColumn(BuildContext context, String label, String value, {bool isHighlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 10.5, color: context.txtMuted, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+            color: isHighlight ? const Color(0xFF10B981) : context.txtPrimary,
           ),
-          const SizedBox(height: 20),
-          Text('No Salary Records',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: context.txtPrimary)),
-          const SizedBox(height: 8),
-          Text('Salary records will appear here\nonce payroll is processed.',
-              textAlign: TextAlign.center, style: TextStyle(color: context.txtMuted, fontSize: 13)),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            onPressed: () {
-              ref.invalidate(allSalaryProvider);
-              ref.read(employeeProvider.notifier).loadEmployees();
-            },
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   String _formatAmount(double amount) {
-    final formatter = NumberFormat('#,##,###', 'en_IN');
-    return formatter.format(amount);
+    if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(2)}L';
+    }
+    return NumberFormat('#,##,###').format(amount);
   }
 }

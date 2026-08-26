@@ -19,6 +19,11 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
     await StorageService.saveThemeMode(nextMode == ThemeMode.dark);
   }
 
+  Future<void> setTheme(ThemeMode mode) async {
+    state = mode;
+    await StorageService.saveThemeMode(mode == ThemeMode.dark);
+  }
+
   bool get isDarkMode => state == ThemeMode.dark;
 }
 

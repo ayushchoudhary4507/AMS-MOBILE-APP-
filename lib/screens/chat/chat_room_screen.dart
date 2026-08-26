@@ -563,38 +563,49 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   Widget _buildMessageInputSection() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
         color: context.cardBg,
         border: Border(top: BorderSide(color: context.borderCol.withValues(alpha: 0.5))),
       ),
       child: SafeArea(
+        top: false,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Attachment Button
             IconButton(
-              icon: const Icon(Icons.attach_file_rounded, color: AppColors.primary),
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.attach_file_rounded, color: Color(0xFF6366F1), size: 24),
               onPressed: _pickAndUploadImage,
             ),
+            const SizedBox(width: 4),
 
             // Text Field
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                constraints: const BoxConstraints(minHeight: 44, maxHeight: 110),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: context.borderCol.withValues(alpha: 0.5)),
+                  color: context.isDark ? const Color(0xFF13162A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: context.borderCol.withValues(alpha: 0.6)),
                 ),
                 child: TextField(
                   controller: _messageController,
+                  maxLines: 4,
+                  minLines: 1,
+                  textAlignVertical: TextAlignVertical.center,
+                  style: TextStyle(color: context.txtPrimary, fontSize: 14),
                   onChanged: (val) {
                     ref.read(chatProvider.notifier).sendTypingStatus(widget.targetUserId, val.isNotEmpty);
                   },
                   onSubmitted: (_) => _handleSendMessage(),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Type a message...',
+                    hintStyle: TextStyle(color: context.txtMuted, fontSize: 13.5),
                     border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
               ),
@@ -602,15 +613,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             const SizedBox(width: 8),
 
             // Send Button
-            GestureDetector(
-              onTap: _handleSendMessage,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
+            Material(
+              color: const Color(0xFF6366F1),
+              shape: const CircleBorder(),
+              elevation: 1.5,
+              child: InkWell(
+                onTap: _handleSendMessage,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
                 ),
-                child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
               ),
             ),
           ],

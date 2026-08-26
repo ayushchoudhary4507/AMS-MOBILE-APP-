@@ -174,8 +174,17 @@ class NotificationService {
 
 class AnalyticsService {
   static Future<Map<String, dynamic>> getOverview() async {
-    final response = await ApiService.get('${ApiConstants.analytics}/overview');
-    return ApiService.toMap(response.data);
+    try {
+      final response = await ApiService.get('${ApiConstants.analytics}/dashboard');
+      final map = ApiService.toMap(response.data);
+      if (map.isNotEmpty) return map;
+    } catch (_) {}
+    try {
+      final response = await ApiService.get('${ApiConstants.analytics}/overview');
+      final map = ApiService.toMap(response.data);
+      if (map.isNotEmpty) return map;
+    } catch (_) {}
+    return {};
   }
 
   static Future<Map<String, dynamic>> getDepartment() async {
@@ -186,13 +195,55 @@ class AnalyticsService {
 }
 
 class SalaryService {
-  static Future<Map<String, dynamic>> getMySalary() async {
-    final response = await ApiService.get('${ApiConstants.salary}/my-salary');
+  static Future<Map<String, dynamic>> getMySalary({int? month, int? year}) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    final response = await ApiService.get('${ApiConstants.salary}/my-salary', queryParams: query);
     return ApiService.toMap(response.data);
   }
 
-  static Future<Map<String, dynamic>> getAll() async {
-    final response = await ApiService.get(ApiConstants.salary);
+  static Future<Map<String, dynamic>> getAll({int? month, int? year}) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    final response = await ApiService.get(ApiConstants.salary, queryParams: query);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> calculateSalary(Map<String, dynamic> data) async {
+    final response = await ApiService.post('${ApiConstants.salary}/calculate', data: data);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> markAsPaid(String id) async {
+    final response = await ApiService.put('${ApiConstants.salary}/$id/pay');
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> bulkCalculate(int month, int year) async {
+    final response = await ApiService.post('${ApiConstants.salary}/bulk-calculate', data: {
+      'month': month,
+      'year': year,
+    });
+    return ApiService.toMap(response.data);
+  }
+}
+
+class ReportService {
+  static Future<Map<String, dynamic>> getAllMonthlyReports({int? month, int? year}) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    final response = await ApiService.get('${ApiConstants.reports}/monthly', queryParams: query);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> getMyReport({int? month, int? year}) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    final response = await ApiService.get('${ApiConstants.reports}/my-report', queryParams: query);
     return ApiService.toMap(response.data);
   }
 }
@@ -205,8 +256,30 @@ class ProjectService {
 }
 
 class HolidayService {
-  static Future<Map<String, dynamic>> getAll() async {
-    final response = await ApiService.get(ApiConstants.holidays);
+  static Future<Map<String, dynamic>> getAll({int? year}) async {
+    final query = <String, dynamic>{};
+    if (year != null) query['year'] = year;
+    final response = await ApiService.get(ApiConstants.holidays, queryParams: query);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> createHoliday(Map<String, dynamic> data) async {
+    final response = await ApiService.post(ApiConstants.holidays, data: data);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> updateHoliday(String id, Map<String, dynamic> data) async {
+    final response = await ApiService.put('${ApiConstants.holidays}/$id', data: data);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> deleteHoliday(String id) async {
+    final response = await ApiService.delete('${ApiConstants.holidays}/$id');
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> importHolidays(int year) async {
+    final response = await ApiService.post('${ApiConstants.holidays}/import', data: {'year': year});
     return ApiService.toMap(response.data);
   }
 }
@@ -214,6 +287,36 @@ class HolidayService {
 class ShiftService {
   static Future<Map<String, dynamic>> getAll() async {
     final response = await ApiService.get(ApiConstants.shifts);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> getAllAssignments() async {
+    final response = await ApiService.get('${ApiConstants.shifts}/assignments');
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> getMyShifts() async {
+    final response = await ApiService.get('${ApiConstants.shifts}/my-shifts');
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> createShift(Map<String, dynamic> data) async {
+    final response = await ApiService.post('${ApiConstants.shifts}/create', data: data);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> deleteShift(String id) async {
+    final response = await ApiService.delete('${ApiConstants.shifts}/$id');
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> assignShift(Map<String, dynamic> data) async {
+    final response = await ApiService.post('${ApiConstants.shifts}/assign', data: data);
+    return ApiService.toMap(response.data);
+  }
+
+  static Future<Map<String, dynamic>> removeAssignment(String id) async {
+    final response = await ApiService.delete('${ApiConstants.shifts}/assignment/$id');
     return ApiService.toMap(response.data);
   }
 }

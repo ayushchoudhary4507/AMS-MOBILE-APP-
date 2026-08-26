@@ -332,3 +332,25 @@ final analyticsProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
     return null;
   }
 });
+
+// Shifts Provider
+final shiftsProvider = FutureProvider<List<dynamic>>((ref) async {
+  try {
+    final data = await ShiftService.getAll();
+    final list = data['shifts'] ?? data['data'] ?? data['records'] ?? [];
+    return list is List ? list : [];
+  } catch (_) {
+    return [];
+  }
+});
+
+// Shift Assignments Provider
+final shiftAssignmentsProvider = FutureProvider<List<dynamic>>((ref) async {
+  try {
+    final data = await ShiftService.getAllAssignments();
+    final list = data['assignments'] ?? data['data'] ?? [];
+    return list is List ? list : [];
+  } catch (_) {
+    return [];
+  }
+});

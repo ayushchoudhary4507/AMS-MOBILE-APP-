@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'core/constants/app_colors.dart';
 import 'core/theme/app_theme.dart';
-import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/api_service.dart';
 import 'screens/splash/splash_screen.dart';
@@ -29,6 +26,10 @@ import 'screens/employee/qr_scanner_screen.dart';
 import 'screens/employee/face_lock_registration_screen.dart';
 import 'screens/admin/admin_attendance_qr_screen.dart';
 import 'screens/admin/admin_face_attendance_screen.dart';
+import 'screens/admin/shifts_screen.dart';
+import 'screens/admin/reports_screen.dart';
+import 'screens/admin/work_hours_screen.dart';
+import 'screens/admin/admin_attendance_screen.dart';
 
 import 'services/realtime_notification_service.dart';
 import 'services/socket_service.dart';
@@ -149,7 +150,11 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/employee/shifts',
-      builder: (context, state) => const _PlaceholderScreen(title: 'My Shifts'),
+      builder: (context, state) => const AdminShiftsScreen(),
+    ),
+    GoRoute(
+      path: '/admin/shifts',
+      builder: (context, state) => const AdminShiftsScreen(),
     ),
     GoRoute(
       path: '/employee/profile',
@@ -181,12 +186,24 @@ final _router = GoRouter(
       builder: (context, state) => const AdminAnalyticsScreen(),
     ),
     GoRoute(
+      path: '/admin/workhours',
+      builder: (context, state) => const AdminWorkHoursScreen(),
+    ),
+    GoRoute(
+      path: '/admin/attendance',
+      builder: (context, state) => const AdminAttendanceLeavesScreen(),
+    ),
+    GoRoute(
       path: '/admin/projects',
       builder: (context, state) => const AdminProjectsScreen(),
     ),
     GoRoute(
       path: '/admin/salary',
       builder: (context, state) => const AdminSalaryScreen(),
+    ),
+    GoRoute(
+      path: '/admin/reports',
+      builder: (context, state) => const AdminReportsScreen(),
     ),
     GoRoute(
       path: '/admin/holidays',
@@ -237,77 +254,6 @@ class AMSApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: _router,
-    );
-  }
-}
-
-// Placeholder screen for routes to be expanded
-class _PlaceholderScreen extends ConsumerWidget {
-  final String title;
-  const _PlaceholderScreen({required this.title});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              final auth = ref.read(authProvider);
-              if (auth.isAdmin) {
-                context.go('/admin/dashboard');
-              } else {
-                context.go('/employee/dashboard');
-              }
-            }
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF6366F1),
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: context.mainBgGradient),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.construction,
-                size: 60,
-                color: context.txtMuted,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: context.txtPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Coming Soon',
-                style: TextStyle(color: context.txtSecondary),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

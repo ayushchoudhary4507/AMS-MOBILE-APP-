@@ -28,6 +28,9 @@ class AdminDashboard extends ConsumerStatefulWidget {
 class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   int _selectedIndex = 0;
   String _leaveFilter = 'All';
+  String _empSearchQuery = '';
+  String _empDeptFilter = 'All';
+  String _empStatusFilter = 'All';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   StreamSubscription? _attendanceSub;
 
@@ -2881,17 +2884,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       cardIcon = Icons.timer_rounded;
       onTapAction = () => context.push('/admin/workhours');
     }
-    // 13. AI Assistant
-    else if (rawType == 'ai_insights' ||
-        rawId == 'ai_insights' ||
-        titleLower.contains('ai')) {
-      final statsVal = ref.watch(attendanceProvider).stats?['ai']?.toString();
-      cardValue = (statsVal != null && statsVal.isNotEmpty)
-          ? statsVal
-          : ((card.customValue != null && card.customValue!.isNotEmpty) ? card.customValue! : 'AI On');
-      cardIcon = Icons.psychology_rounded;
-      onTapAction = () => context.push('/admin/ai-insights');
-    }
+
     // 14. Custom or fallback
     else {
       cardValue = (card.customValue != null && card.customValue!.isNotEmpty)
@@ -3784,25 +3777,14 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     },
                   ),
 
-                  // 6. AI Assistant
-                  _buildWebDrawerItem(
-                    context: context,
-                    icon: Icons.smart_toy_outlined,
-                    title: 'AI Assistant',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAIAssistantModal(context);
-                    },
-                  ),
-
-                  // 7. Work Hours
+                  // 6. Work Hours
                   _buildWebDrawerItem(
                     context: context,
                     icon: Icons.access_time_rounded,
                     title: 'Work Hours',
                     onTap: () {
                       Navigator.pop(context);
-                      _showWorkHoursModal(context, ref);
+                      context.push('/admin/workhours');
                     },
                   ),
 
@@ -3811,12 +3793,11 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     context: context,
                     icon: Icons.calendar_month_outlined,
                     title: 'Attendance & Leaves',
-                    isSelected: _selectedIndex == 2,
                     badgeText: pendingLeavesCount > 0 ? '$pendingLeavesCount' : null,
                     badgeColor: const Color(0xFFF59E0B),
                     onTap: () {
                       Navigator.pop(context);
-                      setState(() => _selectedIndex = 2);
+                      context.push('/admin/attendance');
                     },
                   ),
 
@@ -3849,7 +3830,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     title: 'Shifts',
                     onTap: () {
                       Navigator.pop(context);
-                      _showShiftsModal(context);
+                      context.push('/admin/shifts');
                     },
                   ),
 
@@ -3871,7 +3852,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     title: 'Reports',
                     onTap: () {
                       Navigator.pop(context);
-                      context.push('/admin/analytics');
+                      context.push('/admin/reports');
                     },
                   ),
 
@@ -4052,390 +4033,91 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     );
   }
 
-  // --- Modal: AI Assistant ---
-  void _showAIAssistantModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: context.cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.txtMuted.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.smart_toy_rounded,
-                      color: Color(0xFF6366F1),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'AMS AI Copilot Assistant',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: context.txtPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Instant attendance analysis & smart insights',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.txtMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'QUICK AI PROMPTS',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  color: context.txtMuted,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ...[
-                '📊 Summarize today\'s attendance and late logs',
-                '👥 List staff members with pending leave approvals',
-                '⏳ Check weekly overtime hours and department averages',
-                '📈 Generate monthly attendance executive summary',
-              ].map((prompt) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('AI Query: "$prompt" executed'),
-                          backgroundColor: const Color(0xFF6366F1),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: context.borderCol.withValues(alpha: 0.6),
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              prompt,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: context.txtPrimary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 13,
-                            color: context.txtMuted,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // --- Modal: Work Hours ---
-  void _showWorkHoursModal(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(attendanceProvider).stats;
-    final totalPresent = stats?['present'] ?? 0;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: context.cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.txtMuted.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.access_time_rounded,
-                      color: Color(0xFF10B981),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Work Hours Tracking',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: context.txtPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Today real-time shift duration & hours',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.txtMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Standard Shift',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '8.0 Hours / Day',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: context.txtPrimary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Active Today',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$totalPresent Active Staff',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: context.txtPrimary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // --- Modal: Shifts Management ---
-  void _showShiftsModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: context.cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.txtMuted.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Company Shift Schedules',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: context.txtPrimary,
-                ),
-              ),
-              const SizedBox(height: 14),
-              ...[
-                {'name': 'Morning General Shift', 'time': '09:00 AM - 05:00 PM', 'status': 'Active'},
-                {'name': 'Evening Shift', 'time': '02:00 PM - 10:00 PM', 'status': 'Active'},
-                {'name': 'Night Shift', 'time': '10:00 PM - 06:00 AM', 'status': 'Active'},
-                {'name': 'Flexible Hours', 'time': 'Core 8 Hours', 'status': 'Enabled'},
-              ].map((shift) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: context.borderCol.withValues(alpha: 0.5)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.schedule_rounded, color: Color(0xFF6366F1), size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              shift['name']!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: context.txtPrimary,
-                              ),
-                            ),
-                            Text(
-                              shift['time']!,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: context.txtMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          shift['status']!,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF10B981),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
 
-  // --- Employees Tab ---
+
+
+
+  // --- Employees Tab (Full Website Parity) ---
   Widget _buildEmployeesTab() {
     final state = ref.watch(employeeProvider);
+    final attendance = ref.watch(attendanceProvider);
+    final allEmps = state.employees;
+
+    // Build sets of Present and Leave employee IDs
+    final Set<String> presentEmpIds = {};
+    for (var att in attendance.todayAllAttendance) {
+      if (att is Map) {
+        final id = (att['employeeId'] is Map ? att['employeeId']['_id'] : att['employeeId'])?.toString() ??
+            (att['userId'] is Map ? att['userId']['_id'] : att['userId'])?.toString() ??
+            att['_id']?.toString();
+        if (id != null) presentEmpIds.add(id);
+      }
+    }
+
+    final Set<String> leaveEmpIds = {};
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    for (var l in attendance.allLeaves) {
+      if (l is Map) {
+        final status = (l['status'] ?? '').toString().toLowerCase();
+        if (status == 'approved' || status == 'pending') {
+          final start = (l['startDate'] ?? '').toString().split('T').first;
+          final end = (l['endDate'] ?? '').toString().split('T').first;
+          if (todayStr.compareTo(start) >= 0 && todayStr.compareTo(end) <= 0) {
+            final id = (l['employeeId'] is Map ? l['employeeId']['_id'] : l['employeeId'])?.toString() ??
+                (l['userId'] is Map ? l['userId']['_id'] : l['userId'])?.toString();
+            if (id != null) leaveEmpIds.add(id);
+          }
+        }
+      }
+    }
+
+    // Filter employees based on search query, department, and attendance status
+    final filteredEmployees = allEmps.where((emp) {
+      if (emp is! Map) return false;
+      final name = (emp['name'] ?? '').toString().toLowerCase();
+      final email = (emp['email'] ?? '').toString().toLowerCase();
+      final dept = (emp['department'] ?? emp['designation'] ?? '').toString().toLowerCase();
+      final empId = (emp['_id'] ?? emp['id'])?.toString() ?? '';
+
+      // 1. Search Query Filter
+      if (_empSearchQuery.isNotEmpty) {
+        final q = _empSearchQuery.toLowerCase();
+        if (!name.contains(q) && !email.contains(q) && !dept.contains(q)) {
+          return false;
+        }
+      }
+
+      // 2. Department Filter
+      if (_empDeptFilter != 'All') {
+        if (!dept.contains(_empDeptFilter.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // 3. Status Filter
+      if (_empStatusFilter != 'All') {
+        final isPresent = presentEmpIds.contains(empId);
+        final isLeave = leaveEmpIds.contains(empId);
+        if (_empStatusFilter == 'Present' && !isPresent) return false;
+        if (_empStatusFilter == 'On Leave' && !isLeave) return false;
+        if (_empStatusFilter == 'Absent' && (isPresent || isLeave)) return false;
+      }
+
+      return true;
+    }).toList();
+
+    // Summary counters
+    final totalStaff = allEmps.length;
+    final presentCount = allEmps.where((e) => presentEmpIds.contains((e['_id'] ?? e['id'])?.toString())).length;
+    final leaveCount = allEmps.where((e) => leaveEmpIds.contains((e['_id'] ?? e['id'])?.toString())).length;
+    final absentCount = (totalStaff - presentCount - leaveCount).clamp(0, totalStaff);
 
     return Column(
       children: [
+        // Header Row
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
           child: Row(
             children: [
               Column(
@@ -4450,7 +4132,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                     ),
                   ),
                   Text(
-                    '${state.employees.length} Total Staff Members',
+                    '$totalStaff Total Staff Members',
                     style: TextStyle(fontSize: 12, color: context.txtMuted),
                   ),
                 ],
@@ -4464,10 +4146,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 ),
                 icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
                 label: const Text(
@@ -4479,64 +4158,192 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ],
           ),
         ),
+
+        // Top 4 Stat Summary Cards (Exact match with website Employees.jsx)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+          child: Row(
+            children: [
+              _buildEmpSummaryBadge('Total', '$totalStaff', const Color(0xFF6366F1)),
+              const SizedBox(width: 8),
+              _buildEmpSummaryBadge('Present', '$presentCount', const Color(0xFF10B981)),
+              const SizedBox(width: 8),
+              _buildEmpSummaryBadge('On Leave', '$leaveCount', const Color(0xFFF59E0B)),
+              const SizedBox(width: 8),
+              _buildEmpSummaryBadge('Absent', '$absentCount', const Color(0xFFEF4444)),
+            ],
+          ),
+        ),
+
+        // Search Box
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: context.cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.borderCol),
+            ),
+            child: TextField(
+              textAlignVertical: TextAlignVertical.center,
+              style: TextStyle(color: context.txtPrimary, fontSize: 13.5),
+              decoration: InputDecoration(
+                hintText: 'Search by name, email, department...',
+                hintStyle: TextStyle(color: context.txtMuted, fontSize: 12.5),
+                prefixIcon: Icon(Icons.search_rounded, size: 19, color: context.txtMuted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              onChanged: (val) => setState(() => _empSearchQuery = val.trim()),
+            ),
+          ),
+        ),
+
+        // Department & Status Filter Chips
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                ...['All', 'Engineering', 'Management', 'Design', 'IT', 'HR', 'Sales', 'Interns'].map((dept) {
+                  final isSel = _empDeptFilter == dept;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(dept),
+                      selected: isSel,
+                      selectedColor: const Color(0xFF6366F1),
+                      labelStyle: TextStyle(
+                        color: isSel ? Colors.white : context.txtPrimary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      onSelected: (sel) => setState(() => _empDeptFilter = dept),
+                    ),
+                  );
+                }),
+                Container(width: 1, height: 20, color: context.borderCol, margin: const EdgeInsets.symmetric(horizontal: 6)),
+                ...['All', 'Present', 'Absent', 'On Leave'].map((st) {
+                  final isSel = _empStatusFilter == st;
+                  Color col = const Color(0xFF6366F1);
+                  if (st == 'Present') col = const Color(0xFF10B981);
+                  if (st == 'Absent') col = const Color(0xFFEF4444);
+                  if (st == 'On Leave') col = const Color(0xFFF59E0B);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(st),
+                      selected: isSel,
+                      selectedColor: col,
+                      labelStyle: TextStyle(
+                        color: isSel ? Colors.white : context.txtPrimary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      onSelected: (sel) => setState(() => _empStatusFilter = st),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+
+        // Employee List
         Expanded(
           child: state.isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                )
-              : state.employees.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.people_outline_rounded,
-                        size: 48,
-                        color: context.txtMuted,
+              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              : filteredEmployees.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.people_outline_rounded, size: 48, color: context.txtMuted),
+                          const SizedBox(height: 12),
+                          Text(
+                            _empSearchQuery.isNotEmpty ? 'No staff matching "$_empSearchQuery"' : 'No employees found',
+                            style: TextStyle(color: context.txtMuted, fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_empSearchQuery.isEmpty)
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add First Employee'),
+                              onPressed: () => _showAddEmployeeModal(context),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No employees found',
-                        style: TextStyle(color: context.txtMuted, fontSize: 16),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () => ref.read(employeeProvider.notifier).loadEmployees(),
+                      color: AppColors.primary,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                        itemCount: filteredEmployees.length,
+                        itemBuilder: (ctx, i) {
+                          final emp = filteredEmployees[i];
+                          final empId = (emp['_id'] ?? emp['id'])?.toString() ?? '';
+                          final isPresent = presentEmpIds.contains(empId);
+                          final isLeave = leaveEmpIds.contains(empId);
+                          return _buildEmployeeCard(emp, isPresent: isPresent, isLeave: isLeave);
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6366F1),
-                        ),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add First Employee'),
-                        onPressed: () => _showAddEmployeeModal(context),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () =>
-                      ref.read(employeeProvider.notifier).loadEmployees(),
-                  color: AppColors.primary,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
                     ),
-                    itemCount: state.employees.length,
-                    itemBuilder: (ctx, i) =>
-                        _buildEmployeeCard(state.employees[i]),
-                  ),
-                ),
         ),
       ],
     );
   }
 
-  Widget _buildEmployeeCard(dynamic emp) {
+  Widget _buildEmpSummaryBadge(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.txtMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmployeeCard(dynamic emp, {bool isPresent = false, bool isLeave = false}) {
     final name = emp['name'] ?? 'Unknown';
     final email = emp['email'] ?? '';
     final dept = emp['department'] ?? 'General';
     final designation = emp['designation'] ?? 'Employee';
     final role = (emp['role'] ?? 'employee').toString().toUpperCase();
     final empId = emp['_id']?.toString() ?? emp['id']?.toString() ?? '';
+
+    // Attendance Status Pill
+    Color statusColor = const Color(0xFFEF4444);
+    String statusText = 'Absent';
+    if (isPresent) {
+      statusColor = const Color(0xFF10B981);
+      statusText = 'Present';
+    } else if (isLeave) {
+      statusColor = const Color(0xFFF59E0B);
+      statusText = 'On Leave';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4557,7 +4364,24 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
         children: [
           Row(
             children: [
-              _buildAvatarWidget(emp, name, 23),
+              Stack(
+                children: [
+                  _buildAvatarWidget(emp, name, 23),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: context.cardBg, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -4576,24 +4400,34 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                           ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: role == 'ADMIN'
-                                ? const Color(
-                                    0xFFEC4899,
-                                  ).withValues(alpha: 0.15)
+                                ? const Color(0xFFEC4899).withValues(alpha: 0.15)
                                 : AppColors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             role,
                             style: TextStyle(
-                              color: role == 'ADMIN'
-                                  ? const Color(0xFFEC4899)
-                                  : AppColors.primary,
+                              color: role == 'ADMIN' ? const Color(0xFFEC4899) : AppColors.primary,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                             ),
@@ -4621,22 +4455,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Divider(color: context.dividerCol, height: 1),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               TextButton.icon(
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF10B981),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 ),
                 icon: const Icon(Icons.access_time_rounded, size: 16),
                 label: const Text(
-                  'Mark Attendance',
+                  'Attendance',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 onPressed: () => _showAdminMarkAttendanceModal(
@@ -4646,20 +4477,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: Color(0xFF6366F1),
-                ),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF3B82F6)),
+                tooltip: 'Send Message',
+                onPressed: () {
+                  context.push('/chat/$empId', extra: {
+                    'name': name,
+                    'email': email,
+                    'user': emp,
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF6366F1)),
                 tooltip: 'Edit Employee',
                 onPressed: () => _showEditEmployeeModal(context, emp),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: Color(0xFFEF4444),
-                ),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
                 tooltip: 'Delete Employee',
                 onPressed: () => _showDeleteEmployeeConfirmation(context, emp),
               ),
