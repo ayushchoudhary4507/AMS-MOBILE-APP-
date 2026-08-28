@@ -1,6 +1,6 @@
 {
-    "name": "ams_mobile_app",
-    "short_name": "ams_mobile_app",
+    "name": "AMS Mobile App",
+    "short_name": "AMS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

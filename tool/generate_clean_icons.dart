@@ -17,7 +17,6 @@ void main() {
 
   // Draw gradient squircle: Indigo to Violet gradient
   final c1 = [99, 102, 241]; // #6366F1
-  final c2 = [79, 70, 229];  // #4F46E5
   final c3 = [124, 58, 237]; // #7C3AED
 
   for (int y = pad; y < pad + sqSize; y++) {
