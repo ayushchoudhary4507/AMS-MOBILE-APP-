@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
 import '../services/employee_service.dart';
+import '../services/socket_service.dart';
 import '../core/utils/storage_service.dart';
 import 'attendance_provider.dart';
 import 'employee_provider.dart';
@@ -439,6 +440,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role,
           token: token,
         );
+        SocketService().initSocket();
         await refreshProfile();
         return true;
       }
@@ -739,6 +741,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    SocketService().disconnect();
     await AuthService.logout();
     if (_ref != null) {
       Future.microtask(() {
@@ -766,6 +769,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: role,
           token: token,
         );
+        SocketService().initSocket();
         return true;
       }
     } catch (_) {}

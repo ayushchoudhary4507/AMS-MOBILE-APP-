@@ -257,6 +257,24 @@ class RealtimeNotificationService {
     }
   }
 
+  static final Map<String, DateTime> _recentlyShownEvents = {};
+
+  /// Check if a notification with this key was already shown recently (within 10s)
+  static bool isDuplicateRecentlyShown(String key) {
+    if (key.isEmpty) return false;
+    final now = DateTime.now();
+    _recentlyShownEvents.removeWhere((_, time) => now.difference(time).inSeconds > 10);
+    return _recentlyShownEvents.containsKey(key);
+  }
+
+  /// Mark a notification key as recently shown
+  static void markAsShown(String key) {
+    if (key.isEmpty) return;
+    final now = DateTime.now();
+    _recentlyShownEvents.removeWhere((_, time) => now.difference(time).inSeconds > 10);
+    _recentlyShownEvents[key] = now;
+  }
+
   static NotificationCategory parseCategory(String type) {
     final lower = type.toLowerCase();
     if (lower.contains('login')) return NotificationCategory.userLogin;
@@ -323,14 +341,20 @@ class RealtimeNotificationService {
     try {
       final authState = ref?.read(authProvider);
       final bool isAdmin = authState?.isAdmin ?? false;
+      final lowerType = type.toLowerCase();
+      final isAttendance = lowerType.contains('attendance') ||
+          lowerType.contains('checkin') ||
+          lowerType.contains('check_in') ||
+          lowerType.contains('checkout') ||
+          lowerType.contains('check_out');
+
+      if (isAttendance && !isAdmin) {
+        // Employee must NEVER receive popup notification for attendance
+        return;
+      }
+
       if (!isAdmin) {
-        final lowerType = type.toLowerCase();
-        if (lowerType.contains('login') ||
-            lowerType.contains('checkin') ||
-            lowerType.contains('checkout') ||
-            lowerType.contains('attendance') ||
-            lowerType.contains('leave_request')) {
-          // Employee must NEVER receive self-action notifications
+        if (lowerType.contains('login') || lowerType.contains('leave_request')) {
           return;
         }
       }

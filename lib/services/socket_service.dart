@@ -148,12 +148,12 @@ class SocketService {
         }
       });
 
-      // 7. Receive live Attendance Updated broadcast
+      // 7. Receive live Attendance Updated broadcast (update stream only, no duplicate popup)
       _socket!.on('attendance_updated', (data) {
         debugPrint('⚡ Received attendance_updated from socket: $data');
         if (data is Map) {
           final map = Map<String, dynamic>.from(data);
-          _handleAttendanceMarkedEvent(map);
+          _attendanceMarkedController.add(map);
         }
       });
 
@@ -182,30 +182,48 @@ class SocketService {
     }
   }
 
-  /// Handle attendance marked event and trigger floating in-app popup notification
+  /// Handle attendance marked event and trigger floating in-app popup notification ONLY for Admin
   void _handleAttendanceMarkedEvent(Map<String, dynamic> data) async {
     try {
+      // 1. Notify streams so all screens/charts can silently refresh data if needed
+      _attendanceMarkedController.add(data);
+
+      // 2. Strict Role-Based Check using backend user state
       final user = await StorageService.getUser();
-      final currentUserId = (user?['_id'] ?? user?['id'] ?? user?['userId'])?.toString();
-      final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().toLowerCase();
+      final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().trim().toLowerCase();
       final bool isAdmin = role == 'admin';
 
-      final empData = data['employee'] is Map ? Map<String, dynamic>.from(data['employee']) : null;
-      final empId = (empData?['_id'] ?? empData?['id'] ?? data['userId'] ?? data['employeeId'])?.toString();
-      final empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
-      final action = (data['action'] ?? 'marked').toString();
-      final method = (data['method'] ?? data['verificationMethod'] ?? 'Website / Mobile').toString();
-      final rawMsg = (data['message'] ?? '').toString();
-
-      // If user is employee and marked by someone else, don't flood them unless they are admin
-      if (!isAdmin && currentUserId != null && empId != null && currentUserId != empId) {
+      // IF logged-in user's role == "admin" -> Show attendance popup notification
+      // ELSE IF logged-in user's role == "employee" -> DO NOT show attendance popup notification
+      if (!isAdmin) {
+        debugPrint('Skipping attendance popup: User role is "$role", not "admin".');
         return;
       }
 
-      final String title = (data['title'] ?? 'Attendance Marked').toString();
+      final empData = data['employee'] is Map ? Map<String, dynamic>.from(data['employee']) : null;
+      final empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '')?.toString();
+      final empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
+      final action = (data['action'] ?? 'marked').toString();
+      final method = (data['method'] ?? data['verificationMethod'] ?? data['attendanceType'] ?? 'Direct Check-In').toString();
+      final rawMsg = (data['message'] ?? '').toString();
+      final timeStr = (data['attendanceTime'] ?? '').toString();
+
+      final String notifId = (data['id'] ?? data['_id'] ?? 'att_${DateTime.now().millisecondsSinceEpoch}').toString();
+
+      // Deduplicate rapid duplicate events (e.g. from broadcast + direct notification)
+      final String dedupKey = 'att_${empDisplayId.isNotEmpty ? empDisplayId : empName}_${action}_${timeStr.isNotEmpty ? timeStr : DateTime.now().minute}';
+      if (RealtimeNotificationService.isDuplicateRecentlyShown(dedupKey) ||
+          RealtimeNotificationService.isDuplicateRecentlyShown(notifId)) {
+        debugPrint('Duplicate attendance notification suppressed: $dedupKey');
+        return;
+      }
+      RealtimeNotificationService.markAsShown(dedupKey);
+      RealtimeNotificationService.markAsShown(notifId);
+
+      final String title = (data['title'] ?? (action.toLowerCase().contains('out') ? 'Clocked Out: $empName' : 'Attendance Marked: $empName')).toString();
       final String message = rawMsg.isNotEmpty
           ? rawMsg
-          : '$empName marked attendance ($action) via $method';
+          : '$empName${empDisplayId.isNotEmpty ? ' ($empDisplayId)' : ''} marked attendance via $method.';
 
       final bool isCheckOut = action.toLowerCase().contains('out') ||
           rawMsg.toLowerCase().contains('out') ||
@@ -216,7 +234,7 @@ class SocketService {
           : NotificationCategory.attendanceCheckIn;
 
       final item = RealtimeNotificationItem(
-        id: 'att_${DateTime.now().millisecondsSinceEpoch}',
+        id: notifId,
         title: title,
         message: message,
         type: isCheckOut ? 'attendance_checkout' : 'attendance_checkin',
@@ -224,29 +242,47 @@ class SocketService {
         createdAt: DateTime.now(),
       );
 
-      // Show top-floating popup dialog
+      // Show top-floating popup dialog ONLY to Admin users
       RealtimeNotificationService.showTopNotificationPopup(null, item);
 
-      // Trigger native system vibration & sound
+      // Trigger native system vibration & sound ONLY to Admin users
       RealtimeNotificationService.showNativeSystemNotification(item);
-
-      // Notify streams
-      _attendanceMarkedController.add(data);
     } catch (e) {
       debugPrint('Error handling attendance socket event: $e');
     }
   }
 
   /// Handle general/system notification event and trigger popup
-  void _handleNotificationEvent(Map<String, dynamic> data) {
+  void _handleNotificationEvent(Map<String, dynamic> data) async {
     try {
+      final user = await StorageService.getUser();
+      final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().trim().toLowerCase();
+      final bool isAdmin = role == 'admin';
+
+      final type = (data['type'] ?? data['notificationType'] ?? 'general').toString().toLowerCase();
+      final receiverRole = (data['receiverRole'] ?? '').toString().toLowerCase();
+
+      final isAttendance = type.contains('attendance') || type == 'checkout';
+
+      // Attendance notifications and admin-targeted alerts must ONLY be shown to Admins
+      if ((isAttendance || receiverRole == 'admin') && !isAdmin) {
+        debugPrint('Skipping admin-only notification popup for employee: type=$type, receiverRole=$receiverRole, userRole=$role');
+        return;
+      }
+
+      final notifId = (data['_id'] ?? data['id'] ?? 'notif_${DateTime.now().millisecondsSinceEpoch}').toString();
+      if (RealtimeNotificationService.isDuplicateRecentlyShown(notifId)) {
+        debugPrint('Duplicate notification popup suppressed: $notifId');
+        return;
+      }
+      RealtimeNotificationService.markAsShown(notifId);
+
       final title = (data['title'] ?? 'New Notification').toString();
       final message = (data['message'] ?? data['body'] ?? '').toString();
-      final type = (data['type'] ?? 'general').toString();
       final category = RealtimeNotificationService.parseCategory(type);
 
       final item = RealtimeNotificationItem(
-        id: (data['_id'] ?? data['id'] ?? 'notif_${DateTime.now().millisecondsSinceEpoch}').toString(),
+        id: notifId,
         title: title,
         message: message,
         type: type,
