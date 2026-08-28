@@ -201,7 +201,7 @@ class SocketService {
       }
 
       final empData = data['employee'] is Map ? Map<String, dynamic>.from(data['employee']) : null;
-      final empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '')?.toString();
+      final String empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '').toString();
       final empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
       final action = (data['action'] ?? 'marked').toString();
       final method = (data['method'] ?? data['verificationMethod'] ?? data['attendanceType'] ?? 'Direct Check-In').toString();
