@@ -201,12 +201,12 @@ class SocketService {
       }
 
       final empData = data['employee'] is Map ? Map<String, dynamic>.from(data['employee']) : null;
-      final empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '')?.toString();
-      final empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
-      final action = (data['action'] ?? 'marked').toString();
-      final method = (data['method'] ?? data['verificationMethod'] ?? data['attendanceType'] ?? 'Direct Check-In').toString();
-      final rawMsg = (data['message'] ?? '').toString();
-      final timeStr = (data['attendanceTime'] ?? '').toString();
+      final String empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '').toString();
+      final String empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
+      final String action = (data['action'] ?? 'marked').toString();
+      final String method = (data['method'] ?? data['verificationMethod'] ?? data['attendanceType'] ?? 'Direct Check-In').toString();
+      final String rawMsg = (data['message'] ?? '').toString();
+      final String timeStr = (data['attendanceTime'] ?? '').toString();
 
       final String notifId = (data['id'] ?? data['_id'] ?? 'att_${DateTime.now().millisecondsSinceEpoch}').toString();
 

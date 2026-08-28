@@ -36,7 +36,7 @@ class AttendanceProIcon extends StatelessWidget {
         boxShadow: hasShadow
             ? [
                 BoxShadow(
-                  color: colors.first.withValues(alpha: 0.4),
+                  color: colors.first.withValues(alpha: 0.35),
                   blurRadius: size * 0.35,
                   offset: Offset(0, size * 0.08),
                 ),
@@ -45,9 +45,25 @@ class AttendanceProIcon extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        child: CustomPaint(
-          size: Size(size, size),
-          painter: _AttendanceProIconPainter(colors: colors),
+        child: Image.asset(
+          'assets/images/app_logo.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Image.asset(
+              'assets/images/attendance_pro_logo.png',
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return CustomPaint(
+                  size: Size(size, size),
+                  painter: _AttendanceProIconPainter(colors: colors),
+                );
+              },
+            );
+          },
         ),
       ),
     );
