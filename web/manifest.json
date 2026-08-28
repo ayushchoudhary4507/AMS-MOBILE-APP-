@@ -1,11 +1,11 @@
 {
-    "name": "AMS Mobile App",
-    "short_name": "AMS",
+    "name": "AMS - Attendance Management System",
+    "short_name": "AMS Mobile",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F172A",
+    "theme_color": "#6366F1",
+    "description": "AMS Attendance Management System Mobile App",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
