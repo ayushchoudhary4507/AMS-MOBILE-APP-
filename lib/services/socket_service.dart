@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../core/constants/api_constants.dart';
 import '../core/utils/storage_service.dart';
@@ -35,11 +36,40 @@ class SocketService {
   Set<String> get onlineUserIds => _onlineUserIds;
   bool get isConnected => _isConnected;
 
+  /// Helper to join rooms depending on user role
+  void _joinRooms(String userId, bool isAdmin) {
+    if (_socket == null || !_socket!.connected) return;
+
+    debugPrint('[NOTIFICATION] Admin connection found: userId=$userId, isAdmin=$isAdmin');
+
+    // Join personal user room
+    _socket!.emit('join', userId);
+    _socket!.emit('join_room', userId);
+    _socket!.emit('joinRoom', userId);
+    _socket!.emit('register', userId);
+    _socket!.emit('authenticate', {'userId': userId, 'isAdmin': isAdmin});
+
+    // If Admin, join all administrative notification rooms
+    if (isAdmin) {
+      _socket!.emit('join', 'admin');
+      _socket!.emit('join_room', 'admin');
+      _socket!.emit('joinRoom', 'admin');
+      _socket!.emit('join_admin');
+      _socket!.emit('admin_join');
+      _socket!.emit('join', {'userId': userId, 'role': 'admin'});
+      debugPrint('[NOTIFICATION] Joined Admin socket channels');
+    }
+  }
+
   /// Initialize Socket.IO connection
   Future<void> initSocket() async {
     try {
       final user = await StorageService.getUser();
+      final token = await StorageService.getToken();
       final userId = (user?['_id'] ?? user?['id'] ?? user?['userId'])?.toString();
+      final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().trim().toLowerCase();
+      final bool isAdmin = role == 'admin' || role == 'superadmin' || role == 'administrator';
+
       if (userId == null || userId.isEmpty) return;
 
       _currentUserId = userId;
@@ -48,7 +78,7 @@ class SocketService {
         if (!_socket!.connected) {
           _socket!.connect();
         } else {
-          _socket!.emit('join', userId);
+          _joinRooms(userId, isAdmin);
           _onlineUsersController.add(Set<String>.from(_onlineUserIds));
         }
         return;
@@ -60,13 +90,27 @@ class SocketService {
         socketUrl = socketUrl.substring(0, socketUrl.length - 4);
       }
 
+      final Map<String, dynamic> authData = {
+        'token': token ?? '',
+        'userId': userId,
+        'role': role,
+      };
+
+      final Map<String, dynamic> extraHeaders = {};
+      if (token != null && token.isNotEmpty) {
+        extraHeaders['Authorization'] = 'Bearer $token';
+      }
+
       _socket = io.io(
         socketUrl,
         io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
+            .setAuth(authData)
+            .setQuery(authData)
+            .setExtraHeaders(extraHeaders)
             .enableAutoConnect()
             .enableReconnection()
-            .setReconnectionAttempts(10)
+            .setReconnectionAttempts(15)
             .setReconnectionDelay(2000)
             .build(),
       );
@@ -74,17 +118,13 @@ class SocketService {
       _socket!.onConnect((_) {
         _isConnected = true;
         debugPrint('⚡ Socket connected to $socketUrl');
-        if (_currentUserId != null) {
-          _socket!.emit('join', _currentUserId);
-        }
+        _joinRooms(userId, isAdmin);
       });
 
       _socket!.onReconnect((_) {
         _isConnected = true;
         debugPrint('⚡ Socket reconnected to $socketUrl');
-        if (_currentUserId != null) {
-          _socket!.emit('join', _currentUserId);
-        }
+        _joinRooms(userId, isAdmin);
       });
 
       _socket!.onDisconnect((_) {
@@ -140,42 +180,76 @@ class SocketService {
       });
 
       // 6. Receive live Attendance Marked from ANY method (Website / QR / Face / Mobile)
-      _socket!.on('attendance_marked', (data) {
-        debugPrint('⚡ Received attendance_marked from socket: $data');
-        if (data is Map) {
-          final map = Map<String, dynamic>.from(data);
-          _handleAttendanceMarkedEvent(map);
-        }
-      });
+      // Listen to all backend event variations
+      final attendanceEvents = [
+        'attendance_marked',
+        'attendanceMarked',
+        'attendance:marked',
+        'attendance_mark',
+        'attendance_created',
+        'attendanceCreated',
+        'new_attendance',
+        'newAttendance',
+        'attendance_checkin',
+        'attendance_checkout',
+        'attendance_session_marked',
+        'admin_attendance_notification',
+        'admin_attendance_marked',
+        'attendance',
+      ];
 
-      // 7. Receive live Attendance Updated broadcast (update stream only, no duplicate popup)
-      _socket!.on('attendance_updated', (data) {
-        debugPrint('⚡ Received attendance_updated from socket: $data');
-        if (data is Map) {
-          final map = Map<String, dynamic>.from(data);
-          _attendanceMarkedController.add(map);
-        }
-      });
-
-      // 8. Receive new notification event
-      _socket!.on('newNotification', (data) {
-        debugPrint('⚡ Received newNotification from socket: $data');
-        if (data is Map) {
-          final map = Map<String, dynamic>.from(data);
-          _handleNotificationEvent(map);
-        }
-      });
-
-      _socket!.on('receive_notification', (data) {
-        debugPrint('⚡ Received receive_notification from socket: $data');
-        if (data is Map) {
-          final map = Map<String, dynamic>.from(data);
-          final notif = map['notification'] ?? map;
-          if (notif is Map) {
-            _handleNotificationEvent(Map<String, dynamic>.from(notif));
+      for (final eventName in attendanceEvents) {
+        _socket!.on(eventName, (data) {
+          debugPrint('⚡ [NOTIFICATION] Received $eventName from socket: $data');
+          if (data is Map) {
+            final map = Map<String, dynamic>.from(data);
+            _handleAttendanceMarkedEvent(map);
           }
-        }
-      });
+        });
+      }
+
+      // 7. Receive live Attendance Updated broadcast
+      final updateEvents = [
+        'attendance_updated',
+        'attendanceUpdated',
+        'attendance:updated',
+      ];
+      for (final eventName in updateEvents) {
+        _socket!.on(eventName, (data) {
+          debugPrint('⚡ Received $eventName from socket: $data');
+          if (data is Map) {
+            final map = Map<String, dynamic>.from(data);
+            _attendanceMarkedController.add(map);
+          }
+        });
+      }
+
+      // 8. Receive new notification events
+      final generalNotifEvents = [
+        'newNotification',
+        'receive_notification',
+        'notification',
+        'admin_notification',
+      ];
+
+      for (final eventName in generalNotifEvents) {
+        _socket!.on(eventName, (data) {
+          debugPrint('⚡ Received $eventName from socket: $data');
+          if (data is Map) {
+            final map = Map<String, dynamic>.from(data);
+            final notif = map['notification'] ?? map['data'] ?? map;
+            if (notif is Map) {
+              final parsed = Map<String, dynamic>.from(notif);
+              final type = (parsed['type'] ?? parsed['notificationType'] ?? parsed['category'] ?? '').toString().toLowerCase();
+              if (type.contains('attendance') || type.contains('checkin') || type.contains('checkout')) {
+                _handleAttendanceMarkedEvent(parsed);
+              } else {
+                _handleNotificationEvent(parsed);
+              }
+            }
+          }
+        });
+      }
 
     } catch (e) {
       debugPrint('Socket init error: $e');
@@ -183,15 +257,24 @@ class SocketService {
   }
 
   /// Handle attendance marked event and trigger floating in-app popup notification ONLY for Admin
-  void _handleAttendanceMarkedEvent(Map<String, dynamic> data) async {
+  void _handleAttendanceMarkedEvent(Map<String, dynamic> rawData) async {
     try {
-      // 1. Notify streams so all screens/charts can silently refresh data if needed
+      debugPrint('[NOTIFICATION] Event received by Admin');
+
+      // Unwrap data payload if nested
+      final Map<String, dynamic> data = (rawData['data'] is Map)
+          ? Map<String, dynamic>.from(rawData['data'])
+          : (rawData['attendance'] is Map)
+              ? Map<String, dynamic>.from(rawData['attendance'])
+              : rawData;
+
+      // 1. Notify streams so all screens/charts can silently refresh data without refresh
       _attendanceMarkedController.add(data);
 
       // 2. Strict Role-Based Check using backend user state
       final user = await StorageService.getUser();
       final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().trim().toLowerCase();
-      final bool isAdmin = role == 'admin';
+      final bool isAdmin = role == 'admin' || role == 'superadmin' || role == 'administrator';
 
       // IF logged-in user's role == "admin" -> Show attendance popup notification
       // ELSE IF logged-in user's role == "employee" -> DO NOT show attendance popup notification
@@ -200,46 +283,138 @@ class SocketService {
         return;
       }
 
-      final empData = data['employee'] is Map ? Map<String, dynamic>.from(data['employee']) : null;
-      final String empDisplayId = (empData?['employeeId'] ?? data['employeeId'] ?? '').toString();
-      final String empName = (empData?['name'] ?? data['name'] ?? data['employeeName'] ?? 'Employee').toString();
-      final String action = (data['action'] ?? 'marked').toString();
-      final String method = (data['method'] ?? data['verificationMethod'] ?? data['attendanceType'] ?? 'Direct Check-In').toString();
-      final String rawMsg = (data['message'] ?? '').toString();
-      final String timeStr = (data['attendanceTime'] ?? '').toString();
+      // Extract employee details
+      final empData = data['employee'] is Map
+          ? Map<String, dynamic>.from(data['employee'])
+          : (data['user'] is Map
+              ? Map<String, dynamic>.from(data['user'])
+              : (rawData['employee'] is Map ? Map<String, dynamic>.from(rawData['employee']) : null));
 
-      final String notifId = (data['id'] ?? data['_id'] ?? 'att_${DateTime.now().millisecondsSinceEpoch}').toString();
+      final String empDisplayId = (empData?['employeeId'] ??
+              empData?['empId'] ??
+              empData?['id'] ??
+              empData?['_id'] ??
+              data['employeeId'] ??
+              data['empId'] ??
+              rawData['employeeId'] ??
+              '')
+          .toString().trim();
+
+      final String empEmail = (empData?['email'] ??
+              data['employeeEmail'] ??
+              data['email'] ??
+              rawData['employeeEmail'] ??
+              rawData['email'] ??
+              '')
+          .toString().trim();
+
+      final String empName = (empData?['name'] ??
+              empData?['fullName'] ??
+              empData?['userName'] ??
+              data['employeeName'] ??
+              data['name'] ??
+              data['userName'] ??
+              rawData['employeeName'] ??
+              rawData['name'] ??
+              (empEmail.isNotEmpty ? empEmail.split('@').first : 'Employee'))
+          .toString().trim();
+
+      final String rawAction = (data['action'] ??
+              data['attendanceType'] ??
+              data['type'] ??
+              data['status'] ??
+              rawData['action'] ??
+              rawData['attendanceType'] ??
+              rawData['type'] ??
+              'Check-In')
+          .toString();
+
+      final String rawMsg = (data['message'] ?? rawData['message'] ?? '').toString();
+      final String rawTitle = (data['title'] ?? rawData['title'] ?? '').toString();
+
+      final bool isCheckOut = rawAction.toLowerCase().contains('out') ||
+          rawMsg.toLowerCase().contains('out') ||
+          rawTitle.toLowerCase().contains('out');
+
+      final String attendanceType = isCheckOut ? 'Check Out' : 'Check In';
+      final String method = (data['method'] ??
+              data['verificationMethod'] ??
+              data['attendanceMethod'] ??
+              rawData['method'] ??
+              rawData['verificationMethod'] ??
+              rawData['attendanceMethod'] ??
+              '')
+          .toString();
+
+      // Extract Date & Time
+      final rawDate = data['date'] ?? data['attendanceDate'] ?? data['createdAt'] ?? rawData['date'] ?? rawData['createdAt'];
+      final rawTime = data['time'] ?? data['attendanceTime'] ?? data['checkInTime'] ?? data['checkOutTime'] ?? data['exactTime'] ?? rawData['time'];
+
+      DateTime eventDateTime = DateTime.now();
+      if (rawDate != null) {
+        try {
+          String s = rawDate.toString().trim();
+          if (s.contains('T') && !s.endsWith('Z') && !s.contains('+')) s += 'Z';
+          eventDateTime = DateTime.parse(s).toLocal();
+        } catch (_) {}
+      }
+
+      String dateStr = DateFormat('dd MMM yyyy').format(eventDateTime);
+      String timeStr;
+      if (rawTime != null && rawTime.toString().isNotEmpty) {
+        final tStr = rawTime.toString().trim();
+        if (tStr.contains(':')) {
+          timeStr = tStr;
+        } else {
+          timeStr = DateFormat('h:mm a').format(eventDateTime);
+        }
+      } else {
+        timeStr = DateFormat('h:mm a').format(eventDateTime);
+      }
+
+      final String attendanceId = (data['attendanceId'] ??
+              data['id'] ??
+              data['_id'] ??
+              data['recordId'] ??
+              rawData['attendanceId'] ??
+              rawData['id'] ??
+              rawData['_id'] ??
+              'att_${DateTime.now().millisecondsSinceEpoch}')
+          .toString();
 
       // Deduplicate rapid duplicate events (e.g. from broadcast + direct notification)
-      final String dedupKey = 'att_${empDisplayId.isNotEmpty ? empDisplayId : empName}_${action}_${timeStr.isNotEmpty ? timeStr : DateTime.now().minute}';
+      final String idOrEmail = empDisplayId.isNotEmpty ? empDisplayId : (empEmail.isNotEmpty ? empEmail : empName);
+      final String dedupKey = 'att_${idOrEmail}_${isCheckOut ? 'out' : 'in'}_$dateStr';
+
       if (RealtimeNotificationService.isDuplicateRecentlyShown(dedupKey) ||
-          RealtimeNotificationService.isDuplicateRecentlyShown(notifId)) {
-        debugPrint('Duplicate attendance notification suppressed: $dedupKey');
+          RealtimeNotificationService.isDuplicateRecentlyShown(attendanceId)) {
+        debugPrint('[NOTIFICATION] Duplicate attendance notification suppressed: $dedupKey');
         return;
       }
       RealtimeNotificationService.markAsShown(dedupKey);
-      RealtimeNotificationService.markAsShown(notifId);
+      RealtimeNotificationService.markAsShown(attendanceId);
 
-      final String title = (data['title'] ?? (action.toLowerCase().contains('out') ? 'Clocked Out: $empName' : 'Attendance Marked: $empName')).toString();
+      final String idStr = empDisplayId.isNotEmpty
+          ? ' ($empDisplayId)'
+          : (empEmail.isNotEmpty ? ' ($empEmail)' : '');
+      final String methodStr = method.isNotEmpty ? ' via $method' : '';
+
+      final String title = '$attendanceType: $empName';
       final String message = rawMsg.isNotEmpty
           ? rawMsg
-          : '$empName${empDisplayId.isNotEmpty ? ' ($empDisplayId)' : ''} marked attendance via $method.';
-
-      final bool isCheckOut = action.toLowerCase().contains('out') ||
-          rawMsg.toLowerCase().contains('out') ||
-          title.toLowerCase().contains('out');
+          : '$empName$idStr marked $attendanceType at $timeStr on $dateStr$methodStr.';
 
       final category = isCheckOut
           ? NotificationCategory.attendanceCheckOut
           : NotificationCategory.attendanceCheckIn;
 
       final item = RealtimeNotificationItem(
-        id: notifId,
+        id: attendanceId,
         title: title,
         message: message,
         type: isCheckOut ? 'attendance_checkout' : 'attendance_checkin',
         category: category,
-        createdAt: DateTime.now(),
+        createdAt: eventDateTime,
       );
 
       // Show top-floating popup dialog ONLY to Admin users
@@ -247,6 +422,8 @@ class SocketService {
 
       // Trigger native system vibration & sound ONLY to Admin users
       RealtimeNotificationService.showNativeSystemNotification(item);
+
+      debugPrint('[NOTIFICATION] Popup displayed for $empName ($attendanceType)');
     } catch (e) {
       debugPrint('Error handling attendance socket event: $e');
     }
@@ -257,12 +434,12 @@ class SocketService {
     try {
       final user = await StorageService.getUser();
       final role = (user?['role'] ?? await StorageService.getRole() ?? '').toString().trim().toLowerCase();
-      final bool isAdmin = role == 'admin';
+      final bool isAdmin = role == 'admin' || role == 'superadmin' || role == 'administrator';
 
       final type = (data['type'] ?? data['notificationType'] ?? 'general').toString().toLowerCase();
       final receiverRole = (data['receiverRole'] ?? '').toString().toLowerCase();
 
-      final isAttendance = type.contains('attendance') || type == 'checkout';
+      final isAttendance = type.contains('attendance') || type == 'checkout' || type == 'checkin';
 
       // Attendance notifications and admin-targeted alerts must ONLY be shown to Admins
       if ((isAttendance || receiverRole == 'admin') && !isAdmin) {
@@ -323,6 +500,10 @@ class SocketService {
       _socket!.dispose();
       _socket = null;
       _isConnected = false;
+      _currentUserId = null;
+      _onlineUserIds.clear();
+      debugPrint('⚡ Socket disconnected and reset.');
     }
   }
 }
+

@@ -391,10 +391,15 @@ class RealtimeNotificationService {
   /// Displays a prominent top-floating heads-up popup dialog card without blocking or dimming the screen
   static void showTopNotificationPopup(
       BuildContext? context, RealtimeNotificationItem item) {
+    // Also push to stream so notification screen list updates seamlessly
+    _instance._streamController.add(item);
+
     final activeContext = context ?? rootNavigatorKey.currentContext;
     if (activeContext == null || !activeContext.mounted) return;
 
-    _currentOverlay?.remove();
+    if (_currentOverlay != null && _currentOverlay!.mounted) {
+      _currentOverlay!.remove();
+    }
     _currentOverlay = null;
 
     IconData iconData;
@@ -441,75 +446,87 @@ class RealtimeNotificationService {
             alignment: Alignment.topCenter,
             child: Material(
               color: Colors.transparent,
-              child: GestureDetector(
-                onTap: () {
-                  entry.remove();
+              child: Dismissible(
+                key: ValueKey('notif_dismiss_${item.id}_${DateTime.now().millisecondsSinceEpoch}'),
+                direction: DismissDirection.up,
+                onDismissed: (_) {
+                  if (entry.mounted) {
+                    entry.remove();
+                  }
                   if (_currentOverlay == entry) _currentOverlay = null;
-                  handleNotificationTap(activeContext, item.toMap());
                 },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: iconColor.withValues(alpha: 0.6),
-                      width: 1.8,
+                child: GestureDetector(
+                  onTap: () {
+                    if (entry.mounted) {
+                      entry.remove();
+                    }
+                    if (_currentOverlay == entry) _currentOverlay = null;
+                    handleNotificationTap(activeContext, item.toMap());
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: iconColor.withValues(alpha: 0.6),
+                        width: 1.8,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: iconColor.withValues(alpha: 0.3),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                        const BoxShadow(
+                          color: Colors.black54,
+                          blurRadius: 24,
+                          offset: Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: iconColor.withValues(alpha: 0.3),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                      const BoxShadow(
-                        color: Colors.black54,
-                        blurRadius: 24,
-                        offset: Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: iconColor.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: iconColor.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(iconData, color: iconColor, size: 22),
                         ),
-                        child: Icon(iconData, color: iconColor, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item.message,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
+                              const SizedBox(height: 2),
+                              Text(
+                                item.message,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -522,9 +539,11 @@ class RealtimeNotificationService {
     _currentOverlay = entry;
     overlayState.insert(entry);
 
-    Timer(const Duration(seconds: 4), () {
+    Timer(const Duration(seconds: 5), () {
       if (_currentOverlay == entry) {
-        entry.remove();
+        if (entry.mounted) {
+          entry.remove();
+        }
         _currentOverlay = null;
       }
     });

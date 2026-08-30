@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import '../core/utils/storage_service.dart';
 import 'api_service.dart';
@@ -11,6 +12,7 @@ class AttendanceService {
     double? latitude,
     double? longitude,
   }) async {
+    debugPrint('[ATTENDANCE] Attendance API called: markAttendance (status=$status, method=$attendanceMethod)');
     final user = await StorageService.getUser();
     final employeeId = (user?['id'] ?? user?['_id'])?.toString();
     final userEmail = user?['email']?.toString();
@@ -60,7 +62,9 @@ class AttendanceService {
         ApiConstants.attendanceMark,
         data: body,
       );
-      return ApiService.toMap(response.data);
+      final resMap = ApiService.toMap(response.data);
+      debugPrint('[ATTENDANCE] Attendance saved successfully via ${ApiConstants.attendanceMark}');
+      return resMap;
     } catch (e) {
       // Fallback 1: Try /attendance/check-in
       try {
@@ -68,7 +72,9 @@ class AttendanceService {
           '/attendance/check-in',
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance/check-in');
+        return resMap;
       } catch (_) {}
 
       // Fallback 2: Try /attendance/checkin
@@ -77,7 +83,9 @@ class AttendanceService {
           '/attendance/checkin',
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance/checkin');
+        return resMap;
       } catch (_) {}
 
       // Fallback 3: Try /attendance (POST)
@@ -86,9 +94,12 @@ class AttendanceService {
           '/attendance',
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance');
+        return resMap;
       } catch (_) {}
 
+      debugPrint('[ATTENDANCE] Attendance API save failed: $e');
       rethrow;
     }
   }
@@ -234,12 +245,16 @@ class AttendanceService {
       body['long'] = longitude;
     }
 
+    debugPrint('[ATTENDANCE] Attendance API called: scanAttendance (token=$attendanceToken, sessionId=$sessionId)');
+
     try {
       final response = await ApiService.post(
         ApiConstants.attendanceScan,
         data: body,
       );
-      return ApiService.toMap(response.data);
+      final resMap = ApiService.toMap(response.data);
+      debugPrint('[ATTENDANCE] Attendance saved successfully via ${ApiConstants.attendanceScan}');
+      return resMap;
     } catch (e) {
       // Fallback 1: Try /attendance/qr-checkin
       try {
@@ -247,7 +262,9 @@ class AttendanceService {
           ApiConstants.attendanceQrCheckin,
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via ${ApiConstants.attendanceQrCheckin}');
+        return resMap;
       } catch (_) {}
 
       // Fallback 2: Try /attendance/qr/checkin
@@ -256,7 +273,9 @@ class AttendanceService {
           '/attendance/qr/checkin',
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance/qr/checkin');
+        return resMap;
       } catch (_) {}
 
       // Fallback 3: Try /attendance/qr-mark
@@ -265,7 +284,9 @@ class AttendanceService {
           '/attendance/qr-mark',
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance/qr-mark');
+        return resMap;
       } catch (_) {}
 
       // Fallback 4: Try /attendance/mark with scan body
@@ -274,9 +295,12 @@ class AttendanceService {
           ApiConstants.attendanceMark,
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via /attendance/mark');
+        return resMap;
       } catch (_) {}
 
+      debugPrint('[ATTENDANCE] Attendance scan API failed: $e');
       rethrow;
     }
   }
@@ -298,6 +322,7 @@ class AttendanceService {
 
   // Check out
   static Future<Map<String, dynamic>> checkOut() async {
+    debugPrint('[ATTENDANCE] Attendance API called: checkOut');
     final Map<String, dynamic> body = {};
 
     try {
@@ -305,15 +330,20 @@ class AttendanceService {
         ApiConstants.attendanceCheckout,
         data: body,
       );
-      return ApiService.toMap(response.data);
+      final resMap = ApiService.toMap(response.data);
+      debugPrint('[ATTENDANCE] Attendance saved successfully via ${ApiConstants.attendanceCheckout}');
+      return resMap;
     } catch (e) {
       try {
         final response = await ApiService.post(
           ApiConstants.attendanceCheckout,
           data: body,
         );
-        return ApiService.toMap(response.data);
+        final resMap = ApiService.toMap(response.data);
+        debugPrint('[ATTENDANCE] Attendance saved successfully via POST ${ApiConstants.attendanceCheckout}');
+        return resMap;
       } catch (_) {}
+      debugPrint('[ATTENDANCE] Attendance checkout API failed: $e');
       rethrow;
     }
   }
