@@ -96,7 +96,7 @@ class SocketService {
         'role': role,
       };
 
-      final Map<String, dynamic> extraHeaders = {};
+      final Map<String, String> extraHeaders = {};
       if (token != null && token.isNotEmpty) {
         extraHeaders['Authorization'] = 'Bearer $token';
       }
